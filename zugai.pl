@@ -1,5 +1,6 @@
+:- [lex, pptree].
 :- use_module(library(dcg/high_order)).
-% ?- phrase(discourse(S), [gi-4, da-8]), !.
+% ?- phrase(discourse(S), [gi-4, da-8]), pptree(S), !.
 % S = dicourse([sentence(sentence_connector(), statement(prenex(), predication(predicate(vp(nonserial(verb(gi)))), terms([]))), illocution(da-8))]).
 
 % TODO: complementizers, la4 as sentence start, connectives, free modifiers
