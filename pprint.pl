@@ -3,7 +3,7 @@ indent(String, Indented) :-
 
 layout(Term, [Line]) :-
   \+ compound(Term), !,
-  format(string(Line), '"~w"', [Term]).
+  format(string(Line), '~w', [Term]).
 
 layout(X-Y, [Line]) :-
   \+ compound(X),
