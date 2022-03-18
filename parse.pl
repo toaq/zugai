@@ -9,14 +9,14 @@ discourse(discourse(Ds)) --> sequence(discourse_item, Ds).
 discourse_item(D) --> (sentence(D), !) | fragment(D).
 
 sentence(sentence(C,S,I)) -->
-    (sentence_connector(C) | { C=sentence_connector(ø) }),
+    (sentence_connector(C) | { C=sentence_connector([]) }),
     statement(S),
-    (illocution(I) | { I = illocution(ø) }).
+    (illocution(I) | { I = illocution([]) }).
 
 fragment(fragment(F)) --> prenex(F) | terms1(F).
 
-statement(statement(P,Q)) --> (prenex(P) | { P=prenex(ø) }), predication(4, Q).
-statement1(statement(P,Q)) --> (prenex(P) | { P=prenex(ø) }), predication1(4, Q).
+statement(statement(P,Q)) --> (prenex(P) | { P=prenex([]) }), predication(4, Q).
+statement1(statement(P,Q)) --> (prenex(P) | { P=prenex([]) }), predication1(4, Q).
 
 prenex(prenex(Ts)) --> terms1(Ts), end_prenex.
 end_prenex --> [bi-8].
