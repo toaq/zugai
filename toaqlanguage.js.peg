@@ -1,0 +1,787 @@
+// Toaq PEG Parser
+// Toaq Gamma version by Lynn / mi Lina.
+
+{
+  function _join(arg)
+  {
+    if (typeof(arg) == "string")
+      return arg;
+    else
+    {
+      ret = "";
+      for (v in arg) { ret += _join(arg[v]); }
+      return ret;
+    }
+  }
+
+  function _node(label, arg)
+  {
+    var ret = [];
+    if (label != undefined) ret.push( label );
+    if (typeof( arg ) == "object" && typeof( arg[0] ) == "string" && arg[0] != "")
+    {
+      ret.push( arg );
+      return ret;
+    }
+    return _node_int(label, arg);
+  } 
+
+  function _node_int(label, arg)
+  {
+    if (typeof( arg ) == "string")
+      return arg;
+    var ret = [];
+    if (label != undefined) ret.push( label );
+    for (v in arg)
+    {
+      if (arg[v].length != 0)
+        ret.push( _node_int( undefined, arg[v] ) );
+    }
+    return ret;
+  }
+ 
+  function _node2(label, arg1, arg2)
+  {
+    return [label].concat(_node(arg1)).concat(_node(arg2));
+  }
+
+  function _node_nonempty(label, arg)
+  {
+    var _n = _node(label, arg);
+    return (_n.length == 1 && _n[0] == label) ? [] : _n;
+  }
+  
+  function is_string(v) {
+    return typeof v.valueOf() === 'string';
+  }
+}
+
+// X = expr:(  ) {return _node("X", expr);}
+
+
+text "text" = expr:(spaces? freemod? spaces? discourse? spaces? EOF?) {return _node("text", expr);}
+
+// -----------SYNTAX------------
+
+// DISCOURSE
+// X = expr:(  ) {return _node("X", expr);}
+
+
+discourse = expr:( ( sentence / fragment )+ ) {return _node("discourse", expr);}
+
+sentence = expr:( coP_sentence / sentence_1 ) {return _node("sentence", expr);}
+
+sentence_1 = expr:( forethought_coP_sentence / sentence_2 ) {return _node("sentence", expr);}
+
+sentence_2 = expr:( spaces? sentence_prefix? sentence_3 ) {return _node("S", expr);}
+
+sentence_3 = expr:( spaces? ( statement / LA_predication ) spaces? illocutionary? ) {return _node("S", expr);}
+
+LA_predication = expr:( LA_predicate_tone spaces? predication ) {return _node("predication", expr);}
+
+LA_predicate_tone = expr:( LA verb_tone ) {return ["starter", _join(expr)];}
+
+
+fragment = expr:( spaces? coP_rel / spaces? relative_clause / spaces? prenex / spaces? terms ) {return _node("fragment", expr);}
+
+
+coP_sentence = expr:( sentence_1 spaces? co_bar_sentence ) {return _node("CoP(S)", expr);}
+
+co_bar_sentence = expr:( connective spaces? sentence_1 ) {return _node("Co'", expr);}
+
+
+forethought_coP_sentence = expr:( forethought_connective spaces? forethought_coP_sentence_1 ) {return _node("forethoughtCoP(S)", expr);}
+
+forethought_coP_sentence_1 = expr:( sentence spaces? forethought_co_bar_sentence ) {return _node("CoP(S)", expr);}
+
+forethought_co_bar_sentence = expr:( gik spaces? sentence ) {return _node("Co'", expr);}
+
+
+
+// SENTENCE and STATEMENT
+// X = expr:(  ) {return _node("X", expr);}
+
+sentence_prefix = expr:( ( k e o / j e / t i u / n h u ) &boundary ) {return ["prefix", _join(expr)];}
+
+statement = expr:( coP_statement / statement_1 ) {return _node("statement", expr);}
+
+statement_1 = expr:( forethought_coP_statement / statement_2 ) {return _node("statement", expr);}
+
+statement_2 = expr:( statement_3 end_statement? ) {return _node("statement", expr);}
+
+statement_3 = expr:( prenex? spaces? predication ) {return _node("statement", expr);}
+
+prenex = expr:( terms spaces? end_prenex ) {return _node("prenex", expr);}
+
+predication = expr:( predicate spaces? terms? ) {return _node("predication", expr);}
+
+
+coP_statement = expr:( statement_1 spaces? co_bar_statement ) {return _node("CoP(Statement)", expr);}
+
+co_bar_statement = expr:( connective spaces? statement_1 ) {return _node("Co'", expr);}
+
+
+forethought_coP_statement = expr:( forethought_connective spaces? forethought_coP_statement_1 ) {return _node("forethoughtCoP(Statement)", expr);}
+
+forethought_coP_statement_1 = expr:( statement spaces? forethought_co_bar_statement ) {return _node("CoP(Statement)", expr);}
+
+forethought_co_bar_statement = expr:( gik spaces? statement ) {return _node("Co'", expr);}
+
+
+
+// PREDICATES
+// X = expr:(  ) {return _node("X", expr);}
+
+predicate = expr:( serial_predicate ) {return _node("predicate", expr);}
+
+predicate_1 = expr:( coP_pred / predicate_2 ) {return _node("predicate", expr);}
+
+predicate_2 = expr:( forethought_coP_pred / LU_predicate / MI_predicate / PO_predicate / quotation_predicate / prefix spaces? predicate_2 / predicate_3 ) {return _node("predicate", expr);}
+
+predicate_3 = expr:( predicate_4 spaces? freemod? ) {return _node("predicate", expr);}
+
+predicate_4 = expr:( predicate_word verb_tone ) {return ["predicate", _join(expr)];}
+
+
+serial_predicate = expr:( serial_predicate_2 / predicate_1 ) {return _node("serialpredicate", expr);}
+
+serial_predicate_2 = expr:( predicate_1 spaces? serial_predicate ) {return _node("serialpredicate_2", expr);}
+
+
+coP_pred = expr:( predicate_2 spaces? co_bar_pred ) {return _node("CoP(VP)", expr);}
+
+co_bar_pred = expr:( connective spaces? predicate_1 ) {return _node("Co'", expr);}
+
+
+forethought_coP_pred = expr:( forethought_connective spaces? forethought_coP_pred_1 ) {return _node("forethoughtCoP(V)", expr);}
+
+forethought_coP_pred_1 = expr:( predicate spaces? forethought_co_bar_pred ) {return _node("CoP(V)", expr);}
+
+forethought_co_bar_pred = expr:( gik spaces? predicate ) {return _node("Co'", expr);}
+
+
+LU_predicate = expr:( LU_predicate_tone spaces? statement spaces? end_LU? ) {return _node("VP", expr);}
+
+LU_predicate_tone = expr:( LU verb_tone ) {return ["predicatizer", _join(expr)];}
+
+
+MI_predicate = expr:( MI_predicate_1 spaces? GA? ) {return _node("VP", expr);}
+
+MI_predicate_1 = expr:( MI_predicate_tone spaces? ( predicate / argument / adverb / prepositional_phrase ) ) {return _node("VP", expr);}
+
+MI_predicate_tone = expr:( MI verb_tone ) {return ["predicatizer", _join(expr)];}
+
+
+PO_predicate = expr:( PO_predicate_1 spaces? GA? ) {return _node("VP", expr);}
+
+PO_predicate_1 = expr:( PO_predicate_tone spaces? argument ) {return _node("VP", expr);}
+
+PO_predicate_tone = expr:( PO verb_tone ) {return ["predicatizer", _join(expr)];}
+
+
+quotation_predicate = expr:( MO_predicate spaces? TEO ) {return _node("VP", expr);}
+
+MO_predicate = expr:( MO_predicate_tone spaces? discourse ) {return _node("VP", expr);}
+
+MO_predicate_tone = expr:( MO verb_tone ) {return ["quote", _join(expr)];}
+
+
+
+// CONNECTIVES
+// X = expr:(  ) {return _node("X", expr);}
+
+connective = expr:( ( r a / r u / r i / r o i / r o / r e ) &boundary ) {return ["Co", _join(expr)];}
+
+
+
+// TERMS
+// X = expr:(  ) {return _node("X", expr);}
+
+terms = expr:( terms_2 / term ) {return _node("terms", expr);}
+
+terms_2 = expr:( term spaces? terms ) {return _node("terms", expr);}
+
+term = expr:( ( linking_word? spaces? argument ) / adverb / termset / prepositional_phrase ) {return _node("term", expr);}
+
+
+
+// LINKING WORDS
+// X = expr:(  ) {return _node("X", expr);}
+
+linking_word = expr:( ( f i / g o / c u ) &boundary ) {return ["case", _join(expr)];}
+
+
+
+// ARGUMENTS
+// X = expr:(  ) {return _node("X", expr);}
+
+argument = expr:( coP_arg / arg_1 ) {return _node("NP", expr);}
+
+arg_1 = expr:( forethought_coP_arg / arg_2 ) {return _node("NP", expr);}
+
+arg_2 = expr:( focus? spaces? arg_3 ) {return _node("NP", expr);}
+
+arg_3 = expr:( arg_4 spaces? ( relative_clause / freemod )? ) {return _node("NP", expr);}
+
+arg_4 = expr:( quantifier spaces? predicate? / arg_5 ) {return _node("NP", expr);}
+
+arg_5 = expr:( serial_argument / arg_6 ) {return _node("NP", expr);}
+
+arg_6 = expr:( content_clause / coP_pred_arg / forethought_coP_pred_arg / LU_arg / MI_arg / PO_arg / quotation_argument / arg_7 ) {return _node("NP", expr);}
+
+arg_7 = expr:( predicate_word arg_tone ) {return ["NP", _join(expr)];}
+
+
+serial_argument = expr:( arg_6 spaces? serial_predicate ) {return _node("serialargument", expr);}
+
+
+coP_arg = expr:( arg_1 spaces? co_bar_arg ) {return _node("CoP(NP)", expr);}
+
+co_bar_arg = expr:( connective spaces? argument ) {return _node("Co'", expr);}
+
+
+forethought_coP_arg = expr:( forethought_connective spaces? forethought_coP_arg_1 ) {return _node("forethoughtCoP(NP)", expr);}
+
+forethought_coP_arg_1 = expr:( argument spaces? forethought_co_bar_arg ) {return _node("CoP(NP)", expr);}
+
+forethought_co_bar_arg = expr:( gik spaces? argument ) {return _node("Co'", expr);}
+
+
+coP_pred_arg = expr:( arg_7 spaces? co_bar_pred ) {return _node("CoP(NP)", expr);}
+
+
+forethought_coP_pred_arg = expr:( forethought_connective spaces? forethought_coP_pred_arg_1 ) {return _node("forethoughtCoP(NP)", expr);}
+
+forethought_coP_pred_arg_1 = expr:( argument spaces? forethought_co_bar_pred ) {return _node("CoP(VP)", expr);}
+
+
+LU_arg = expr:( LU_arg_tone spaces? statement ) {return _node("NP", expr);}
+
+LU_arg_tone = expr:( LU arg_tone ) {return ["predicatizer", _join(expr)];}
+
+
+MI_arg = expr:( MI_arg_1 spaces? GA? ) {return _node("NP", expr);}
+
+MI_arg_1 = expr:( MI_arg_tone spaces? ( predicate / argument / adverb / prepositional_phrase ) ) {return _node("NP", expr);}
+
+MI_arg_tone = expr:( MI arg_tone ) {return ["predicatizer", _join(expr)];}
+
+
+PO_arg = expr:( PO_arg_1 spaces? GA? ) {return _node("NP", expr);}
+
+PO_arg_1 = expr:( PO_arg_tone spaces? argument ) {return _node("NP", expr);}
+
+PO_arg_tone = expr:( PO arg_tone ) {return ["predicatizer", _join(expr)];}
+
+
+quotation_argument = expr:( MO_argument spaces? TEO ) {return _node("NP", expr);}
+
+MO_argument = expr:( MO_argument_tone spaces? discourse ) {return _node("NP", expr);}
+
+MO_argument_tone = expr:( MO arg_tone ) {return ["quote", _join(expr)];}
+
+
+
+// RELATIVE CLAUSES
+// X = expr:(  ) {return _node("X", expr);}
+
+relative_clause = expr:( coP_rel / LU_relative / relative_clause_1 ) {return _node("relative", expr);}
+
+relative_clause_1 = expr:( forethought_coP_rel / relative_clause_2 ) {return _node("relative", expr);}
+
+relative_clause_2 = expr:( coP_rel_statement / relative_clause_3 ) {return _node("relative", expr);}
+
+relative_clause_3 = expr:( relative_predication spaces? end_statement? ) {return _node("relative", expr);}
+
+relative_predication = expr:( relative_predicate spaces? terms? ) {return _node("relative", expr);}
+
+
+coP_rel_statement = expr:( relative_clause_3 spaces? co_bar_statement ) {return _node("CoP(RelP)", expr);}
+
+
+coP_rel = expr:( relative_clause_1 spaces? co_bar_rel ) {return _node("CoP(Rel)", expr);}
+
+co_bar_rel = expr:( connective spaces? relative_clause_1 ) {return _node("Co'", expr);}
+
+
+forethought_coP_rel = expr:( forethought_connective spaces? forethought_coP_rel_1 ) {return _node("forethoughtCoP(RelP)", expr);}
+
+forethought_coP_rel_1 = expr:( relative_clause spaces? forethought_co_bar_rel ) {return _node("CoP(RelP)", expr);}
+
+forethought_co_bar_rel = expr:( gik spaces? relative_clause ) {return _node("Co'", expr);}
+
+
+relative_predicate = expr:( serial_relative_predicate / relative_predicate_1 ) {return _node("predicate", expr);}
+
+relative_predicate_1 = expr:( coP_pred_relative_predicate / forethought_coP_pred_relative_predicate / relative_predicate_2 ) {return _node("predicate_1", expr);}
+
+relative_predicate_2 = expr:( LA_relative_predicate / MI_relative_predicate / PO_relative_predicate / quotation_relative_predicate / relative_predicate_3 ) {return _node("predicate_1", expr);}
+
+relative_predicate_3 = expr:( predicate_word relative_tone ) {return ["predicate_2", _join(expr)];}
+
+
+serial_relative_predicate = expr:( relative_predicate_1 spaces? serial_predicate ) {return _node("serialrelative", expr);}
+
+
+coP_pred_relative_predicate = expr:( relative_predicate_2 spaces? co_bar_pred ) {return _node("CoP(VP)", expr);}
+
+
+forethought_coP_pred_relative_predicate = expr:( forethought_connective spaces? forethought_coP_pred_relative_predicate_1 ) {return _node("forethoughtCoP(VP)", expr);}
+
+forethought_coP_pred_relative_predicate_1 = expr:( relative_predicate spaces? forethought_co_bar_pred ) {return _node("CoP(VP)", expr);}
+
+
+LU_relative = expr:( LU_relative_tone spaces? statement spaces? end_LU? ) {return _node("RelP", expr);}
+
+LU_relative_tone = expr:( LU relative_tone ) {return ["predicatizer", _join(expr)];}
+
+
+LA_relative_predicate = expr:( LA_relative_tone spaces? predicate ) {return _node("RelP", expr);}
+
+LA_relative_tone = expr:( LA relative_tone ) {return ["starter", _join(expr)];}
+
+
+MI_relative_predicate = expr:( MI_relative_predicate_1 spaces? GA? ) {return _node("RelP", expr);}
+
+MI_relative_predicate_1 = expr:( MI_relative_predicate_tone spaces? ( predicate / argument / adverb / prepositional_phrase ) ) {return _node("RelP", expr);}
+
+MI_relative_predicate_tone = expr:( MI relative_tone ) {return ["predicatizer", _join(expr)];}
+
+
+PO_relative_predicate = expr:( PO_relative_predicate_1 spaces? GA? ) {return _node("RelP", expr);}
+
+PO_relative_predicate_1 = expr:( PO_relative_predicate_tone spaces? argument ) {return _node("RelP", expr);}
+
+PO_relative_predicate_tone = expr:( PO relative_tone ) {return ["predicatizer", _join(expr)];}
+
+
+quotation_relative_predicate = expr:( MO_relative_predicate spaces? TEO ) {return _node("RelP", expr);}
+
+MO_relative_predicate = expr:( MO_relative_predicate_tone spaces? discourse ) {return _node("RelP", expr);}
+
+MO_relative_predicate_tone = expr:( MO relative_tone ) {return ["quote", _join(expr)];}
+
+
+
+// TERMSETS
+// X = expr:(  ) {return _node("X", expr);}
+
+// termset = expr:( termset_V / termset_IV / termset_III / termset_II ) {return _node("Termset", expr);}
+// termset_II = expr:( forethought_connective spaces? forethought_coP_term_II ) {return _node("Termset", expr);}
+// forethought_coP_term_II = expr:( terms_II spaces? forethought_co_bar_term_II ) {return _node("CoP(NP)", expr);}
+// forethought_co_bar_term_II = expr:( gik spaces? terms_II ) {return _node("Co'", expr);}
+// termset_III = expr:( forethought_connective spaces? forethought_coP_term_III ) {return _node("Termset", expr);}
+// forethought_coP_term_III = expr:( terms_III spaces? forethought_co_bar_term_III ) {return _node("CoP(NP)", expr);}
+// forethought_co_bar_term_III = expr:( gik spaces? terms_III ) {return _node("Co'", expr);}
+
+termset = expr:( forethought_connective spaces? balanced_terms ) { return _node("Termset", expr); }
+balanced_terms = expr:( gik / term spaces? term_co ) { return _node("balance", expr); }
+term_co = expr:( balanced_terms spaces? term ) { return _node("coterm", expr); }
+
+forethought_connective = expr:( spaces? forethought_marker spaces? connective ) {return _node("forethoughtconnective", expr);}
+
+forethought_marker = expr:( t o &boundary ) {return ["forethoughtmarker", _join(expr)];}
+
+gik = expr:( t o &boundary ) {return ["medialseparator", _join(expr)];}
+
+
+terms_II = expr:( term spaces? term ) {return _node("terms", expr);}
+
+terms_III = expr:( term spaces? terms_II ) {return _node("terms", expr);}
+
+terms_IV = expr:( term spaces? terms_III ) {return _node("terms", expr);}
+
+terms_V = expr:( term spaces? terms_IV ) {return _node("terms", expr);}
+
+
+
+// ADVERBS
+// X = expr:(  ) {return _node("X", expr);}
+
+adverb = expr:( coP_adverb / adverb_1 ) {return _node("adverb", expr);}
+
+adverb_1 = expr:( forethought_coP_adverb / adverb_2 ) {return _node("adverb_1", expr);}
+
+adverb_2 = expr:( serial_adverb / adverb_3 ) {return _node("adverb_2", expr);}
+
+adverb_3 = expr:( coP_pred_adverb / forethought_coP_pred_adverb / LU_adverb / MI_adverb / PO_adverb / quotation_adverb / adverb_4 ) {return _node("adverb_3", expr);}
+
+adverb_4 = expr:( predicate_word adverb_tone ) {return ["adverb_4", _join(expr)];}
+
+
+coP_adverb = expr:( adverb_1 spaces? co_bar_adverb ) {return _node("CoP(Adv)", expr);}
+
+co_bar_adverb = expr:( connective spaces? adverb ) {return _node("Co'", expr);}
+
+
+forethought_coP_adverb = expr:( forethought_connective spaces? forethought_coP_adverb_1 ) {return _node("forethoughtCoP(AdvP)", expr);}
+
+forethought_coP_adverb_1 = expr:( adverb spaces? forethought_co_bar_adverb ) {return _node("CoP(AdvP)", expr);}
+
+forethought_co_bar_adverb = expr:( gik spaces? adverb ) {return _node("Co'", expr);}
+
+
+serial_adverb = expr:( adverb_3 spaces? serial_predicate ) {return _node("serialadverb", expr);}
+
+
+coP_pred_adverb = expr:( adverb_4 spaces? co_bar_pred ) {return _node("CoP(AdvP)", expr);}
+
+
+forethought_coP_pred_adverb = expr:( forethought_connective spaces? forethought_coP_pred_adverb_1 ) {return _node("forethoughtCoP(AdvP)", expr);}
+
+forethought_coP_pred_adverb_1 = expr:( adverb spaces? forethought_co_bar_pred ) {return _node("CoP(VP)", expr);}
+
+
+LU_adverb = expr:( LU_adverb_tone spaces? statement ) {return _node("AdvP", expr);}
+
+LU_adverb_tone = expr:( LU adverb_tone ) {return ["predicatizer", _join(expr)];}
+
+
+MI_adverb = expr:( MI_adverb_1 spaces? GA? ) {return _node("AdvP", expr);}
+
+MI_adverb_1 = expr:( MI_adverb_tone spaces? ( predicate / argument / adverb / prepositional_phrase ) ) {return _node("AdvP", expr);}
+
+MI_adverb_tone = expr:( MI adverb_tone ) {return ["predicatizer", _join(expr)];}
+
+
+PO_adverb = expr:( PO_adverb_1 spaces? GA? ) {return _node("AdvP", expr);}
+
+PO_adverb_1 = expr:( PO_adverb_tone spaces? argument ) {return _node("AdvP", expr);}
+
+PO_adverb_tone = expr:( PO adverb_tone ) {return ["predicatizer", _join(expr)];}
+
+
+quotation_adverb = expr:( MO_adverb spaces? TEO ) {return _node("AdvP", expr);}
+
+MO_adverb = expr:( MO_adverb_tone spaces? discourse ) {return _node("AdvP", expr);}
+
+MO_adverb_tone = expr:( MO adverb_tone ) {return ["quote", _join(expr)];}
+
+
+
+// PREPOSITIONAL PHRASES
+// X = expr:(  ) {return _node("X", expr);}
+
+prepositional_phrase = expr:( coP_prepositional_phrase / prepositional_phrase_1 ) {return _node("prepositionalphrase", expr);}
+
+prepositional_phrase_1 = expr:( forethought_coP_prepositional_phrase / prepositional_phrase_2 ) {return _node("PP", expr);}
+
+prepositional_phrase_2 = expr:( preposition spaces? argument ) {return _node("PP", expr);}
+
+
+coP_prepositional_phrase = expr:( prepositional_phrase_1 spaces? co_bar_prepositional_phrase ) {return _node("CoP(PP)", expr);}
+
+co_bar_prepositional_phrase = expr:( connective spaces? prepositional_phrase_1 ) {return _node("Co'", expr);}
+
+
+forethought_coP_prepositional_phrase = expr:( forethought_connective spaces? forethought_coP_prepositional_phrase_1 ) {return _node("forethoughtCoP(PP)", expr);}
+
+forethought_coP_prepositional_phrase_1 = expr:( prepositional_phrase spaces? forethought_co_bar_prepositional_phrase ) {return _node("CoP(PP)", expr);}
+
+forethought_co_bar_prepositional_phrase = expr:( gik spaces? prepositional_phrase ) {return _node("Co'", expr);}
+
+
+preposition = expr:( coP_preposition / preposition_1 ) {return _node("preposition", expr);}
+
+preposition_1 = expr:( forethought_coP_preposition / preposition_2 ) {return _node("prep", expr);}
+
+preposition_2 = expr:( serial_preposition / preposition_3 ) {return _node("prep", expr);}
+
+preposition_3 = expr:( coP_pred_preposition / forethought_coP_pred_preposition / LU_preposition / MI_preposition / PO_preposition / quotation_preposition / preposition_4 ) {return _node("prep", expr);}
+
+preposition_4 = expr:( predicate_word preposition_tone ) {return ["P", _join(expr)];}
+
+
+coP_preposition = expr:( preposition_1 spaces? co_bar_preposition ) {return _node("CoP(P)", expr);}
+
+co_bar_preposition = expr:( connective spaces? preposition ) {return _node("Co'", expr);}
+
+
+forethought_coP_preposition = expr:( forethought_connective spaces? forethought_coP_preposition_1 ) {return _node("forethoughtCoP(P)", expr);}
+
+forethought_coP_preposition_1 = expr:( preposition spaces? forethought_co_bar_preposition ) {return _node("CoP(P)", expr);}
+
+forethought_co_bar_preposition = expr:( gik spaces? preposition ) {return _node("Co'", expr);}
+
+
+serial_preposition = expr:( preposition_3 spaces? serial_predicate ) {return _node("serialP", expr);}
+
+
+coP_pred_preposition = expr:( preposition_4 spaces? co_bar_pred ) {return _node("CoP(P)", expr);}
+
+
+forethought_coP_pred_preposition = expr:( forethought_connective spaces? forethought_coP_pred_preposition_1 ) {return _node("forethoughtCoP(P)", expr);}
+
+forethought_coP_pred_preposition_1 = expr:( preposition spaces? forethought_co_bar_pred ) {return _node("CoP(P)", expr);}
+
+
+LU_preposition = expr:( LU_preposition_tone spaces? statement ) {return _node("P", expr);}
+
+LU_preposition_tone = expr:( LU preposition_tone ) {return ["predicatizer", _join(expr)];}
+
+
+MI_preposition = expr:( MI_preposition_1 spaces? GA? ) {return _node("P", expr);}
+
+MI_preposition_1 = expr:( MI_preposition_tone spaces? ( predicate / argument / adverb / prepositional_phrase ) ) {return _node("P", expr);}
+
+MI_preposition_tone = expr:( MI preposition_tone ) {return ["predicatizer", _join(expr)];}
+
+
+PO_preposition = expr:( PO_preposition_1 spaces? GA? ) {return _node("P", expr);}
+
+PO_preposition_1 = expr:( PO_preposition_tone spaces? argument ) {return _node("P", expr);}
+
+PO_preposition_tone = expr:( PO preposition_tone ) {return ["predicatizer", _join(expr)];}
+
+
+quotation_preposition = expr:( MO_preposition spaces? TEO ) {return _node("P", expr);}
+
+MO_preposition = expr:( MO_preposition_tone spaces? discourse ) {return _node("P", expr);}
+
+MO_preposition_tone = expr:( MO preposition_tone ) {return ["quote", _join(expr)];}
+
+
+
+// CONTENT CLAUSES
+// X = expr:(  ) {return _node("X", expr);}
+
+content_clause = expr:( coP_content_statement / content_clause_1 ) {return _node("content", expr);}
+
+content_clause_1 = expr:( content_predication spaces? end_CP? / LU_content ) {return _node("content", expr);}
+
+content_predication = expr:( content_predicate spaces? terms? ) {return _node("content_2", expr);}
+
+
+coP_content_statement = expr:( content_clause_1 spaces? co_bar_statement ) {return _node("CoP(CP)", expr);}
+
+
+content_predicate = expr:( serial_content_predicate / content_predicate_1 ) {return _node("predicate", expr);}
+
+content_predicate_1 = expr:( coP_pred_content_predicate / forethought_coP_pred_content_predicate / content_predicate_2 ) {return _node("predicate_1", expr);}
+
+content_predicate_2 = expr:( LA_content_predicate / MI_content_predicate / PO_content_predicate / quotation_content_predicate / content_predicate_3 ) {return _node("predicate_2", expr);}
+
+content_predicate_3 = expr:( predicate_word content_tone ) {return ["predicate_3", _join(expr)];}
+
+
+serial_content_predicate = expr:( content_predicate_1 spaces? serial_predicate ) {return _node("serialP", expr);}
+
+
+coP_pred_content_predicate = expr:( content_predicate_2 spaces? co_bar_pred ) {return _node("CoP(VP)", expr);}
+
+
+forethought_coP_pred_content_predicate = expr:( forethought_connective spaces? forethought_coP_pred_content_predicate_1 ) {return _node("forethoughtCoP(VP)", expr);}
+
+forethought_coP_pred_content_predicate_1 = expr:( content_predicate spaces? forethought_co_bar_pred ) {return _node("CoP(VP)", expr);}
+
+
+LA_content_predicate = expr:( LA_content_tone spaces? predicate ) {return _node("VP", expr);}
+
+LA_content_tone = expr:( LA content_tone ) {return ["starter", _join(expr)];}
+
+
+LU_content = expr:( LU_content_tone statement spaces? end_LU? ) {return _node("CP", expr);}
+
+LU_content_tone = expr:( LU content_tone ) {return ["predicatizer", _join(expr)];}
+
+
+MI_content_predicate = expr:( MI_content_predicate_1 spaces? GA? ) {return _node("VP", expr);}
+
+MI_content_predicate_1 = expr:( MI_content_tone spaces? ( predicate / argument / adverb / prepositional_phrase ) ) {return _node("VP", expr);}
+
+MI_content_tone = expr:( MI content_tone ) {return ["predicatizer", _join(expr)];}
+
+
+PO_content_predicate = expr:( PO_content_predicate_1 spaces? GA? ) {return _node("VP", expr);}
+
+PO_content_predicate_1 = expr:( PO_content_tone spaces? argument ) {return _node("VP", expr);}
+
+PO_content_tone = expr:( PO content_tone ) {return ["predicatizer", _join(expr)];}
+
+
+quotation_content_predicate = expr:( MO_content_predicate spaces? TEO ) {return _node("VP", expr);}
+
+MO_content_predicate = expr:( MO_content_predicate_tone spaces? discourse ) {return _node("VP", expr);}
+
+MO_content_predicate_tone = expr:( MO content_tone ) {return ["quote", _join(expr)];}
+
+
+
+// FREE MODIFIERS / INTERJECTIONS
+// X = expr:(  ) {return _node("X", expr);}
+
+freemod = expr:( spaces? ( interjection / parenthetical / incidental / vocative ) spaces? freemod? ) {return _node("freemod", expr);}
+
+interjection = expr:( (
+  i f u / a j a / a h i / u m e / u f u /
+  a / u a / o b e / u p a / b u z y / o a i / u b a i /
+  e n i / a i b a / o b e /
+  e / n h o / z i / j a d i / k i j i / j i k i
+) tone? &boundary ) {return ["interjection", _join(expr)];}
+
+parenthetical = expr:( parenthetical_1 spaces? end_parenthetical ) {return _node("parenthetical", expr);}
+
+parenthetical_1 = expr:( start_parenthetical spaces? discourse ) {return _node("parenthetical", expr);}
+
+// ju takes a sentence: https://toaqlanguage.wordpress.com/2021/08/13/miscellanea-3/
+incidental = expr:( spaces? start_incidental freemod? sentence ) {return _node("incidental", expr);}
+
+
+
+// VOCATIVE
+// X = expr:(  ) {return _node("X", expr);}
+
+vocative = expr:( vocative_marker spaces? argument ) {return _node("vocative", expr);}
+
+
+
+// PREFIX MODIFIERS
+// X = expr:(  ) {return _node("X", expr);}
+
+prefix = expr:( prefix_1 freemod? ) {return _node("prefix", expr);}
+
+prefix_1 = expr:( m u &boundary ) {return ["prefix", _join(expr)];}
+
+
+focus = expr:( ( k u / t o u / b e i / m a o / j u a q ) &boundary ) {return ["focus", _join(expr)];}
+
+
+
+// END SENTENCE
+end_statement = expr:( end_statement_1 freemod? ) {return _node("end", expr);}
+
+end_statement_1 = expr:( ( n a &boundary ) ) {return ["end_1", _join(expr)];}
+
+// END CP
+end_CP = expr:( end_CP_1 freemod? ) {return _node("end", expr);}
+
+end_CP_1 = expr:( ( c y &boundary ) ) {return ["end_1", _join(expr)];}
+
+// END LU
+end_LU = expr:( end_LU_1 freemod? ) {return _node("end", expr);}
+
+end_LU_1 = expr:( ( k y &boundary ) ) {return ["end_1", _join(expr)];}
+
+// {return (expr == "") ? ["BEhO"] : _node("BEhO", expr);}
+
+null = expr:( o? ) {return (expr == "") ? ["BEhO"] : _node("BEhO", expr);}
+
+
+
+// ILLOCUTIONARY
+
+illocutionary = expr:( illocutionary_1 ) {return _node("illocution", expr);}
+
+illocutionary_1 = expr:( ( m o q / d a / n h a / k a / b a / s h o u ) tone? &boundary ) {return ["illocution", _join(expr)];}
+
+
+
+// MATH EXPRESSIONS
+// X = expr:(  ) {return _node("X", expr);}
+
+quantifier = expr:( ( t u / t u q / t u s h i / s i a / s a / h o i / h i / j a / k e / b a q / c o ) &boundary ) {return ["quantifier", _join(expr)];}
+
+
+
+// -----------MORPHOLOGY------------
+//  = expr:(  ) {return _join(expr);}
+
+// -------------TONES----------------
+
+tone = expr:( arg_tone / verb_tone / relative_tone / adverb_tone / preposition_tone / content_tone ) {return _join(expr);}
+
+arg_tone = [\/2] {return "\/";}
+
+relative_tone = [V"3] {return "V";}
+
+verb_tone = [\?4] {return "?";}
+
+content_tone = [5\^] {return "^";}
+
+preposition_tone = [\\6] {return "\\";}
+
+adverb_tone = [~7] {return "~";}
+
+
+// ----------------------------------
+
+predicate_word = expr:( !function_word word ) {return _join(expr);}
+
+function_word = expr:( sentence_prefix / connective / start_incidental / start_parenthetical / end_parenthetical / quantifier / illocutionary / end_statement / end_prenex / LA / LU / MI / PO / MO / TEO / GA / linking_word / vocative ) {return _join(expr);}
+
+end_prenex = expr:( ( b i / p a ) &boundary ) {return ["end", _join(expr)];}
+
+start_incidental = expr:( j u &boundary ) {return ["incidental", _join(expr)];}
+
+start_parenthetical = expr:( k i o &boundary ) {return ["parenthetical", _join(expr)];}
+
+end_parenthetical = expr:( k i &boundary ) {return ["end", _join(expr)];}
+
+vocative_marker = expr:( h u &boundary ) {return ["vocative", _join(expr)];}
+
+// TODO: li?
+LA = expr:( ( l a / m a / t i o ) &boundary ) {return _join(expr);}
+
+LU = expr:( l u &boundary ) {return _join(expr);}
+
+MI = expr:( ( m i r u / m i / s h u ) &boundary ) {return _join(expr);}
+
+PO = expr:( ( p o / j e i / m e a ) &boundary ) {return _join(expr);}
+
+MO = expr:( ( m o ) &boundary ) {return _join(expr);}
+
+TEO = expr:( ( t e o ) &boundary ) {return ["unquote", _join(expr)];}
+
+GA = expr:( g a &boundary ) {return ["end", _join(expr)];}
+
+word = expr:( initial? desinence (initial desinence)* &boundary ) {return _join(expr);}
+
+initial = expr:( b / c h / c / d / f / g / h / j / k / l / m / n h / n / p / r / s h / s / t / z / apostrophe ) {return _join(expr);}
+
+// https://toaqlanguage.wordpress.com/2019/10/10/the-great-root-expansion-phonology-update/
+// minus https://toaqlanguage.wordpress.com/2021/08/08/miscellanea1/
+desinence = expr:( 
+	a y / a o   / a i   / a q   / a     /
+	u y / u a o / u a i / u e q / u e   / u o i / u o q / u o / u i   / u a q / u a  / u q / u  /
+	i y / i a o / i a i / i e q / i e   / i o i / i o q / i o / i u   / i a q / i a  / i q / i  /
+	o y / o e q / o e   / o i   / o a i / o a q / o a   / o q / o u   / o     /
+	e y / e o q / e o   / e i   / e a i / e a q / e a   / e q / e     / y
+) {return _join(expr);}
+
+vowel = expr:( a / e / i / o / u / y ) {return _join(expr);}
+
+boundary = expr:( tone / spaces / EOF ) {return _join(expr);}
+
+a = [aA] {return "a";}
+b = [bB] {return "b";}
+c = [cC] {return "c";}
+d = [dD] {return "d";}
+e = [eE] {return "e";}
+f = [fF] {return "f";}
+g = [gG] {return "g";}
+h = [hH] {return "h";}
+i = [iI] {return "i";}
+j = [jJ] {return "j";}
+k = [kK] {return "k";}
+l = [lL] {return "l";}
+m = [mM] {return "m";}
+n = [nN] {return "n";}
+o = [oO] {return "o";}
+p = [pP] {return "p";}
+q = [qQ] {return "q";}
+r = [rR] {return "r";}
+s = [sS] {return "s";}
+t = [tT] {return "t";}
+u = [uU] {return "u";}
+w = [wW] {return "w";}
+y = [yY] {return "y";}
+z = [zZ] {return "z";}
+apostrophe = [xX'] { return "'";}
+
+// -------------------------------------------------------
+
+EOF = expr:(!.)  {return _join(expr);}
+
+spaces = expr:(space_char+ )  {return _join(expr);}
+
+space_char = [.\t\n\r!,\u0020] {return "";}
