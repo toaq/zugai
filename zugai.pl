@@ -1,11 +1,10 @@
+:- [pprint].
+:- [lex].
 :- use_module(library(dcg/high_order)).
+
 % ?- phrase(discourse(S), [gi-4, da-8]), !.
-% S = discourse([sentence(sentence_connector(), statement(prenex(), predication(predicate(vp(nonserial(verb(gi)))), terms([]))), illocution(da-8))]).
 
 % TODO: complementizers, la4 as sentence start, connectives, free modifiers
-% complementizers([la, ma, tio]).
-% complementizer(Tone, complementizer(C)) --> [C-Tone], { complementizers(Cs), member(C, Cs) }.
-
 discourse(discourse(Ds)) --> sequence(discourse_item, Ds).
 discourse_item(D) --> (sentence(D), !) | fragment(D).
 
@@ -16,14 +15,15 @@ sentence(sentence(C,S,I)) -->
 
 fragment(fragment(F)) --> prenex(F) | terms1(F).
 
-statement(statement(P,Q)) -->
-    (prenex(P) | { P=prenex(ø) }),
-    predication(4,Q).
+statement(statement(P,Q)) --> (prenex(P) | { P=prenex(ø) }), predication(4, Q).
+statement1(statement(P,Q)) --> (prenex(P) | { P=prenex(ø) }), predication1(4, Q).
 
 prenex(prenex(Ts)) --> terms1(Ts), end_prenex.
 end_prenex --> [bi-8].
 
-predication(Tone, predication(P,Ts)) --> predicate(Tone, P), terms(Ts).
+predication(Tone, compp(C,S)) --> complementizer(Tone, C), !, statement1(S).
+predication(Tone, P) --> predication1(Tone, P).
+predication1(Tone, predication(P,Ts)) --> predicate(Tone, P), terms(Ts).
 predicate(Tone, predicate(P)) --> vp(Tone, P).
 
 terms1(T) --> terms(T), { T = terms([_|_]) }.
@@ -62,24 +62,37 @@ oiv(Tone, V) --> [V-Tone], { oivs(Vs), member(V, Vs) }.
 verb(Tone, verb(W-Tone)) --> [W-Tone], { \+ function_word(W) }.
 
 dp(dp(D,VP)) --> determiner(D), vp(4, VP).
+
+determiners([sa, tu, tuq, tushi, sia, ke, hoi, baq, hi, ja]).
 determiner(determiner(D-8)) --> [D-8], { determiners(Ds), member(D, Ds) }.
 
-sentence_connector(sentence_connector(C-8)) --> [C-8], { member(C, [je, keo, tiu, nhu]) }.
-illocution(illocution(I-Tone)) --> [I-Tone], { illocutions(Is), member(I, Is) }.
+complementizers([la, ma, tio]).
+complementizer(Tone, complementizer(C-Tone)) --> [C-Tone], { complementizers(Cs), member(C, Cs) }.
+
+sentence_connectors([je, keo, tiu, nhu]).
+sentence_connector(sentence_connector(C-8)) --> [C-8], { sentence_connectors(Cs), member(C, Cs) }.
 
 interjections([ifu, aja, ahi, ume, ufu, a, ua, obe, upa, buzy, oai, ubai, eni, aiba, obe, e, nho, zi, jadi, kiji, jiki]).
-sentence_connectors([je, keo, tiu, nhu]).
-determiners([sa, tu, tuq, tushi, sia, ke, hoi, baq, hi, ja]).
-illocutions([da, moq, nha, shou]).
+interjection(interjection(I-Tone)) --> [I-Tone], { interjections(Is), member(I, Is) }.
 
-function_word(bi).
-function_word(cy).
-function_word(ga).
-function_word(ju).
-function_word(ki).
-function_word(kio).
-function_word(ky).
-function_word(teo).
-function_word(P) :- sentence_connectors(Ps), member(P, Ps).
-function_word(P) :- determiners(Ps), member(P, Ps).
-function_word(P) :- illocutions(Ps), member(P, Ps).
+illocutions([da, moq, nha, shou]).
+illocution(illocution(I-Tone)) --> [I-Tone], { illocutions(Is), member(I, Is) }.
+
+particle(bi).
+particle(cy).
+particle(ga).
+particle(ju).
+particle(ki).
+particle(kio).
+particle(ky).
+particle(teo).
+particle(P) :- sentence_connectors(Ps), member(P, Ps).
+particle(P) :- determiners(Ps), member(P, Ps).
+particle(P) :- illocutions(Ps), member(P, Ps).
+
+function_word(lu).
+function_word(mo).
+function_word(W) :- particle(W).
+function_word(W) :- name_verbs(Ws), member(W, Ws).
+function_word(W) :- oivs(Ws), member(W, Ws).
+function_word(W) :- complementizers(Ws), member(W, Ws).
