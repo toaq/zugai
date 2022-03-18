@@ -4,7 +4,7 @@
 
 % ?- phrase(discourse(S), [gi-4, da-8]), !.
 
-% TODO: complementizers, la4 as sentence start, connectives, free modifiers
+% TODO: la4 as sentence start, more connectives, free modifiers
 discourse(discourse(Ds)) --> sequence(discourse_item, Ds).
 discourse_item(D) --> (sentence(D), !) | fragment(D).
 
@@ -35,7 +35,10 @@ term(term(T)) --> prepp(T).
 advp(advp(A)) --> vp(7, A).
 prepp(prepp(P,C)) --> vp(6, P), argu(C).
 
-argu(T) --> argu1(A), ((rel(P), { T=argrel(A,P) }) | {T=A}).
+argu(conn_argu(C,X,Y)) --> argu0(X), connective(C), !, argu(Y).
+argu(conn_argu(C,X,Y)) --> [to-8], connective(C), argu(X), [to-8], argu(Y).
+argu(T) --> argu0(T).
+argu0(T) --> argu1(A), ((rel(P), { T=argrel(A,P) }) | {T=A}).
 argu1(argu(T)) --> vp(2, T).
 argu1(argu(T)) --> dp(T).
 argu1(argu(T)) --> cc(T).
@@ -43,8 +46,11 @@ argu1(argu(T)) --> cc(T).
 rel(rel(P)) --> predication(3, P), ([cy-8]|[]).
 cc(cc(P)) --> predication(5, P), ([cy-8]|[]).
 
-vp(Tone, vp(C)) --> serial(Tone, C).
-vp(Tone, vp(C)) --> nonserial(Tone, C).
+vp(Tone, conn_vp(C,X,Y)) --> vp0(Tone, X), connective(C), !, vp(4, Y).
+vp(Tone, conn_vp(C,X,Y)) --> [to-8], connective(C), vp(Tone, X), [to-8], vp(4, Y).
+vp(Tone, V) --> vp0(Tone, V).
+vp0(Tone, vp(C)) --> serial(Tone, C).
+vp0(Tone, vp(C)) --> nonserial(Tone, C).
 
 serial(Tone, serial(A,B)) --> nonserial(Tone, A), vp(4, B).
 nonserial(Tone, nonserial(name_verb,V,N)) --> name_verb(Tone, V), !, (vp(4, N) | term(N)), ([ga-8]|[]).
@@ -77,6 +83,9 @@ interjection(interjection(I-Tone)) --> [I-Tone], { interjections(Is), member(I, 
 
 illocutions([da, moq, nha, shou]).
 illocution(illocution(I-Tone)) --> [I-Tone], { illocutions(Is), member(I, Is) }.
+
+connectives([ra, ri, ru, ro, roi]).
+connective(connective(C-Tone)) --> [C-Tone], { connectives(Cs), member(C, Cs) }.
 
 particle(bi).
 particle(cy).
