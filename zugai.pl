@@ -1,25 +1,24 @@
-:- [lex, pptree].
 :- use_module(library(dcg/high_order)).
-% ?- phrase(discourse(S), [gi-4, da-8]), pptree(S), !.
-% S = dicourse([sentence(sentence_connector(), statement(prenex(), predication(predicate(vp(nonserial(verb(gi)))), terms([]))), illocution(da-8))]).
+% ?- phrase(discourse(S), [gi-4, da-8]), !.
+% S = discourse([sentence(sentence_connector(), statement(prenex(), predication(predicate(vp(nonserial(verb(gi)))), terms([]))), illocution(da-8))]).
 
 % TODO: complementizers, la4 as sentence start, connectives, free modifiers
 % complementizers([la, ma, tio]).
 % complementizer(Tone, complementizer(C)) --> [C-Tone], { complementizers(Cs), member(C, Cs) }.
 
-discourse(dicourse(Ds)) --> sequence(discourse_item, Ds).
-discourse_item(D) --> sentence(D) | fragment(D).
+discourse(discourse(Ds)) --> sequence(discourse_item, Ds).
+discourse_item(D) --> (sentence(D), !) | fragment(D).
 
 sentence(sentence(C,S,I)) -->
-    (sentence_connector(C) | { C=sentence_connector() }),
+    (sentence_connector(C) | { C=sentence_connector(ø) }),
     statement(S),
-    (illocution(I) | { I = illocution() }).
+    (illocution(I) | { I = illocution(ø) }).
 
 fragment(fragment(F)) --> prenex(F) | terms1(F).
 
 statement(statement(P,Q)) -->
-    (prenex(P) | { P=prenex() }),
-    predication(4, Q).
+    (prenex(P) | { P=prenex(ø) }),
+    predication(4,Q).
 
 prenex(prenex(Ts)) --> terms1(Ts), end_prenex.
 end_prenex --> [bi-8].
@@ -60,10 +59,10 @@ name_verb(Tone, V) --> [V-Tone], { name_verbs(Vs), member(V, Vs) }.
 oivs([po, jei, mea]).
 oiv(Tone, V) --> [V-Tone], { oivs(Vs), member(V, Vs) }.
 
-verb(Tone, verb(W)) --> [W-Tone], { \+ function_word(W) }.
+verb(Tone, verb(W-Tone)) --> [W-Tone], { \+ function_word(W) }.
 
 dp(dp(D,VP)) --> determiner(D), vp(4, VP).
-determiner(determiner(D)) --> [D-8], { determiners(Ds), member(D, Ds) }.
+determiner(determiner(D-8)) --> [D-8], { determiners(Ds), member(D, Ds) }.
 
 sentence_connector(sentence_connector(C-8)) --> [C-8], { member(C, [je, keo, tiu, nhu]) }.
 illocution(illocution(I-Tone)) --> [I-Tone], { illocutions(Is), member(I, Is) }.
