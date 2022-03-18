@@ -1,6 +1,8 @@
 // Toaq PEG Parser
 // Toaq Gamma version by Lynn / mi Lina.
 
+// (Not used by zugai, just here for reference.)
+
 {
   function _join(arg)
   {
