@@ -4,7 +4,7 @@
 
 % ?- phrase(discourse(S), [gi-4, da-8]), !.
 
-% TODO: la4 as sentence start, more connectives, free modifiers
+% TODO: "ru bi", free modifiers
 discourse(discourse(Ds)) --> sequence(discourse_item, Ds).
 discourse_item(D) --> (sentence(D), !) | fragment(D).
 
@@ -16,50 +16,69 @@ sentence(sentence(C,S,I)) -->
 fragment(fragment(F)) --> prenex(F) | terms1(F).
 
 statement(statement(P,Q)) --> (prenex(P) | { P=prenex([]) }), predication(4, Q).
-statement1(statement(P,Q)) --> (prenex(P) | { P=prenex([]) }), predication1(4, Q).
+statement_nocomp(statement(P,Q)) --> (prenex(P) | { P=prenex([]) }), predication1(4, Q).
 
-prenex(prenex(Ts,end(Bi))) --> terms1(Ts), end_prenex(Bi).
-end_prenex(bi-8) --> [bi-8].
+prenex(prenex(Ts,end(bi-8))) --> terms1(Ts), [bi-8].
 to(to-8) --> [to-8].
 
-predication(Tone, compp(C,S)) --> complementizer(Tone, C), !, statement1(S).
-predication(Tone, P) --> predication1(Tone, P).
+predication(Tone, conn_predication(X,na(na-8),C,Y)) --> predicationC(Tone, X), [na-8], connective(C), predication(4, Y).
+predication(Tone, conn_predication(to(T1),C,X,to(T2),Y)) --> to(T1), connective(C), predication(Tone, X), to(T2), predication(4, Y).
+predication(Tone, P) --> predicationC(Tone, P).
+predicationC(Tone, compp(C,S)) --> complementizer(Tone, C), !, statement_nocomp(S).
+predicationC(Tone, P) --> predication1(Tone, P).
 predication1(Tone, predication(P,Ts)) --> predicate(Tone, P), terms(Ts).
 predicate(Tone, predicate(P)) --> vp(Tone, P).
 
 terms1(T) --> terms(T), { T = terms([_|_]) }.
 terms(terms(Ts)) --> sequence(term, Ts).
-term(term(T)) --> argu(T).
-term(term(T)) --> advp(T).
-term(term(T)) --> prepp(T).
+term(term(T)) --> np(T).
+term(term(T)) --> ap(T).
+term(term(T)) --> pp(T).
 
-advp(advp(A)) --> vp(7, A).
-prepp(prepp(P,C)) --> vp(6, P), argu(C).
+ap(conn_ap(X,C,Y)) --> apC(X), connective(C), ap(Y).
+ap(conn_ap(to(T1),C,X,to(T2),Y)) --> to(T1), connective(C), ap(X), to(T2), ap(Y).
+ap(A) --> apC(A).
+apC(ap(A)) --> vp(7, A).
 
-argu(conn_argu(X,C,Y)) --> argu0(X), connective(C), !, argu(Y).
-argu(conn_argu(to(T1),C,X,to(T2),Y)) --> to(T1), connective(C), argu(X), to(T2), argu(Y).
-argu(T) --> argu0(T).
-argu0(T) --> argu1(A), ((rel(P), { T=argrel(A,P) }) | {T=A}).
-argu1(argu(T)) --> vp(2, T).
-argu1(argu(T)) --> dp(T).
-argu1(argu(T)) --> cc(T).
+pp(conn_pp(X,C,Y)) --> ppC(X), connective(C), pp(Y).
+pp(conn_pp(to(T1),C,X,to(T2),Y)) --> to(T1), connective(C), pp(X), to(T2), pp(Y).
+pp(A) --> ppC(A).
+ppC(pp(P,C)) --> prep(P), np(C).
 
-rel(rel(P,end(Cy))) --> predication(3, P), end(cy,Cy).
+prep(conn_prep(X,C,Y)) --> prepC(X), connective(C), prep(Y).
+prep(conn_prep(to(T1),C,X,to(T2),Y)) --> to(T1), connective(C), prep(X), to(T2), prep(Y).
+prep(P) --> prepC(P).
+prepC(prep(P)) --> vp(6, P).
+
+np(conn_np(X,C,Y)) --> npC(X), connective(C), np(Y).
+np(conn_np(to(T1),C,X,to(T2),Y)) --> to(T1), connective(C), np(X), to(T2), np(Y).
+np(T) --> npC(T).
+npC(focused(F,T)) --> focus_prefix(F), npF(T).
+npC(T) --> npF(T).
+npF(T) --> npR(A), ((rel(P), { T=argrel(A,P) }) | {T=A}).
+npR(np(T)) --> vp(2, T).
+npR(np(T)) --> dp(T).
+npR(np(T)) --> cc(T).
+
+rel(conn_rel(X,C,Y)) --> relC(X), connective(C), rel(Y).
+rel(conn_rel(to(T1),C,X,to(T2),Y)) --> to(T1), connective(C), rel(X), to(T2), rel(Y).
+rel(R) --> relC(R).
+relC(rel(P,end(Cy))) --> predication(3, P), end(cy,Cy).
 cc(cc(P,end(Cy))) --> predication(5, P), end(cy,Cy).
 
-vp(Tone, conn_vp(C,X,Y)) --> vp0(Tone, X), connective(C), vp(4, Y).
-vp(Tone, conn_vp(C,X,Y)) --> [to-8], connective(C), vp(Tone, X), [to-8], vp(4, Y).
-vp(Tone, V) --> vp0(Tone, V).
-vp0(Tone, vp(C)) --> serial(Tone, C).
-vp0(Tone, vp(C)) --> nonserial(Tone, C).
+vp(Tone, conn_vp(X,C,Y)) --> vpC(Tone, X), connective(C), vp(4, Y).
+vp(Tone, conn_vp(to(T1),C,X,to(T2),Y)) --> to(T1), connective(C), vp(Tone, X), to(T2), vp(4, Y).
+vp(Tone, V) --> vpC(Tone, V).
+vpC(Tone, vp(V)) --> serial(Tone, V).
+vpC(Tone, vp(V)) --> nonserial(Tone, V).
 
 % parse an optional terminator:
 end(Particle, E) --> [Particle-8], {E=Particle-8}, ! | {E=[]}.
 
 serial(Tone, serial(A,B)) --> nonserial(Tone, A), !, vp(4, B).
-nonserial(Tone, nonserial(name_verb(V),N,end(Ga))) --> name_verb(Tone, V), !, (vp(4, N) | term(N)), end(ga,Ga).
-nonserial(Tone, nonserial(oiv(V),N,end(Ga))) --> oiv(Tone, V), argu(N), end(ga,Ga).
-nonserial(Tone, nonserial(mo(mo-Tone),D,end(teo-8))) --> [mo-Tone], !, discourse(D), [teo-8].
+nonserial(Tone, nonserial(name_verb(V),N,end(Ga))) --> name_verb(Tone, V), (vp(4, N) | term(N)), end(ga,Ga).
+nonserial(Tone, nonserial(oiv(V),N,end(Ga))) --> oiv(Tone, V), np(N), end(ga,Ga).
+nonserial(Tone, nonserial(mo(mo-Tone),D,end(teo-8))) --> [mo-Tone], discourse(D), [teo-8].
 nonserial(Tone, nonserial(lu(lu-Tone),S,end(Ky))) --> [lu-Tone], statement(S), end(ky,Ky).
 nonserial(Tone, nonserial(N)) --> verb(Tone, N).
 
@@ -73,6 +92,9 @@ verb(Tone, verb(W-Tone)) --> [W-Tone], { \+ function_word(W) }.
 
 dp(dp(D,VP)) --> determiner(D), vp(4, VP).
 
+focus_prefixes([ku, bei, juaq, mao, tou]).
+focus_prefix(focus_prefix(D-8)) --> [D-8], { focus_prefixes(Ds), member(D, Ds) }.
+
 determiners([sa, tu, tuq, tushi, sia, ke, hoi, baq, hi, ja]).
 determiner(determiner(D-8)) --> [D-8], { determiners(Ds), member(D, Ds) }.
 
@@ -85,7 +107,7 @@ sentence_connector(sentence_connector(C-8)) --> [C-8], { sentence_connectors(Cs)
 interjections([ifu, aja, ahi, ume, ufu, a, ua, obe, upa, buzy, oai, ubai, eni, aiba, obe, e, nho, zi, jadi, kiji, jiki]).
 interjection(interjection(I-Tone)) --> [I-Tone], { interjections(Is), member(I, Is) }.
 
-illocutions([da, ka, moq, nha, ba, shou]).
+illocutions([da, ka, moq, ba, nha, shou, go]).
 illocution(illocution(I-Tone)) --> [I-Tone], { illocutions(Is), member(I, Is) }.
 
 connectives([ra, ri, ru, ro, roi]).
