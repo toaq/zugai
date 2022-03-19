@@ -60,10 +60,10 @@ nonserial(Tone, nonserial(lu,S)) --> [lu-Tone], statement(S), ([ky-8]|[]).
 nonserial(Tone, nonserial(N)) --> verb(Tone, N).
 
 name_verbs([mi, miru, shu]).
-name_verb(Tone, V) --> [V-Tone], { name_verbs(Vs), member(V, Vs) }.
+name_verb(Tone, V-Tone) --> [V-Tone], { name_verbs(Vs), member(V, Vs) }.
 
 oivs([po, jei, mea]).
-oiv(Tone, V) --> [V-Tone], { oivs(Vs), member(V, Vs) }.
+oiv(Tone, V-Tone) --> [V-Tone], { oivs(Vs), member(V, Vs) }.
 
 verb(Tone, verb(W-Tone)) --> [W-Tone], { \+ function_word(W) }.
 

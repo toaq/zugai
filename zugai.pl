@@ -1,5 +1,6 @@
 :- [lex].
 :- [parse].
+:- [interpret].
 :- [pprint].
 
 % lex, parse, pretty-print
