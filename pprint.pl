@@ -1,14 +1,21 @@
 indent(String, Indented) :-
   format(string(Indented), "  ~w", [String]).
 
+ansi(2, "208").
+ansi(3, "220").
+ansi(4, "40").
+ansi(5, "44").
+ansi(6, "27").
+ansi(7, "99").
+ansi(8, "160").
+
 layout(Term, [Line]) :-
-  \+ compound(Term), !,
+  atomic(Term), !,
   format(string(Line), '~w', [Term]).
 
 layout(X-Y, [Line]) :-
-  \+ compound(X),
-  \+ compound(Y), !,
-  format(string(Line), '"~w-~w"', [X,Y]).
+  atomic(X), atomic(Y), !, ansi(Y, A),
+  format(string(Line), '\x1b[38;5;~wm~w-~w\x1b[0m', [A,X,Y]).
 
 layout(Term, Lines) :-
   is_list(Term), !,
