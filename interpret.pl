@@ -18,10 +18,10 @@ free_var(W, Varname) :-
   !, Varname = Candidate.
 
 free_var(verb(W-_), Var) :- free_var(W, Var).
-free_var(nonserial(name_verb,V-_,_), Var) :- free_var(V, Var).
-free_var(nonserial(oiv,V-_,_), Var) :- free_var(V, Var).
-free_var(nonserial(lu,_), Var) :- free_var(l, Var).
-free_var(nonserial(moteo,_), Var) :- free_var(m, Var).
+free_var(nonserial(name_verb(W-_),_,_), Var) :- free_var(W, Var).
+free_var(nonserial(oiv(W-_),_,_), Var) :- free_var(W, Var).
+free_var(nonserial(lu(_),_,_), Var) :- free_var(l, Var).
+free_var(nonserial(mo(_),_,_), Var) :- free_var(m, Var).
 free_var(nonserial(V), Var) :- free_var(V, Var).
 free_var(serial(A,_), Var) :- free_var(A, Var).
 free_var(vp(V), Var) :- free_var(V, Var).
