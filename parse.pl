@@ -56,7 +56,7 @@ np(T) --> npC(T).
 npC(focused(F,T)) --> focus_prefix(F), npF(T).
 npC(T) --> npF(T).
 npF(T) --> npR(A), ((rel(P), { T=argrel(A,P) }) | {T=A}).
-npR(np(T)) --> vp(2, T).
+npR(np(bound(T))) --> vp(2, T).
 npR(np(T)) --> dp(T).
 npR(np(T)) --> cc(T).
 
