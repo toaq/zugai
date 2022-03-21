@@ -79,14 +79,16 @@ interpret(discourse(D), Formulas) :-
 
 interpret(sentence(sentence_connector(C),Statement,illocution(I)), Formula) :-
   interpret(Statement, F1),
-  (I = [] -> F2=F1 ; F2=il(I,F1)),
+  (I = [] -> F2=il(da-8,F1) ; F2=il(I,F1)),
   (C = [] -> F3=F2 ; F3=sc(C,F2)),
   Formula = F3.
 
 wrap_quant(qu(Q,V,R), F, qu(Q,V,R,F)).
 
-interpret(statement(Prenex, Pred), Formula) :-
+interpret(statement(Prenex, Pred), Formula) :- interpret(statement(Prenex, Pred), Formula, []).
+interpret(statement(Prenex, Pred), Formula, Hoas) :-
   push_scope(Ev),
+  maplist(set_ref(hoa), Hoas),
   interpret(Prenex, _),
   interpret(Pred, F),
   pop_scope(Scope),
@@ -94,9 +96,8 @@ interpret(statement(Prenex, Pred), Formula) :-
   Qs = Scope.quant,
 
   foldl(wrap_quant, Qs, F, Fq),
-
-  % todo: apply quants
-  Formula = qu(sa,Ev,ev(Ev,Fq)).
+  term_variables(Fq, Occurs),
+  ((member(V, Occurs), V == Ev) -> Formula = qu(sa,Ev,ev(Ev,Fq)) ; Formula = Fq).
 
 interpret(prenex(_Ts), _) :- !.
 
@@ -111,8 +112,16 @@ interpret(predication(Predicate, Terms), Formula) :-
   % writeln(b-Body),
   Args = Positionals, Body = Formula.
 
-interpret(predicate(vp(nonserial(verb(W-4)))), Lambda) :-
-  Lambda = la(Args,pr(W,Args)).
+interpret(predicate(Vp), Lambda) :- interpret(Vp, Lambda).
+interpret(vp(nonserial(verb(W-_))), Lambda) :- Lambda = la(Args,pr(W,Args)).
+interpret(vp(nonserial(name_verb(W-_),N,_End)), Lambda) :-
+    Lambda = la(Args,pr(name_verb(W,N),Args)).
+interpret(vp(nonserial(lu(_Lu), Stmt, _End)), Lambda) :-
+    interpret(Stmt, Body, [Hoa]),
+    Lambda = la([Hoa],Body).
+
+
+vp_word(vp(nonserial(verb(W-_))), W). % todo serials etc
 
 extract_positionals([], []).
 extract_positionals([positional(P)|Xs], [P|Ys]) :- !, extract_positionals(Xs, Ys).
@@ -121,8 +130,6 @@ extract_positionals([_|Xs], Ys) :- !, extract_positionals(Xs, Ys).
 interpret(terms(Ts), Positionals) :-
   maplist(interpret, Ts, Results),
   extract_positionals(Results, Positionals),
-  % findall(P, member(positional(P), Results), Positionals),
-  % writeln(pos-Positionals), %todo adverbials
   true.
 
 interpret(term(np(T)), positional(Res)) :- interpret(np(T), Res), set_is_subject(no).
@@ -131,13 +138,15 @@ interpret(term(pp(T)), adverbial(Res)) :- interpret(pp(T), Res).
 
 interpret(np(dp(Det,Vp)), Result) :- interpret(dp(Det,Vp), Result).
 interpret(np(bound(Vp)), Result) :-
-  Vp = vp(nonserial(verb(W-_))), % todo serials etc
-  ( resolve_ref(W, Result), !
+  ( vp_word(Vp, W), resolve_ref(W, Result), !
   ; interpret(dp(determiner(ke-8), Vp), Result)
   ).
 
 interpret(dp(determiner(D-8),Vp), Result) :-
-  Vp = vp(nonserial(verb(W-_))), % todo serials etc
-  push_quant(qu(D,Result,pr(W,[Result]))),
-  set_ref(W, Result),
-  ((is_subject -> A=aq ; anaphora(W, A)) -> set_ref(A, Result) ; true).
+  interpret(Vp, Lam),
+  Lam = la([Result], Body),
+  push_quant(qu(D,Result, Body)),
+  ( vp_word(Vp, W) ->
+  ( set_ref(W, Result),
+    ((is_subject -> A=aq ; anaphora(W, A)) -> set_ref(A, Result) ; true)
+  ) ; true).

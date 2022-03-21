@@ -12,4 +12,4 @@ plug(T) :-
 
 % lex, parse, pretty-print
 lpp(Toaq) :- lex(Toaq, Tokens), phrase(discourse(D), Tokens), pprint(D).
-lpi(Toaq) :- lex(Toaq, Tokens), phrase(discourse(D), Tokens), interpret(D, I), writeln(I), plug(I), lformat(I, S), writeln(S).
+lpi(Toaq) :- lex(Toaq, Tokens), phrase(discourse(D), Tokens), interpret(D, I), plug(I), lformat(I, S), writeln(S).
