@@ -1,3 +1,4 @@
+:- [dict].
 :- [lex].
 :- [parse].
 :- [interpret].

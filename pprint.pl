@@ -1,5 +1,4 @@
-indent(String, Indented) :-
-  format(string(Indented), "  ~w", [String]).
+indent(String, Indented) :- string_concat("  ", String, Indented).
 
 ansi(2, "208").
 ansi(3, "220").
@@ -9,13 +8,8 @@ ansi(6, "27").
 ansi(7, "99").
 ansi(8, "160").
 
-layout(Term, [Line]) :-
-  var(Term), !,
-  Line = "?".
-
-layout(Term, [Line]) :-
-  atomic(Term), !,
-  format(string(Line), '~w', [Term]).
+layout(Term, [Line]) :- var(Term), !, Line = "?".
+layout(Term, [Line]) :- atomic(Term), !, term_string(Term, Line).
 
 layout(X-Y, [Line]) :-
   atomic(X), atomic(Y), !, ansi(Y, A),
@@ -54,4 +48,4 @@ lformat(pr(P, Args), S) :-
   atomics_to_string(Ss, ",", A),
   format(string(S), "~w(~w)", [Sp,A]).
 lformat(ev(E, T), S) :- !, lformat(E, Se), lformat(T, St), format(string(S), "~w={~w}", [Se, St]).
-lformat(_, "unk") :- !.
+lformat(_, "unknown") :- !.
