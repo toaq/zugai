@@ -65,8 +65,9 @@ is_subject :-
   Top.is_subject == yes.
 
 resolve_ref(Words,V) :-
-  b_getval(scopes, [Top|_]),
-  V = Top.refs.get(Words).
+  b_getval(scopes, Scopes),
+  member(S, Scopes),
+  V = S.refs.get(Words), !.
 
 pop_scope(Out) :-
   b_getval(scopes, [Out|S]),
