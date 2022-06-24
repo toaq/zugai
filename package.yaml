@@ -21,9 +21,15 @@ description:         A library/program for parsing and interpreting Toaq Gamma t
 
 dependencies:
 - base >= 4.7 && < 5
+- split >= 0.2.3.4
+- text >= 2.0
+- unicode-transforms >= 0.4.0.1
 
 library:
   source-dirs: src
+  default-extensions:
+    ImportQualifiedPost
+    OverloadedStrings
 
 executables:
   zugai-exe:
