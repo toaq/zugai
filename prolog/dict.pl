@@ -2,7 +2,7 @@
 :- use_module(library(unicode)).
 
 dictionary(Dict) :-
-  open("dictionary/dictionary.json", read, Stream),
+  open("../dictionary/dictionary.json", read, Stream),
   json_read_dict(Stream, Dict),
   close(Stream), !.
 
