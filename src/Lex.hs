@@ -27,7 +27,7 @@ data Token
     | Shu Tone
     | Mo Tone
     | Lu Tone
-    | Bi | Cy | Ga | Hu | Ju | Ki | Kio | Ky | Teo | To
+    | Bi | Cy | Ga | Hu | Ju | Ki | Kio | Ky | Na | Teo | To
     | Illocution Toned -- not interpreted
     | SentenceConnector Text -- not interpreted
     | Interjection Toned -- not interpreted
@@ -35,11 +35,11 @@ data Token
     deriving (Eq, Ord, Show)
 
 -- A token (or other inner type) tagged with source position and source text.
-data Pos t = Pos { getPos :: SourcePos, getSrc :: Text, posValue :: t } deriving (Eq)
+data Pos t = Pos { posPos :: SourcePos, posSrc :: Text, posVal :: t } deriving (Eq)
 instance Functor Pos where
     fmap f (Pos x y z) = Pos x y (f z)
 instance Show t => Show (Pos t) where
-    show x = show (posValue x) ++ "\x1b[96m~" ++ T.unpack (getSrc x) ++ "\x1b[0m" -- "\x1b[32m" ++ T.unpack (getSrc x) ++ "\x1b[0m"
+    show x = show (posVal x) ++ "\x1b[96m~" ++ T.unpack (posSrc x) ++ "\x1b[0m" -- "\x1b[32m" ++ T.unpack (posSrc x) ++ "\x1b[0m"
 
 toneFromChar :: Char -> Maybe Tone
 toneFromChar '2' = Just T2
@@ -100,6 +100,7 @@ toToneless "ju" = Just Ju
 toToneless "ki" = Just Ki
 toToneless "kio" = Just Kio
 toToneless "ky" = Just Ky
+toToneless "na" = Just Na
 toToneless "teo" = Just Teo
 toToneless "to" = Just To
 toToneless x | isFocuser x = Just (Focuser x)
