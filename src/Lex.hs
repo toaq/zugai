@@ -12,6 +12,7 @@ data Tone
     = T2 | T3 | T4 | T5 | T6 | T7 | T8
     deriving (Eq, Ord, Show)
 
+type Toned = (Text, Tone)
 data Determiner = Sa | Tu | Tuq | Tushi | Sia | Ke | Hoi | Baq | Hi | Ja deriving (Eq, Ord, Show)
 data Complementizer = La | Ma | Tio deriving (Eq, Ord, Show)
 data Connective = Ra | Ri | Ru | Ro | Roi deriving (Eq, Ord, Show)
@@ -21,21 +22,24 @@ data Token
     | Determiner Determiner
     | Connective Connective
     | Complementizer Complementizer Tone
-    | Oiv Text Tone -- left as text so these can be turned into text<>"ga".
+    | Oiv Toned -- left as text so these can be turned into text<>"ga".
     | NameVerb NameVerb Tone
-    | Ga
     | Shu Tone
     | Mo Tone
-    | Teo
     | Lu Tone
-    | Ky
-    | Bi | Cy | Ju | Ki | Kio | To
-    | Illocution Text Tone -- not interpreted
+    | Bi | Cy | Ga | Hu | Ju | Ki | Kio | Ky | Teo | To
+    | Illocution Toned -- not interpreted
     | SentenceConnector Text -- not interpreted
-    | Interjection Text Tone -- not interpreted
-    | Verb Text Tone
+    | Interjection Toned -- not interpreted
+    | Verb Toned
     deriving (Eq, Ord, Show)
-type TokenPos = (Token, SourcePos)
+
+-- A token (or other inner type) tagged with source position and source text.
+data Pos t = Pos { getPos :: SourcePos, getSrc :: Text, posValue :: t } deriving (Eq)
+instance Functor Pos where
+    fmap f (Pos x y z) = Pos x y (f z)
+instance Show t => Show (Pos t) where
+    show x = show (posValue x) ++ "\x1b[96m~" ++ T.unpack (getSrc x) ++ "\x1b[0m" -- "\x1b[32m" ++ T.unpack (getSrc x) ++ "\x1b[0m"
 
 toneFromChar :: Char -> Maybe Tone
 toneFromChar '2' = Just T2
@@ -55,8 +59,7 @@ toneFromChar _ = Nothing
 
 isToaqChar :: Char -> Bool
 isToaqChar c =
-    c >= 'a' && c <= 'z'
-    || c >= 'A' && c <= 'Z'
+    isLetter c
     || c == 'ı'
     || c >= '2' && c <= '8'
     || c >= '\x0300' && c <= '\x0309'
@@ -89,14 +92,15 @@ toToneless "ri" = Just (Connective Ri)
 toToneless "ru" = Just (Connective Ru)
 toToneless "ro" = Just (Connective Ro)
 toToneless "roi" = Just (Connective Roi)
-toToneless "ga" = Just Ga
-toToneless "teo" = Just Teo
-toToneless "ky" = Just Ky
 toToneless "bi" = Just Bi
 toToneless "cy" = Just Cy
+toToneless "ga" = Just Ga
+toToneless "hu" = Just Hu
 toToneless "ju" = Just Ju
 toToneless "ki" = Just Ki
 toToneless "kio" = Just Kio
+toToneless "ky" = Just Ky
+toToneless "teo" = Just Teo
 toToneless "to" = Just To
 toToneless x | isFocuser x = Just (Focuser x)
 toToneless x | isSentenceConnector x = Just (SentenceConnector x)
@@ -115,30 +119,33 @@ toToken word =
         "la" -> Right (Complementizer La tone)
         "ma" -> Right (Complementizer Ma tone)
         "tio" -> Right (Complementizer Tio tone)
-        "po" -> Right (Oiv "po" tone)
-        "jei" -> Right (Oiv "jei" tone)
-        "mea" -> Right (Oiv "mea" tone)
+        "po" -> Right (Oiv ("po", tone))
+        "jei" -> Right (Oiv ("jei", tone))
+        "mea" -> Right (Oiv ("mea", tone))
         "mo" -> Right (Mo tone)
         "lu" -> Right (Lu tone)
         "shu" -> Right (Shu tone)
         "mi" -> Right (NameVerb Mi tone)
         "miru" -> Right (NameVerb Miru tone)
-        _ | isIllocution base -> Right (Illocution base tone)
-        _ | isInterjection base -> Right (Interjection base tone)
-        _ -> Right (Verb base tone)
+        _ | isIllocution base -> Right (Illocution (base, tone))
+        _ | isInterjection base -> Right (Interjection (base, tone))
+        _ -> Right (Verb (base, tone))
 
-tokenParser :: Parsec Text () TokenPos
+tokenParser :: Parsec Text () (Pos Token)
 tokenParser = do
     pos <- getPosition
-    string <- many1 (satisfy isToaqChar)
-    let clean = T.replace "ı" "i" $ T.normalize T.NFKD $ T.toLower $ T.pack string
+    text <- T.pack <$> many1 (satisfy isToaqChar)
+    let clean = T.replace "ı" "i" $ T.normalize T.NFKD $ T.toLower text
     case toToken (T.unpack clean) of
-        Right token -> pure (token, pos)
+        Right token -> pure (Pos pos text token)
         Left err -> fail err
 
-skippingTokenParser :: Parsec Text () TokenPos
+skippingTokenParser :: Parsec Text () (Pos Token)
 skippingTokenParser = tokenParser <|> (anyChar >> skippingTokenParser)
 
-lexer :: Text -> Either ParseError [TokenPos]
+lexer :: Text -> Either ParseError [Pos Token]
 lexer text =
     parse (many1 skippingTokenParser) "" text
+
+unr :: Either a b -> b
+unr (Right b) = b

@@ -29,6 +29,7 @@ dependencies:
 library:
   source-dirs: src
   default-extensions:
+    DeriveFunctor
     ImportQualifiedPost
     OverloadedStrings
 

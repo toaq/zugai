@@ -33,7 +33,7 @@ library
   hs-source-dirs:
       src
   default-extensions:
-      ImportQualifiedPost OverloadedStrings
+      DeriveFunctor ImportQualifiedPost OverloadedStrings
   build-depends:
       base >=4.7 && <5
     , parsec >=3.1.14.0
