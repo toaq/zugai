@@ -21,6 +21,7 @@ description:         A library/program for parsing and interpreting Toaq Gamma t
 
 dependencies:
 - base >= 4.7 && < 5
+- parsec >= 3.1.14.0
 - split >= 0.2.3.4
 - text >= 2.0
 - unicode-transforms >= 0.4.0.1

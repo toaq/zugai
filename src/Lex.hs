@@ -6,6 +6,7 @@ import Data.List.Split (wordsBy)
 import Data.Text qualified as T
 import Data.Text (Text)
 import Data.Text.Normalize qualified as T
+import Text.Parsec as P
 
 data Tone
     = T2 | T3 | T4 | T5 | T6 | T7 | T8
@@ -34,6 +35,7 @@ data Token
     | Interjection Text Tone -- not interpreted
     | Verb Text Tone
     deriving (Eq, Ord, Show)
+type TokenPos = (Token, SourcePos)
 
 toneFromChar :: Char -> Maybe Tone
 toneFromChar '2' = Just T2
@@ -53,7 +55,11 @@ toneFromChar _ = Nothing
 
 isToaqChar :: Char -> Bool
 isToaqChar c =
-    c >= 'a' && c <= 'z' || c >= '2' && c <= '8' || c >= '\x0300' && c <= '\x030f'
+    c >= 'a' && c <= 'z'
+    || c >= 'A' && c <= 'Z'
+    || c == 'ı'
+    || c >= '2' && c <= '8'
+    || c >= '\x0300' && c <= '\x0309'
 
 isFocuser :: Text -> Bool
 isFocuser = (`elem` T.words "ku bei juaq mao tou")
@@ -96,16 +102,16 @@ toToneless x | isFocuser x = Just (Focuser x)
 toToneless x | isSentenceConnector x = Just (SentenceConnector x)
 toToneless _ = Nothing
 
-toToken :: String -> Either Text Token
+toToken :: String -> Either String Token
 toToken word =
-    let base = T.pack (filter isAlpha word)
+    let base = T.pack (filter isLetter word)
         tone' = msum (map toneFromChar word)
         tone = maybe T4 id tone'
     in case base of
         _ | Just token <- toToneless base ->
             if tone' == Just T8 || tone' == Nothing
                 then Right token
-                else Left (base <> " must have neutral tone")
+                else Left (T.unpack base <> " must have neutral tone")
         "la" -> Right (Complementizer La tone)
         "ma" -> Right (Complementizer Ma tone)
         "tio" -> Right (Complementizer Tio tone)
@@ -121,8 +127,18 @@ toToken word =
         _ | isInterjection base -> Right (Interjection base tone)
         _ -> Right (Verb base tone)
 
-lexer :: Text -> Either Text [Token]
+tokenParser :: Parsec Text () TokenPos
+tokenParser = do
+    pos <- getPosition
+    string <- many1 (satisfy isToaqChar)
+    let clean = T.replace "ı" "i" $ T.normalize T.NFKD $ T.toLower $ T.pack string
+    case toToken (T.unpack clean) of
+        Right token -> pure (token, pos)
+        Left err -> fail err
+
+skippingTokenParser :: Parsec Text () TokenPos
+skippingTokenParser = tokenParser <|> (anyChar >> skippingTokenParser)
+
+lexer :: Text -> Either ParseError [TokenPos]
 lexer text =
-    let clean = T.replace "ı" "i" $ T.normalize T.NFKD $ T.toLower text
-        words = wordsBy (not . isToaqChar) (T.unpack clean)
-    in sequence $ map toToken words
+    parse (many1 skippingTokenParser) "" text

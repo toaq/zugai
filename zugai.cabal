@@ -27,6 +27,7 @@ library
   exposed-modules:
       Lex
       Lib
+      Parse
   other-modules:
       Paths_zugai
   hs-source-dirs:
@@ -35,6 +36,7 @@ library
       ImportQualifiedPost OverloadedStrings
   build-depends:
       base >=4.7 && <5
+    , parsec >=3.1.14.0
     , split >=0.2.3.4
     , text >=2.0
     , unicode-transforms >=0.4.0.1
@@ -49,6 +51,7 @@ executable zugai-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , parsec >=3.1.14.0
     , split >=0.2.3.4
     , text >=2.0
     , unicode-transforms >=0.4.0.1
@@ -65,6 +68,7 @@ test-suite zugai-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , parsec >=3.1.14.0
     , split >=0.2.3.4
     , text >=2.0
     , unicode-transforms >=0.4.0.1
