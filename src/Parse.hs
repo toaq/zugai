@@ -1,4 +1,5 @@
 module Parse where
+import Control.Monad
 import Lex
 import Data.List.NonEmpty qualified as N
 import Data.List.NonEmpty (NonEmpty)
@@ -39,7 +40,9 @@ type Predication = ConnableNa PredicationC
 data PredicationC = CompPredication (W Complementizer) Statement | SimplePredication PredicationS deriving (Eq, Show)
 data PredicationS = Predication Predicate [Term] deriving (Eq, Show)
 data Predicate = Predicate Vp deriving (Eq, Show)
-data Term = Tnp Np | Tadvp Advp | Tpp Pp deriving (Eq, Show)
+data Term
+    = Tnp Np | Tadvp Advp | Tpp Pp
+    | Termset (W () {-to-}) (W Connective) [Term] (W () {-to-}) [Term] deriving (Eq, Show)
 type Terminator = Maybe (W ())
 type Advp = Connable AdvpC
 data AdvpC = Advp Vp deriving (Eq, Show)
@@ -222,8 +225,17 @@ pPrep = pConnableSame (Prep <$> pVp T6)
 pPp :: Parser Pp
 pPp = pConnableSame (Pp <$> pPrep <*> pNp)
 
+pTermset :: Parser Term
+pTermset = do
+    to <- pTo
+    ru <- pConnective
+    termsL <- many1 pTerm
+    to' <- pTo
+    termsR <- replicateM (length termsL) pTerm
+    pure $ Termset to ru termsL to' termsR
+
 pTerm :: Parser Term
-pTerm = (Tnp <$> pNp) <|> (Tadvp <$> pAdvp) <|> (Tpp <$> pPp)
+pTerm = try pTermset <|> (Tnp <$> pNp) <|> (Tadvp <$> pAdvp) <|> (Tpp <$> pPp)
 
 pPredicate :: Tone -> Parser Predicate
 pPredicate tone = Predicate <$> pVp tone
