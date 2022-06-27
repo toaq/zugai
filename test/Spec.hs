@@ -4,11 +4,21 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Either
 import Test.Hspec
+import Lex
 import Parse
 
 -- Don't run test sentences containing these words.
 bannedWords :: [Text]
-bannedWords = ["kagashı", "about", "re", "keoru"]
+bannedWords =
+  [ "about"
+  , "cu"
+  , "«Hello»"
+  , "«I"
+  , "keoru"
+  , "re"
+  , "should"
+  , "the"
+  ]
 
 main :: IO ()
 main = do
@@ -18,12 +28,14 @@ main = do
 spec :: [Text] -> Spec
 spec sentences = do
   describe "Parse" $ do
+    let lexOpt = LexOptions False
+    let parseLex text = parseDiscourse =<< lexToaqOpt lexOpt text
     it "parses a simple sentence" $ do
-      parseDiscourse "Tủa jí jâı nháo da." `shouldSatisfy` isRight
+      parseLex "Tủa jí jâı nháo da." `shouldSatisfy` isRight
     it "rejects a simple non-sentence" $ do
-      parseDiscourse "Tüa jí jâı nhào da." `shouldSatisfy` isLeft
+      parseLex "Tüa jí jâı nhào da." `shouldSatisfy` isLeft
     describe "A sentences" $ do
       forM_ sentences $ \sentence -> do
         when (all (`notElem` T.words sentence) bannedWords) $ do
           it (T.unpack sentence) $ do
-            parseDiscourse sentence `shouldSatisfy` isRight
+            parseLex sentence `shouldSatisfy` isRight

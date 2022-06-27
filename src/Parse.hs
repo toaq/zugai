@@ -273,5 +273,5 @@ pDiscourseItem = (DiFree <$> pFreeMod) <|> try (DiSentence <$> pSentence) <|> (D
 pDiscourse :: Parser Discourse
 pDiscourse = Discourse <$> many pDiscourseItem
 
-parseDiscourse :: Text -> Either ParseError Discourse
-parseDiscourse text = lexer text >>= parse (pDiscourse <* eof) ""
+parseDiscourse :: [Pos Token] -> Either ParseError Discourse
+parseDiscourse = parse (pDiscourse <* eof) ""
