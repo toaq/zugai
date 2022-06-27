@@ -28,6 +28,7 @@ library
       Lex
       Lib
       Parse
+      Tree
   other-modules:
       Paths_zugai
   hs-source-dirs:
