@@ -21,10 +21,14 @@ description:         A library/program for parsing and interpreting Toaq Gamma t
 
 dependencies:
 - base >= 4.7 && < 5
+- bytestring >= 0.10.12
+- containers >= 0.6
+- microaeson >= 0.1.0.1
 - parsec >= 3.1.14.0
 - pretty-simple
 - split >= 0.2.3.4
 - text >= 2.0
+- bytestring-trie >= 0.2.7
 - unicode-transforms >= 0.4.0.1
 
 library:

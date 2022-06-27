@@ -5,8 +5,8 @@ import Data.Char
 import Data.List.Split (wordsBy)
 import Data.Text qualified as T
 import Data.Text (Text)
-import Data.Text.Normalize qualified as T
 import Text.Parsec as P
+import TextUtils
 
 data LexOptions =
     LexOptions
@@ -52,10 +52,6 @@ instance Functor Pos where
 instance Show t => Show (Pos t) where
     show x = show (posVal x) ++ "\x1b[96m~" ++ T.unpack (posSrc x) ++ "\x1b[0m" -- "\x1b[32m" ++ T.unpack (posSrc x) ++ "\x1b[0m"
 
--- tr "aeiou" "12345" "hello" == "h2ll4"
-tr :: Text -> Text -> Text -> Text
-tr froms tos = T.map (\c -> maybe c id $ lookup c $ T.zip froms tos)
-
 toneFromChar :: Char -> Maybe Tone
 toneFromChar '2' = Just T2
 toneFromChar '3' = Just T3
@@ -71,14 +67,6 @@ toneFromChar '\x0302' = Just T5
 toneFromChar '\x0300' = Just T6
 toneFromChar '\x0303' = Just T7
 toneFromChar _ = Nothing
-
-isToaqChar :: Char -> Bool
-isToaqChar c =
-    isLetter c
-    || c == 'ı'
-    || c `T.elem` "'‘’"
-    || c >= '2' && c <= '8'
-    || c >= '\x0300' && c <= '\x0309'
 
 isFocuser :: Text -> Bool
 isFocuser = (`elem` T.words "ku bei juaq mao tou")
@@ -160,8 +148,7 @@ tokenParser :: LexOptions -> Parsec Text () (Pos Token)
 tokenParser opt = do
     pos <- getPosition
     text <- T.pack <$> many1 (satisfy isToaqChar)
-    let clean = tr "ı‘’" "i''" $ T.normalize T.NFKD $ T.toLower text
-    case toToken opt (T.unpack clean) of
+    case toToken opt $ T.unpack $ normalizeToaq text of
         Right token -> pure (Pos pos text token)
         Left err -> fail err
 

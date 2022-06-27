@@ -25,9 +25,11 @@ source-repository head
 
 library
   exposed-modules:
+      Dictionary
       Lex
       Lib
       Parse
+      TextUtils
       Tree
   other-modules:
       Paths_zugai
@@ -37,6 +39,10 @@ library
       DeriveFunctor ImportQualifiedPost OverloadedStrings
   build-depends:
       base >=4.7 && <5
+    , bytestring >=0.10.12
+    , bytestring-trie >=0.2.7
+    , containers >=0.6
+    , microaeson >=0.1.0.1
     , parsec >=3.1.14.0
     , pretty-simple
     , split >=0.2.3.4
@@ -53,6 +59,10 @@ executable zugai-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , bytestring >=0.10.12
+    , bytestring-trie >=0.2.7
+    , containers >=0.6
+    , microaeson >=0.1.0.1
     , parsec >=3.1.14.0
     , pretty-simple
     , split >=0.2.3.4
@@ -73,7 +83,11 @@ test-suite zugai-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , bytestring >=0.10.12
+    , bytestring-trie >=0.2.7
+    , containers >=0.6
     , hspec
+    , microaeson >=0.1.0.1
     , parsec >=3.1.14.0
     , pretty-simple
     , split >=0.2.3.4
