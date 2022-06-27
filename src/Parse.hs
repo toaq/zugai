@@ -1,17 +1,15 @@
 module Parse where
 import Lex
-import Data.Functor (void)
 import Data.List.NonEmpty qualified as N
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
 import Data.Text (Text)
 import Text.Parsec as P
 
--- Most leaves of the parse tree are "W" (words with possible free modifiers before them).
-data W t = WordF FreeMod (W t) | Word (Pos t) deriving (Eq, Functor)
+-- Most leaves of the parse tree are "W" (words with possible free modifiers after them).
+data W t = W (Pos t) [FreeMod] deriving (Eq, Functor)
 instance Show t => Show (W t) where
-    show (Word (Pos p s v)) = "\x1b[93m" ++ T.unpack s ++ "\x1b[0m"
-    show (WordF _ w) = "\x1b[32m#\x1b[0m" ++ show w
+    show (W (Pos p s v) fs) = show (T.unpack s) ++ ['#' | _ <- fs]
 
 data FreeMod
     = Fint (Pos Toned)
@@ -72,27 +70,34 @@ data Name = VerbName Vp | TermName Term deriving (Eq, Show)
 -- Parsers
 type Parser t = Parsec [Pos Token] () t
 
+-- | `many1`, but makes a `NonEmpty` list.
+manyNE :: ParsecT s u m a -> ParsecT s u m (NonEmpty a)
+manyNE p = (N.:|) <$> p <*> many p
+
+-- | Parse a position-tagged token into `a`, if `f token` gives `Just a`.
 tok :: (Token -> Maybe a) -> Parser (Pos a)
 tok f = token show posPos (\(Pos x y t) -> Pos x y <$> f t)
 
+-- | Parse a token if it equals the argument token.
 tokEq :: Token -> Parser (Pos Token)
-tokEq t = tok (\x -> if x == t then Just t else Nothing)
+tokEq expected = tok (\x -> if x == expected then Just x else Nothing)
 
+-- | Parse a token into () if it equals the argument token.
 tokEq_ :: Token -> Parser (Pos ())
-tokEq_ = fmap void . tokEq
+tokEq_ = fmap (()<$) . tokEq
 
 pInterjection :: Parser (Pos Toned)
 pInterjection = tok $ \t -> case t of Interjection x -> Just x; _ -> Nothing
 
 pFreeMod :: Parser FreeMod
 pFreeMod =
-    try (Fint <$> pInterjection)
-    <|> try (Fvoc <$> tokEq_ Hu <*> pNp)
-    <|> try (Finc <$> tokEq_ Ju <*> pSentence)
+    (Fint <$> pInterjection)
+    <|> (Fvoc <$> tokEq_ Hu <*> pNp)
+    <|> (Finc <$> tokEq_ Ju <*> pSentence)
     <|> (Fpar <$> tokEq_ Kio <*> pDiscourse <*> pKi)
 
 pW :: Parser (Pos a) -> Parser (W a)
-pW p = WordF <$> pFreeMod <*> pW p <|> Word <$> p
+pW p = W <$> p <*> many pFreeMod
 
 pFocuser :: Parser (W Text)
 pFocuser = pW $ tok $ \t -> case t of Focuser te -> Just te; _ -> Nothing
@@ -120,32 +125,48 @@ pLu tone = pW $ tok $ \t -> case t of Lu to | to == tone -> Just (); _ -> Nothin
 pTerminator :: Token -> Parser Terminator
 pTerminator = optionMaybe . pW . tokEq_
 
+-- Helper for parsing connectable constructs.
 pConnable' :: Parser na -> Parser c -> Parser c -> Parser (Connable' na c)
 pConnable' pNa p1 p2 =
     try (Conn <$> p1 <*> pNa <*> pConnective <*> pConnable' pNa p2 p2)
     <|> try (ConnTo <$> pTo <*> pConnective <*> pConnable' pNa p1 p2 <*> pTo <*> pConnable' pNa p2 p2)
     <|> (Single <$> p1)
 
+-- Connectable constructs not requiring "na" in afterthought.
+pConnable :: Parser c -> Parser c -> Parser (Connable' () c)
 pConnable = pConnable' (pure ())
+
+-- Connectable constructs requiring "na" in afterthought.
+pConnableNa :: Parser c -> Parser c -> Parser (Connable' (W ()) c)
 pConnableNa = pConnable' (pW $ tokEq_ Na)
+
+-- Connectable constructs where the left and right terms are parsed the same way.
+-- (Example: Gĩ ru hũı -- AdvP ru AdvP.)
+-- (Counterexample: Gí ru hủı -- T2 on the left and T4 on the right.)
+pConnableSame :: Parser c -> Parser (Connable' () c)
 pConnableSame p = pConnable p p
 
+pBi, pKi, pTo :: Parser (W ())
 pBi = pW (tokEq_ Bi)
+pKi = pW (tokEq_ Ki)
+pTo = pW (tokEq_ To)
+-- hu, ju, kio handled inside pW
+
+pCy, pGa, pKy, pTeo :: Parser Terminator
 pCy = pTerminator Cy
 pGa = pTerminator Ga
--- pHu = pW (tokEq_ Hu)  -- handled inside pW
--- pJu = pW (tokEq_ Ju)  -- handled inside pW
-pKi = pW (tokEq_ Ki)
--- pKio = pW (tokEq_ Kio)  -- handled inside pW
 pKy = pTerminator Ky
 pTeo = pTerminator Teo
-pTo = pW (tokEq_ To)
 
 pIllocution :: Parser (W Toned)
 pIllocution = pW $ tok $ \t -> case t of Illocution x -> Just x; _ -> Nothing
 
 pSentenceConnector :: Parser (W Text)
-pSentenceConnector = pW $ tok $ \t -> case t of SentenceConnector x -> Just x; _ -> Nothing
+pSentenceConnector = pW $ tok $ \t ->
+    case t of
+        SentenceConnector x -> Just x
+        Connective c -> Just (T.toLower $ T.pack $ show c) -- hack
+        _ -> Nothing
 
 pVerb :: Tone -> Parser (W Text)
 pVerb tone = pW $ tok $ \t -> case t of Verb (te,to) | to == tone -> Just te; _ -> Nothing
@@ -154,15 +175,15 @@ pRawWord :: Parser (Pos Text)
 pRawWord = token show posPos (\(Pos p src _) -> Just (Pos p src src))
 
 pName :: Parser Name
-pName = try (VerbName <$> pVp T4) <|> (TermName <$> pTerm)
+pName = (VerbName <$> pVp T4) <|> (TermName <$> pTerm)
 
 pVpN :: Tone -> Parser VpN
 pVpN t =
-    try (Vname <$> pNameVerb t <*> pName <*> pGa)
-    <|> try (Vshu <$> pShu t <*> pRawWord)
-    <|> try (Voiv <$> pOiv t <*> pNp <*> pGa)
-    <|> try (Vmo <$> pMo t <*> pDiscourse <*> pTeo)
-    <|> try (Vlu <$> pLu t <*> pStatement <*> pKy)
+    (Vname <$> pNameVerb t <*> pName <*> pGa)
+    <|> (Vshu <$> pShu t <*> pRawWord)
+    <|> (Voiv <$> pOiv t <*> pNp <*> pGa)
+    <|> (Vmo <$> pMo t <*> pDiscourse <*> pTeo)
+    <|> (Vlu <$> pLu t <*> pStatement <*> pKy)
     <|> (Vverb <$> pVerb t)
 
 pVp :: Tone -> Parser Vp
@@ -178,31 +199,67 @@ pNp :: Parser Np
 pNp = pConnableSame pNpC
 
 pNpC :: Parser NpC
-pNpC = try (Focused <$> pFocuser <*> pNpF) <|> (Unf <$> pNpF)
+pNpC = (Focused <$> pFocuser <*> pNpF) <|> (Unf <$> pNpF)
 
 pNpF :: Parser NpF
 pNpF = do head <- pNpR; try (ArgRel head <$> pRel) <|> pure (Unr head)
 
 pNpR :: Parser NpR
-pNpR = try (Bound <$> pVp T2) <|> try (Ndp <$> pDp) <|> (Ncc <$> pCc)
+pNpR = (Bound <$> pVp T2) <|> (Ndp <$> pDp) <|> (Ncc <$> pCc)
 
--- I got lazy with the type annotations here
-pCc = Cc <$> pPredication T5 <*> pKy
-pRel = pConnableSame (Rel <$> pPredication T3 <*> pKy)
-manyNE p = (N.:|) <$> p <*> many p
-pDiscourse = Discourse <$> many pDiscourseItem
-pDiscourseItem = try (DiSentence <$> pSentence) <|> try (DiFragment <$> pFragment) <|> (DiFree <$> pFreeMod)
-pSentence = Sentence <$> optionMaybe (try pSentenceConnector) <*> pStatement <*> optionMaybe (try pIllocution)
-pFragment = try (FrPrenex <$> pPrenex) <|> (FrTerms <$> manyNE pTerm)
-pPrenex = Prenex <$> manyNE pTerm <*> pBi
-pStatement = Statement <$> optionMaybe (try pPrenex) <*> pPredicationsRubi
-pPredicationsRubi = do h <- pPredication T4; try (Rubi h <$> pConnective <*> pBi <*> pPredicationsRubi) <|> pure (NonRubi h)
-pStatement_nocomp = Statement <$> optionMaybe (try pPrenex) <*> (NonRubi . Single . SimplePredication <$> pPredicationS T4)
-pPredication tone = pConnableNa (pPredicationC tone) (pPredicationC T4)
-pPredicationC tone = try (CompPredication <$> pComplementizer tone <*> pStatement_nocomp) <|> (SimplePredication <$> pPredicationS tone)
-pPredicationS tone = Predication <$> pPredicate tone <*> many pTerm
-pPredicate tone = Predicate <$> pVp tone
+pCc :: Parser Cc
+pCc = Cc <$> pPredication T5 <*> pCy
+
+pRel :: Parser Rel
+pRel = pConnableSame (Rel <$> pPredication T3 <*> pCy)
+
+pAdvp :: Parser Advp
 pAdvp = pConnableSame (Advp <$> pVp T7)
+
+pPrep :: Parser Prep
 pPrep = pConnableSame (Prep <$> pVp T6)
+
+pPp :: Parser Pp
 pPp = pConnableSame (Pp <$> pPrep <*> pNp)
-pTerm = try (Tnp <$> pNp) <|> try (Tadvp <$> pAdvp) <|> (Tpp <$> pPp)
+
+pTerm :: Parser Term
+pTerm = (Tnp <$> pNp) <|> (Tadvp <$> pAdvp) <|> (Tpp <$> pPp)
+
+pPredicate :: Tone -> Parser Predicate
+pPredicate tone = Predicate <$> pVp tone
+
+pPredicationS :: Tone -> Parser PredicationS
+pPredicationS tone = Predication <$> pPredicate tone <*> many pTerm
+
+pPredicationC :: Tone -> Parser PredicationC
+pPredicationC tone = (CompPredication <$> pComplementizer tone <*> pStatement_nocomp) <|> (SimplePredication <$> pPredicationS tone)
+
+pPredication :: Tone -> Parser Predication
+pPredication tone = pConnableNa (pPredicationC tone) (pPredicationC T4)
+
+pStatement :: Parser Statement
+pStatement = Statement <$> optionMaybe (try pPrenex) <*> pPredicationsRubi
+
+pPredicationsRubi :: Parser PredicationsRubi
+pPredicationsRubi = do h <- pPredication T4; try (Rubi h <$> pConnective <*> pBi <*> pPredicationsRubi) <|> pure (NonRubi h)
+
+pStatement_nocomp :: Parser Statement
+pStatement_nocomp = Statement <$> optionMaybe (try pPrenex) <*> (NonRubi . Single . SimplePredication <$> pPredicationS T4)
+
+pPrenex :: Parser Prenex
+pPrenex = Prenex <$> manyNE pTerm <*> pBi
+
+pSentence :: Parser Sentence
+pSentence = Sentence <$> optionMaybe pSentenceConnector <*> pStatement <*> optionMaybe pIllocution
+
+pFragment :: Parser Fragment
+pFragment = try (FrPrenex <$> pPrenex) <|> (FrTerms <$> manyNE pTerm)
+
+pDiscourseItem :: Parser DiscourseItem
+pDiscourseItem = (DiFree <$> pFreeMod) <|> try (DiSentence <$> pSentence) <|> (DiFragment <$> pFragment)
+
+pDiscourse :: Parser Discourse
+pDiscourse = Discourse <$> many pDiscourseItem
+
+parseDiscourse :: Text -> Either ParseError Discourse
+parseDiscourse text = lexer text >>= parse (pDiscourse <* eof) ""

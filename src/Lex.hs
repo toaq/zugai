@@ -68,7 +68,7 @@ isFocuser :: Text -> Bool
 isFocuser = (`elem` T.words "ku bei juaq mao tou")
 
 isInterjection :: Text -> Bool
-isInterjection word = word `elem` T.words "ifu aja ahi ume ufu a ua obe upa buzy oai ubai eni aiba obe e nho zi jadi kiji jiki"
+isInterjection word = word `elem` T.words "ifu aja ahi ume ufu a ua obe upa buzy oai ubai eni aiba obe e nho zi jadi kiji jiki haha"
 
 isIllocution :: Text -> Bool
 isIllocution = (`elem` T.words "da ka moq ba nha shou go zay")
@@ -141,12 +141,15 @@ tokenParser = do
         Right token -> pure (Pos pos text token)
         Left err -> fail err
 
+trivia :: Parsec Text () ()
+trivia = skipMany (satisfy $ not . isToaqChar)
+
 skippingTokenParser :: Parsec Text () (Pos Token)
-skippingTokenParser = tokenParser <|> (anyChar >> skippingTokenParser)
+skippingTokenParser = trivia *> tokenParser <* trivia
 
 lexer :: Text -> Either ParseError [Pos Token]
 lexer text =
-    parse (many1 skippingTokenParser) "" text
+    parse (many1 skippingTokenParser <* many anyChar) "" text
 
 unr :: Either a b -> b
 unr (Right b) = b

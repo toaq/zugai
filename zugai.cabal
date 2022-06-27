@@ -37,6 +37,7 @@ library
   build-depends:
       base >=4.7 && <5
     , parsec >=3.1.14.0
+    , pretty-simple
     , split >=0.2.3.4
     , text >=2.0
     , unicode-transforms >=0.4.0.1
@@ -52,6 +53,7 @@ executable zugai-exe
   build-depends:
       base >=4.7 && <5
     , parsec >=3.1.14.0
+    , pretty-simple
     , split >=0.2.3.4
     , text >=2.0
     , unicode-transforms >=0.4.0.1
@@ -65,10 +67,14 @@ test-suite zugai-test
       Paths_zugai
   hs-source-dirs:
       test
+  default-extensions:
+      OverloadedStrings
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , hspec
     , parsec >=3.1.14.0
+    , pretty-simple
     , split >=0.2.3.4
     , text >=2.0
     , unicode-transforms >=0.4.0.1
