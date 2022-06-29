@@ -182,3 +182,13 @@ showTree (Tag t sub) =
         [one] -> [t <> ": " <> one]
         many -> (t<>":") : map ("  "<>) many
 showTree (Pair t x y) = (t<>":") : map ("  "<>) (showTree x) ++ map ("  "<>) (showTree y)
+
+-- Convert a Tree to LaTeX \usepackage{qtree} format.
+treeToLatex :: Maybe (Text -> Text) -> Tree -> Text
+treeToLatex mf tree = "\\Tree [ " <> go tree <> " ]"
+    where
+        go (Leaf src) = "{\\textbf{" <> src <> "}" <> note mf src <> "}"
+        go (Tag t sub) = "[." <> t <> " " <> go sub <> " ]"
+        go (Pair t x y) = "[." <> t <> " " <> go x <> " " <> go y <> " ]"
+        note Nothing _ = ""
+        note (Just f) src = "\\\\ \\textit{" <> f src <> "}"

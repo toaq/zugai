@@ -13,6 +13,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Trie qualified as Trie
 
+import Lex (isIllocution)
 import TextUtils
 
 data SlotType = Concrete | Nary Int deriving (Eq, Ord, Show)
@@ -58,11 +59,17 @@ instance FromJSON Entry where
 
 type Dictionary = Map Text Entry
 
+glossNormalize :: Text -> Text
+glossNormalize t =
+    case bareToaq t of
+        x | isIllocution x -> t
+        x -> x
+
 readDictionary :: IO Dictionary
 readDictionary = do
     dict <- B.readFile "dictionary/dictionary.json"
     let Just entries = decodeStrict dict :: Maybe [Entry]
-    pure $ M.fromList [(bareToaq $ entryToaq e, e) | e <- entries]
+    pure $ M.fromList [(glossNormalize $ entryToaq e, e) | e <- entries]
 
 glossWith :: Dictionary -> Text -> Text
 glossWith dictionary =
@@ -73,4 +80,4 @@ glossWith dictionary =
         go bs =
             [gloss:r | (pre, gloss, rest) <- reverse $ Trie.matches trie bs, r <- go rest]
     in
-        maybe "???" (T.intercalate "-") . listToMaybe . go . T.encodeUtf8
+        maybe "???" (T.intercalate "-") . listToMaybe . go . T.encodeUtf8 . glossNormalize
