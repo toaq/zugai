@@ -1,2 +1,8 @@
 .stack-work/
 *~
+a.aux
+a.log
+a.pdf
+a.png
+a.tex
+texput.log

@@ -1,13 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 module Main where
+
+import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Text.IO qualified as T
 
 import Dictionary
 import Lex
 import Lib
 import Parse
 import Tree
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+
+makeDocument :: Text -> Text
+makeDocument t =
+    T.unlines
+        [ "\\documentclass[preview,border=30pt]{standalone}"
+        , "\\usepackage{amssymb}"
+        , "\\usepackage{qtree}"
+        , "\\begin{document}"
+        , t
+        , "\\end{document}" ]
 
 main :: IO ()
 main = do
@@ -15,4 +28,4 @@ main = do
     let gloss = glossWith dict
     line <- T.getLine
     let Right parsed = parseDiscourse =<< lexToaq line
-    T.putStrLn $ treeToLatex (Just gloss) $ toTree parsed
+    T.putStrLn $ makeDocument $ treeToLatex (Just gloss) $ toTree parsed
