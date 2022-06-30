@@ -7,6 +7,7 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 
 import Dictionary
+import English
 import Lex
 import Lib
 import Parse
@@ -28,4 +29,5 @@ main = do
     let gloss = glossWith dict
     line <- T.getLine
     let Right parsed = parseDiscourse =<< lexToaq line
-    T.putStrLn $ makeDocument $ treeToLatex (Just gloss) $ toTree parsed
+    -- T.putStrLn $ makeDocument $ treeToLatex (Just gloss) $ toTree parsed
+    T.putStrLn (toEnglish dict parsed)
