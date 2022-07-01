@@ -77,15 +77,17 @@ showTm (Knd t) = "baq(" <> t <> ")"
 showFormula :: Formula -> Text
 showFormula (Prd p ts) = p <> "(" <> T.intercalate "," (showTm <$> ts) <> ")"
 showFormula Tru = "⊤"
-showFormula (Equ x y) = "(" <> showTm x <> " = " <> showTm y <> ")"
+showFormula (Equ x y) = showTm x <> " = " <> showTm y
 showFormula (Neg f) = "¬" <> showFormula f
 showFormula (Con c f1 f2) = T.unwords [showFormula f1, showCon c, showFormula f2]
 showFormula (Qua det var res f) = "[" <> showQua det <> var <> ": " <> showFormula res <> "] " <> showFormula f
 
-makeFreeVar :: Text -> Interpret' r Text
-makeFreeVar text = do
-    let letter = case T.uncons text of Just (c, _) -> toUpper c; _ -> 'X'
-    let candidates = T.pack <$> [letter] : [letter : show i | i <- [1..]]
+makeFreeVar :: Maybe Text -> Interpret' r Text
+makeFreeVar verb = do
+    let letters = case verb of
+                    Just text | Just (c, _) <- T.uncons text -> [toUpper c]
+                    Nothing -> "XYZABCD"
+    let candidates = T.pack <$> [h:t | h <- letters, t <- "" : map show [1..]]
     used <- gets usedVars
     let free = head (candidates \\ used)
     modify (\st -> st { usedVars = free : usedVars st })
@@ -113,6 +115,7 @@ bareSrc (W (Pos _ src _) _) = bareToaq src
 
 vpToName :: Vp -> Text
 vpToName (Single (Nonserial (Vverb w))) = bareSrc w
+vpToName _ = "xxxtodo"
 
 interpretDiscourse :: Discourse -> Interpret' [Formula] [Formula]
 interpretDiscourse (Discourse dis) = do
@@ -178,7 +181,10 @@ interpretNpR (Bound vp) = do
 
 interpretNpR (Ndp (Dp (W (Pos _ _ det) _) vp)) = do
     shiftT $ \k -> do
-        v <- makeFreeVar "x"
+        let name = vpToName <$> vp
+        v <- makeFreeVar name
+        mapM (\n -> bind n (Var v)) name
+        -- todo: bind the anaphora pronoun too
         f <- maybe (\_ -> pure Tru) id <$> mapM interpretVp vp
         restriction <- f [Var v]
         lift $ Qua det v restriction <$> k (Var v)
