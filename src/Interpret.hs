@@ -4,6 +4,7 @@ import Control.Monad.Trans.Cont
 import Control.Monad.Identity
 import Control.Monad.State
 import Data.Char
+import Data.Foldable
 import Data.List
 import Data.Map qualified as M
 import Data.Map (Map)
@@ -88,7 +89,7 @@ showFormula (Prd p ts) = p <> "(" <> T.intercalate "," (showTm <$> ts) <> ")"
 showFormula Tru = "⊤"
 showFormula (Equ x y) = showTm x <> " = " <> showTm y
 showFormula (Neg f) = "¬" <> showFormula f
-showFormula (Con c f1 f2) = T.unwords [showFormula f1, showCon c, showFormula f2]
+showFormula (Con c f1 f2) = "(" <> T.unwords [showFormula f1, showCon c, showFormula f2] <> ")"
 showFormula (Qua det var Tru f) = showQua det <> var <> ": " <> showFormula f
 showFormula (Qua det var res f) = "[" <> showQua det <> var <> ": " <> showFormula res <> "] " <> showFormula f
 
@@ -157,24 +158,33 @@ interpretSentence (Sentence je stmt da) = do
 
 interpretStatement :: Statement -> Interpret Formula
 interpretStatement (Statement Nothing rubis) = resetT (interpretRubis rubis)
-interpretStatement (Statement _ rubis) = error "todo prenex"
+interpretStatement (Statement (Just (Prenex ts bi)) rubis) =
+    resetT $ do
+        mapM interpretTerm $ toList ts -- is it ok to ignore topics?
+        interpretRubis rubis
 
 interpretRubis :: PredicationsRubi -> Interpret Formula
 interpretRubis (NonRubi p) = interpretPredication p
-interpretRubis _ = error "todo rubi"
+interpretRubis (Rubi p1 ru bi p2) = do
+    f1 <- interpretPredication p1
+    f2 <- interpretRubis p2
+    pure $ Con (unW ru) f1 f2
 
 interpretPredication :: Predication -> Interpret Formula
-interpretPredication = interpretConn interpretPredicationC
+interpretPredication (Single c) = interpretPredicationC c
+interpretPredication (Conn x na conn y) = Con (unW conn) <$> interpretPredicationC x <*> interpretPredication y
+interpretPredication (ConnTo to conn x to' y) = Con (unW conn) <$> interpretPredication x <*> interpretPredication y
 
 interpretPredicationC :: PredicationC -> Interpret Formula
 interpretPredicationC (SimplePredication p) = interpretPredicationS p
-interpretPredicationC _ = error "todo complementizer"
+interpretPredicationC (CompPredication comp stmt) = interpretStatement stmt -- not sure how to handle ma/tio
 
 interpretPredicationS :: PredicationS -> Interpret Formula
-interpretPredicationS (Predication (Predicate vp) terms) = do
-    f <- interpretVp vp
-    ts <- mapM interpretTerm terms
-    join $ applyTmFun f (concat ts)
+interpretPredicationS (Predication (Predicate vp) terms) =
+    resetT $ do
+        f <- interpretVp vp
+        ts <- mapM interpretTerm terms
+        f $/ concat ts
 
 interpretTerm :: Term -> Interpret [Tm]
 interpretTerm (Tnp np) = (:[]) <$> interpretNp np
@@ -202,9 +212,12 @@ bindVp det (Just vp) =
         v <- makeFreeVar (Just name)
         -- bind vars in the interpreter state:
         bind name (Var v)
-        -- todo: bind the anaphora pronoun too
+        di <- gets stDictionary
+        case lookupPronoun di name of
+            Just prn -> bind prn (Var v) -- todo: aq
+            Nothing -> pure ()
         f <- interpretVp vp
-        restriction <- join $ applyTmFun f [Var v]
+        restriction <- f $/ [Var v]
         lift $ Qua det v restriction <$> k (Var v)
 
 interpretNpR :: NpR -> Interpret Tm
@@ -233,10 +246,21 @@ applyTmFun (TmFun low high frame f) ts = do
     -- Ignore all terms past "high". Maybe error?
     pure $ f $ take high $ ts ++ exs
 
+($/) :: TmFun (Interpret a) -> [Tm] -> Interpret a
+f $/ ts = join $ applyTmFun f ts
+
 type VerbFun = TmFun (Interpret Formula)
 
 interpretVp :: Vp -> Interpret VerbFun
-interpretVp = interpretConn interpretVpC
+interpretVp (Single c) = interpretVpC c
+interpretVp (Conn x na ru y) = do
+    v1 <- interpretVpC x
+    v2 <- interpretVp y
+    pure $ TmFun 0 999 "" $ \ts -> Con (unW ru) <$> (v1$/ts) <*> (v2$/ts)
+interpretVp (ConnTo to ru x to' y) = do
+    v1 <- interpretVp x
+    v2 <- interpretVp y
+    pure $ TmFun 0 999 "" $ \ts -> Con (unW ru) <$> (v1$/ts) <*> (v2$/ts)
 
 serialize :: VerbFun -> VerbFun -> VerbFun
 serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
@@ -244,18 +268,18 @@ serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
         -- TODO: generalize
         "a" -> 
             TmFun (max 1 l2) h2 frame2 $ \ts -> do
-                p2 <- join $ applyTmFun v2 ts
-                p1 <- join $ applyTmFun v1 [head ts]
+                p2 <- v2 $/ ts
+                p1 <- v1 $/ [head ts]
                 pure $ Con Ru p2 p1 -- not quite right, handle attributive adj
         "0" ->
             TmFun l2 h2 frame2 $ \ts -> do
-                p2 <- join $ applyTmFun v2 ts
-                p1 <- join $ applyTmFun v1 [Evt p2]
+                p2 <- v2 $/ ts
+                p1 <- v1 $/ [Evt p2]
                 pure $ p1
         "c 1" ->
             TmFun (max 1 l2) h2 frame2 $ \(t:ts) -> do
-                p2 <- join $ applyTmFun v2 (t:ts)
-                p1 <- join $ applyTmFun v1 [t, Evt p2]
+                p2 <- v2 $/ (t:ts)
+                p1 <- v1 $/ [t, Evt p2]
                 pure $ p1
 
 
@@ -272,7 +296,7 @@ interpretVpN (Vshu shu (Pos _ src _)) = pure $ TmFun 1 1 "a" $ \[t] -> pure $ Eq
 interpretVpN (Vmo mo txt teo)         = pure $ TmFun 1 1 "a" $ \[t] -> pure $ Equ t (Quo (T.pack $ show txt))
 interpretVpN (Voiv oiv np ga) = do
     t <- interpretNp np
-    pure $ TmFun 1 1 "a" $ \[u] -> pure $ Prd (bareSrc oiv <> "jeo") [t,u]
+    pure $ TmFun 1 1 "a" $ \[u] -> pure $ Prd (bareSrc oiv <> "ga") [t,u]
 interpretVpN (Vlu lu stmt ky) = do
     pure $ TmFun 1 1 "a" $ \[t] -> do
         pushScope
