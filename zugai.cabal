@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      ContinuationLab
       Dictionary
       English
       Interpret
@@ -32,13 +33,14 @@ library
       Lib
       Parse
       TextUtils
+      ToName
       Tree
   other-modules:
       Paths_zugai
   hs-source-dirs:
       src
   default-extensions:
-      DeriveFunctor ImportQualifiedPost OverloadedStrings
+      DeriveFunctor FlexibleInstances ImportQualifiedPost OverloadedStrings
   build-depends:
       base >=4.7 && <5
     , bytestring >=0.10.12

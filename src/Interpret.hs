@@ -1,6 +1,5 @@
 module Interpret where
 
-import Control.Monad
 import Control.Monad.Trans.Cont
 import Control.Monad.Identity
 import Control.Monad.State
@@ -9,9 +8,11 @@ import Data.List
 import Data.Map qualified as M
 import Data.Map (Map)
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Data.Text (Text)
 
 import TextUtils
+import ToName
 import Lex
 import Parse
 
@@ -39,7 +40,6 @@ data Tm
     = Var VarName
     | Fus Tm Tm -- X roi Y
     | Quo Text -- quoted text
-    | Knd Text -- maybe expand further idk?
     deriving (Eq, Show)
 
 data Formula
@@ -51,6 +51,14 @@ data Formula
     | Qua Determiner VarName Formula Formula -- ∃[x: P(x)] Q(x)
     deriving (Eq, Show)
 
+-- (p -> Interpret' r a): interpret p into an a-value, within a continuation that eventually results in r.
+-- reset :: Cont r r -> Cont r' r
+-- 
+-- shift :: ((a -> r) -> Cont r r) -> Cont r a
+-- So shift (\k -> ...) can make a "term-in-formula" continuation (Cont r a)
+-- out of a function that uses k :: a -> r to specify a "formula" continuation (Cont r r).
+-- Wow, I still don't understand it at all! See ContinuationLab.hs
+
 type Interpret' r = ContT r (State InterpretState)
 type Interpret = Interpret' Formula
 
@@ -59,7 +67,7 @@ showCon Ra = "∨"
 showCon Ru = "∧"
 showCon Ro = "⊻"
 showCon Ri = "?"
-showCon Roi = undefined
+showCon Roi = "INVALID ROI" -- should have become Fus x y
 
 showQua :: Determiner -> Text
 showQua Sa = "∃"
@@ -72,7 +80,6 @@ showTm :: Tm -> Text
 showTm (Var v) = v
 showTm (Fus x y) = "⌊" <> showTm x <> "," <> showTm y <> "⌉"
 showTm (Quo t) = "«" <> t <> "»"
-showTm (Knd t) = "baq(" <> t <> ")"
 
 showFormula :: Formula -> Text
 showFormula (Prd p ts) = p <> "(" <> T.intercalate "," (showTm <$> ts) <> ")"
@@ -86,8 +93,8 @@ makeFreeVar :: Maybe Text -> Interpret' r Text
 makeFreeVar verb = do
     let letters = case verb of
                     Just text | Just (c, _) <- T.uncons text -> [toUpper c]
-                    Nothing -> "XYZABCD"
-    let candidates = T.pack <$> [h:t | h <- letters, t <- "" : map show [1..]]
+                    Nothing -> "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    let candidates = T.pack <$> [h:t | t <- "" : map show [1..], h <- letters]
     used <- gets usedVars
     let free = head (candidates \\ used)
     modify (\st -> st { usedVars = free : usedVars st })
@@ -114,8 +121,7 @@ bareSrc :: W t -> Text
 bareSrc (W (Pos _ src _) _) = bareToaq src
 
 vpToName :: Vp -> Text
-vpToName (Single (Nonserial (Vverb w))) = bareSrc w
-vpToName _ = "xxxtodo"
+vpToName = toName
 
 interpretDiscourse :: Discourse -> Interpret' [Formula] [Formula]
 interpretDiscourse (Discourse dis) = do
@@ -134,7 +140,7 @@ interpretSentence (Sentence je stmt da) = do
     pure f
 
 interpretStatement :: Statement -> Interpret Formula
-interpretStatement (Statement Nothing rubis) = interpretRubis rubis
+interpretStatement (Statement Nothing rubis) = resetT (interpretRubis rubis)
 interpretStatement (Statement _ rubis) = error "todo prenex"
 
 interpretRubis :: PredicationsRubi -> Interpret Formula
@@ -153,7 +159,7 @@ interpretPredicationS :: PredicationS -> Interpret Formula
 interpretPredicationS (Predication (Predicate vp) terms) = do
     f <- interpretVp vp
     ts <- mapM interpretTerm terms
-    f (concat ts)
+    join $ applyTmFun f (concat ts)
 
 interpretTerm :: Term -> Interpret [Tm]
 interpretTerm (Tnp np) = (:[]) <$> interpretNp np
@@ -171,48 +177,65 @@ interpretNpF :: NpF -> Interpret Tm
 interpretNpF (Unr npr) = interpretNpR npr
 interpretNpF (ArgRel arg rel) = error "todo relp"
 
+bindVp :: Determiner -> Maybe Vp -> Interpret Tm
+bindVp det Nothing =
+    shiftT $ \k -> do
+        v <- makeFreeVar Nothing
+        lift $ Qua det v Tru <$> k (Var v)
+bindVp det (Just vp) =
+    shiftT $ \k -> do
+        let name = vpToName vp
+        v <- makeFreeVar (Just name)
+        -- bind vars in the interpreter state:
+        bind name (Var v)
+        -- todo: bind the anaphora pronoun too
+        f <- interpretVp vp
+        restriction <- join $ applyTmFun f [Var v]
+        lift $ Qua det v restriction <$> k (Var v)
+
 interpretNpR :: NpR -> Interpret Tm
 interpretNpR (Bound vp) = do
     let name = vpToName vp
     ss <- gets scopes
     case msum $ map (M.lookup name) ss of
         Just tm -> pure tm 
-        Nothing -> error "todo ke"
-
-interpretNpR (Ndp (Dp (W (Pos _ _ det) _) vp)) = do
-    shiftT $ \k -> do
-        let name = vpToName <$> vp
-        v <- makeFreeVar name
-        mapM (\n -> bind n (Var v)) name
-        -- todo: bind the anaphora pronoun too
-        f <- maybe (\_ -> pure Tru) id <$> mapM interpretVp vp
-        restriction <- f [Var v]
-        lift $ Qua det v restriction <$> k (Var v)
+        Nothing -> bindVp Ke (Just vp)
+interpretNpR (Ndp (Dp (W (Pos _ _ det) _) vp)) = bindVp det vp
 interpretNpR (Ncc cc) = error "todo cc"
 
-interpretVp :: Vp -> Interpret ([Tm] -> Interpret Formula)
+-- A function [Tm] -> a, tagged with min and max arity.
+data TmFun a = TmFun Int Int ([Tm] -> a)
+
+applyTmFun :: TmFun a -> [Tm] -> Interpret a
+applyTmFun (TmFun low high f) ts = do
+    -- Pad with "sa rai" args until there are at least "low" terms.
+    exs <- replicateM (max (low - length ts) 0) (bindVp Sa Nothing)
+    -- Ignore all terms past "high". Maybe error?
+    pure $ f $ take high $ ts ++ exs
+
+interpretVp :: Vp -> Interpret (TmFun (Interpret Formula))
 interpretVp (Single vpc) = interpretVpC vpc
 interpretVp _ = error "todo conn"
 
-interpretVpC :: VpC -> Interpret ([Tm] -> Interpret Formula)
+interpretVpC :: VpC -> Interpret (TmFun (Interpret Formula))
 interpretVpC (Nonserial vpn) = interpretVpN vpn
 interpretVpC (Serial vpn vpc) = error "todo serials"
 
-interpretVpN :: VpN -> Interpret ([Tm] -> Interpret Formula)
-interpretVpN (Vname nv v ga) = error "todo names"
-interpretVpN (Vshu shu (Pos _ src _)) = pure $ \(t:_) -> pure $ Equ (Quo src) t
-interpretVpN (Vmo mo txt teo) = pure $ \(t:_) -> pure $ Equ (Quo (T.pack $ show txt)) t
+interpretVpN :: VpN -> Interpret (TmFun (Interpret Formula))
+interpretVpN (Vname nv v ga)          = pure $ TmFun 1 1 $ \[t] -> pure $ Prd "chua" [Quo $ toName v, t]
+interpretVpN (Vshu shu (Pos _ src _)) = pure $ TmFun 1 1 $ \[t] -> pure $ Equ t (Quo src)
+interpretVpN (Vmo mo txt teo)         = pure $ TmFun 1 1 $ \[t] -> pure $ Equ t (Quo (T.pack $ show txt))
 interpretVpN (Voiv oiv np ga) = do
     t <- interpretNp np
-    pure $ \ts -> pure $ Prd (bareSrc oiv <> "jeo") (t:ts)
+    pure $ TmFun 2 2 $ \[u] -> pure $ Prd (bareSrc oiv <> "jeo") [t,u]
 interpretVpN (Vlu lu stmt ky) = do
-    pure $ \(t:_) -> do
+    pure $ TmFun 1 1 $ \[t] -> do
         pushScope
         bind "hoa" t
         f <- interpretStatement stmt
         popScope
         pure f
-interpretVpN (Vverb v) = pure $ \ts -> pure $ Prd (bareSrc v) ts
+interpretVpN (Vverb v) = pure $ TmFun 0 999 $ \ts -> pure $ Prd (bareSrc v) ts
 
 lpi :: Text -> [Formula]
 lpi text =
@@ -222,3 +245,6 @@ lpi text =
         cont = interpretDiscourse discourse
     in
         evalState (evalContT cont) emptyInterpretState
+
+lpis :: Text -> IO ()
+lpis = mapM_ (T.putStrLn . showFormula) . lpi

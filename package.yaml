@@ -37,6 +37,7 @@ library:
   source-dirs: src
   default-extensions:
     DeriveFunctor
+    FlexibleInstances
     ImportQualifiedPost
     OverloadedStrings
 
