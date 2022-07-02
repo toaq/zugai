@@ -195,7 +195,13 @@ interpretNp = interpretConn interpretNpC
 
 interpretNpC :: NpC -> Interpret Tm
 interpretNpC (Unf npf) = interpretNpF npf
-interpretNpC (Focused mao npf) = error "todo focus"
+interpretNpC (Focused mao npf) =
+    shiftT $ \k -> do
+        t <- interpretNpF npf
+        v <- makeFreeVar Nothing
+        lift $ do
+            formula <- k (Var v)
+            pure $ Prd (bareSrc mao <> "jeo") [t, Evt (Qua Ja v Tru formula)]
 
 interpretNpF :: NpF -> Interpret Tm
 interpretNpF (Unr npr) = interpretNpR npr
