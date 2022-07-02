@@ -11,6 +11,7 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Text (Text)
 
+import Dictionary
 import TextUtils
 import ToName
 import Lex
@@ -29,17 +30,16 @@ data InterpretState =
         { usedVars :: [VarName]  -- for clarity, makeFreeVar should avoid even variables that have gone out of scope
         , scopes :: [Scope]  -- cons = push, tail = pop
         -- maybe move popped scopes somewhere so we can interpret quasi-donkey-anaphora?
+        , stDictionary :: Dictionary
         }
         deriving (Eq, Show)
-
-emptyInterpretState :: InterpretState
-emptyInterpretState = InterpretState [] [M.empty]
 
 -- terms
 data Tm
     = Var VarName
     | Fus Tm Tm -- X roi Y
     | Quo Text -- quoted text
+    | Evt Formula -- not very "neo-Davidsonian" of me
     deriving (Eq, Show)
 
 data Formula
@@ -74,12 +74,14 @@ showQua Sa = "∃"
 showQua Tuq = "Λ"
 showQua Tu = "∀"
 showQua Ke = "ι"
+showQua Ja = "λ"
 showQua q = T.pack $ show q
 
 showTm :: Tm -> Text
 showTm (Var v) = v
 showTm (Fus x y) = "⌊" <> showTm x <> "," <> showTm y <> "⌉"
 showTm (Quo t) = "«" <> t <> "»"
+showTm (Evt f) = "{" <> showFormula f <> "}"
 
 showFormula :: Formula -> Text
 showFormula (Prd p ts) = p <> "(" <> T.intercalate "," (showTm <$> ts) <> ")"
@@ -87,6 +89,7 @@ showFormula Tru = "⊤"
 showFormula (Equ x y) = showTm x <> " = " <> showTm y
 showFormula (Neg f) = "¬" <> showFormula f
 showFormula (Con c f1 f2) = T.unwords [showFormula f1, showCon c, showFormula f2]
+showFormula (Qua det var Tru f) = showQua det <> var <> ": " <> showFormula f
 showFormula (Qua det var res f) = "[" <> showQua det <> var <> ": " <> showFormula res <> "] " <> showFormula f
 
 makeFreeVar :: Maybe Text -> Interpret' r Text
@@ -201,50 +204,87 @@ interpretNpR (Bound vp) = do
         Just tm -> pure tm 
         Nothing -> bindVp Ke (Just vp)
 interpretNpR (Ndp (Dp (W (Pos _ _ det) _) vp)) = bindVp det vp
-interpretNpR (Ncc cc) = error "todo cc"
+interpretNpR (Ncc (Cc predication cy)) = do
+    f <- resetT $ do
+        pushScope
+        f' <- interpretPredication predication
+        popScope
+        pure f'
+    pure (Evt f)
 
--- A function [Tm] -> a, tagged with min and max arity.
-data TmFun a = TmFun Int Int ([Tm] -> a)
+-- A function [Tm] -> a, tagged with min and max arity and a serial frame.
+data TmFun a = TmFun Int Int Text ([Tm] -> a)
 
 applyTmFun :: TmFun a -> [Tm] -> Interpret a
-applyTmFun (TmFun low high f) ts = do
+applyTmFun (TmFun low high frame f) ts = do
     -- Pad with "sa rai" args until there are at least "low" terms.
     exs <- replicateM (max (low - length ts) 0) (bindVp Sa Nothing)
     -- Ignore all terms past "high". Maybe error?
     pure $ f $ take high $ ts ++ exs
 
-interpretVp :: Vp -> Interpret (TmFun (Interpret Formula))
+type VerbFun = TmFun (Interpret Formula)
+
+interpretVp :: Vp -> Interpret VerbFun
 interpretVp (Single vpc) = interpretVpC vpc
 interpretVp _ = error "todo conn"
 
-interpretVpC :: VpC -> Interpret (TmFun (Interpret Formula))
-interpretVpC (Nonserial vpn) = interpretVpN vpn
-interpretVpC (Serial vpn vpc) = error "todo serials"
+serialize :: VerbFun -> VerbFun -> VerbFun
+serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
+    case frame1 of
+        -- TODO: generalize
+        "a" -> 
+            TmFun (max 1 l2) h2 frame2 $ \ts -> do
+                p2 <- join $ applyTmFun v2 ts
+                p1 <- join $ applyTmFun v1 [head ts]
+                pure $ Con Ru p2 p1 -- not quite right, handle attributive adj
+        "0" ->
+            TmFun l2 h2 frame2 $ \ts -> do
+                p2 <- join $ applyTmFun v2 ts
+                p1 <- join $ applyTmFun v1 [Evt p2]
+                pure $ p1
+        "c 1" ->
+            TmFun (max 1 l2) h2 frame2 $ \(t:ts) -> do
+                p2 <- join $ applyTmFun v2 (t:ts)
+                p1 <- join $ applyTmFun v1 [t, Evt p2]
+                pure $ p1
 
-interpretVpN :: VpN -> Interpret (TmFun (Interpret Formula))
-interpretVpN (Vname nv v ga)          = pure $ TmFun 1 1 $ \[t] -> pure $ Prd "chua" [Quo $ toName v, t]
-interpretVpN (Vshu shu (Pos _ src _)) = pure $ TmFun 1 1 $ \[t] -> pure $ Equ t (Quo src)
-interpretVpN (Vmo mo txt teo)         = pure $ TmFun 1 1 $ \[t] -> pure $ Equ t (Quo (T.pack $ show txt))
+
+interpretVpC :: VpC -> Interpret VerbFun
+interpretVpC (Nonserial vpn) = interpretVpN vpn
+interpretVpC (Serial vpn vpc) = do
+    v1 <- interpretVpN vpn
+    v2 <- interpretVpC vpc
+    pure (serialize v1 v2)
+
+interpretVpN :: VpN -> Interpret VerbFun
+interpretVpN (Vname nv v ga)          = pure $ TmFun 1 1 "a" $ \[t] -> pure $ Prd "chua" [Quo $ toName v, t]
+interpretVpN (Vshu shu (Pos _ src _)) = pure $ TmFun 1 1 "a" $ \[t] -> pure $ Equ t (Quo src)
+interpretVpN (Vmo mo txt teo)         = pure $ TmFun 1 1 "a" $ \[t] -> pure $ Equ t (Quo (T.pack $ show txt))
 interpretVpN (Voiv oiv np ga) = do
     t <- interpretNp np
-    pure $ TmFun 2 2 $ \[u] -> pure $ Prd (bareSrc oiv <> "jeo") [t,u]
+    pure $ TmFun 1 1 "a" $ \[u] -> pure $ Prd (bareSrc oiv <> "jeo") [t,u]
 interpretVpN (Vlu lu stmt ky) = do
-    pure $ TmFun 1 1 $ \[t] -> do
+    pure $ TmFun 1 1 "a" $ \[t] -> do
         pushScope
         bind "hoa" t
         f <- interpretStatement stmt
         popScope
         pure f
-interpretVpN (Vverb v) = pure $ TmFun 0 999 $ \ts -> pure $ Prd (bareSrc v) ts
+interpretVpN (Vverb v) = do
+    dict <- gets stDictionary
+    let frame = maybe "a" id $ lookupFrame dict (bareSrc v)
+    pure $ TmFun 0 999 frame $ \ts -> pure $ Prd (bareSrc v) ts
 
-lpi :: Text -> [Formula]
-lpi text =
+lpi :: Dictionary -> Text -> [Formula]
+lpi dict text =
     let
         Right tokens = lexToaq text
         Right discourse = parseDiscourse tokens
         cont = interpretDiscourse discourse
     in
-        evalState (evalContT cont) emptyInterpretState
+        evalState (evalContT cont) (InterpretState [] [M.empty] dict)
 
 lpis :: Text -> IO ()
-lpis = mapM_ (T.putStrLn . showFormula) . lpi
+lpis text = do
+    dict <- readDictionary
+    mapM_ (T.putStrLn . showFormula) $ lpi dict text

@@ -16,48 +16,43 @@ import Data.Trie qualified as Trie
 import Lex (isIllocution)
 import TextUtils
 
-data SlotType = Concrete | Nary Int deriving (Eq, Ord, Show)
-
-parseSlotType :: Char -> Maybe SlotType
-parseSlotType 'c' = Just (Concrete)
-parseSlotType '0' = Just (Nary 0)
-parseSlotType '1' = Just (Nary 1)
-parseSlotType '2' = Just (Nary 2)
-parseSlotType _ = Nothing
-
-parseFrame :: Text -> [SlotType]
-parseFrame = catMaybes . map parseSlotType . T.unpack
-
 data Distribution = Distributive | NonDistributive deriving (Eq, Ord, Show)
 
 parseDistribution :: Text -> [Distribution]
 parseDistribution = concatMap (\case 'd' -> [Distributive]; 'n' -> [NonDistributive]; _ -> []) . T.unpack
 
-data PronominalClass
-    = HoClass -- I
-    | MaqClass -- II 
-    | HoqClass -- III
-    | TaClass -- IV
-    | RouClass -- V
-    | KuyClass -- VI
-    | ZeClass -- VII
-    | FuyClass -- VIII
-    | BouClass -- IX
-    | RaiClass -- 0
-    deriving (Eq, Ord, Show)
+data VerbInfo =
+    VerbInfo
+        { verbFrame :: Text
+        , verbDistribution :: Text
+        , verbPronominalClass :: Text }
+    deriving (Eq, Show)
 
-data VerbInfo = VerbInfo { verbSlotType :: [SlotType], verbDistribution :: [Distribution], verbPronominalClass :: Text } deriving (Eq, Show)
-data Entry = Entry { entryToaq :: Text, entryType :: Text, entryGloss :: Text, entryVerbInfo :: Maybe VerbInfo } deriving (Eq, Show)
+data Entry =
+    Entry
+        { entryToaq :: Text
+        , entryType :: Text
+        , entryGloss :: Text
+        , entryVerbInfo :: Maybe VerbInfo }
+    deriving (Eq, Show)
 
 instance FromJSON VerbInfo where
     parseJSON = withObject "entry" $ \o ->
-        VerbInfo <$> fmap parseFrame (o .: "frame") <*> fmap parseDistribution (o .: "distribution") <*> o .: "pronominal_class"
+        VerbInfo <$> o .: "frame" <*> o .: "distribution" <*> o .: "pronominal_class"
 
 instance FromJSON Entry where
     parseJSON entry = ($entry) $ withObject "entry" $ \o ->
         Entry <$> o .: "toaq" <*> o .: "type" <*> o .: "gloss" <*> pure (parseMaybe parseJSON entry)
 
 type Dictionary = Map Text Entry
+
+-- lookupFrame d "poq" == Just "ho"
+lookupFrame :: Dictionary -> Text -> Maybe Text
+lookupFrame d t = verbFrame <$> (entryVerbInfo =<< d M.!? bareToaq t)
+
+-- lookupPronoun d "poq" == Just "ho"
+lookupPronoun :: Dictionary -> Text -> Maybe Text
+lookupPronoun d t = verbPronominalClass <$> (entryVerbInfo =<< d M.!? bareToaq t)
 
 glossNormalize :: Text -> Text
 glossNormalize t =
