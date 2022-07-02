@@ -9,6 +9,10 @@ import Text.Parsec as P
 
 -- Most leaves of the parse tree are "W" (words with possible free modifiers after them).
 data W t = W (Pos t) [FreeMod] deriving (Eq, Functor)
+
+unW :: W t -> t
+unW (W (Pos _ _ t) _) = t
+
 instance Show t => Show (W t) where
     show (W (Pos p s v) fs) = show (T.unpack s) ++ ['#' | _ <- fs]
 
@@ -230,6 +234,7 @@ pTermset = do
     to <- pTo
     ru <- pConnective
     termsL <- many1 pTerm
+    guard (length termsL > 1)
     to' <- pTo
     termsR <- replicateM (length termsL) pTerm
     pure $ Termset to ru termsL to' termsR

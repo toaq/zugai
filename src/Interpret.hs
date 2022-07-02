@@ -126,6 +126,19 @@ bareSrc (W (Pos _ src _) _) = bareToaq src
 vpToName :: Vp -> Text
 vpToName = toName
 
+interpretConn :: (c -> Interpret a) -> Connable' na c -> Interpret a
+interpretConn f (Single c) = f c
+interpretConn f (Conn x na conn y) =
+    shiftT $ \k -> do
+        t1 <- f x
+        t2 <- interpretConn f y
+        lift $ Con (unW conn) <$> k t1 <*> k t2
+interpretConn f (ConnTo to conn x to' y) =
+    shiftT $ \k -> do
+        t1 <- interpretConn f x
+        t2 <- interpretConn f y
+        lift $ Con (unW conn) <$> k t1 <*> k t2
+
 interpretDiscourse :: Discourse -> Interpret' [Formula] [Formula]
 interpretDiscourse (Discourse dis) = do
     fss <- mapM interpretDiscourseItem dis
@@ -151,8 +164,7 @@ interpretRubis (NonRubi p) = interpretPredication p
 interpretRubis _ = error "todo rubi"
 
 interpretPredication :: Predication -> Interpret Formula
-interpretPredication (Single p) = interpretPredicationC p
-interpretPredication _ = error "todo conn"
+interpretPredication = interpretConn interpretPredicationC
 
 interpretPredicationC :: PredicationC -> Interpret Formula
 interpretPredicationC (SimplePredication p) = interpretPredicationS p
@@ -169,8 +181,7 @@ interpretTerm (Tnp np) = (:[]) <$> interpretNp np
 interpretTerm _ = error "term"
 
 interpretNp :: Np -> Interpret Tm
-interpretNp (Single npc) = interpretNpC npc
-interpretNp _ = error "todo conn"
+interpretNp = interpretConn interpretNpC
 
 interpretNpC :: NpC -> Interpret Tm
 interpretNpC (Unf npf) = interpretNpF npf
@@ -203,7 +214,7 @@ interpretNpR (Bound vp) = do
     case msum $ map (M.lookup name) ss of
         Just tm -> pure tm 
         Nothing -> bindVp Ke (Just vp)
-interpretNpR (Ndp (Dp (W (Pos _ _ det) _) vp)) = bindVp det vp
+interpretNpR (Ndp (Dp det vp)) = bindVp (unW det) vp
 interpretNpR (Ncc (Cc predication cy)) = do
     f <- resetT $ do
         pushScope
@@ -225,8 +236,7 @@ applyTmFun (TmFun low high frame f) ts = do
 type VerbFun = TmFun (Interpret Formula)
 
 interpretVp :: Vp -> Interpret VerbFun
-interpretVp (Single vpc) = interpretVpC vpc
-interpretVp _ = error "todo conn"
+interpretVp = interpretConn interpretVpC
 
 serialize :: VerbFun -> VerbFun -> VerbFun
 serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
