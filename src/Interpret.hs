@@ -24,7 +24,14 @@ type VarName = Text -- like "P" or "B1".
 -- like "sa fu" becoming F.
 
 type VarRef = Text -- like "de poq" or "ta": VP-turned-to-text or pronoun word that refers to a variable
-type Scope = Map VarRef Tm  -- after "sa dẻ pỏq", generate var "D" and map "de poq" + "ta" to "D" here.
+data Scope =
+    Scope
+        { argsSeen :: Int  -- args seen so far in clause: used to make aq decisions
+        , bindings :: Map VarRef Tm  -- after "sa dẻ pỏq", generate var "D" and map "de poq" + "ta" to "D" here.
+        } deriving (Eq, Show)
+
+emptyScope :: Scope
+emptyScope = Scope 0 M.empty
 
 data InterpretState =
     InterpretState
@@ -32,15 +39,14 @@ data InterpretState =
         , scopes :: [Scope]  -- cons = push, tail = pop
         -- maybe move popped scopes somewhere so we can interpret quasi-donkey-anaphora?
         , stDictionary :: Dictionary
-        }
-        deriving (Eq, Show)
+        } deriving (Eq, Show)
 
 -- terms
 data Tm
     = Var VarName
     | Fus Tm Tm -- X roi Y
     | Quo Text -- quoted text
-    | Evt Formula -- not very "neo-Davidsonian" of me
+    | Ccl Formula -- not very "neo-Davidsonian" of me
     deriving (Eq, Show)
 
 data Formula
@@ -82,7 +88,7 @@ showTm :: Tm -> Text
 showTm (Var v) = v
 showTm (Fus x y) = "⌊" <> showTm x <> "," <> showTm y <> "⌉"
 showTm (Quo t) = "«" <> t <> "»"
-showTm (Evt f) = "{" <> showFormula f <> "}"
+showTm (Ccl f) = "{" <> showFormula f <> "}"
 
 showFormula :: Formula -> Text
 showFormula (Prd p ts) = p <> "(" <> T.intercalate "," (showTm <$> ts) <> ")"
@@ -105,7 +111,7 @@ makeFreeVar verb = do
     pure free
 
 pushScope :: Interpret' r ()
-pushScope = modify (\st -> st { scopes = M.empty : scopes st })
+pushScope = modify (\st -> st { scopes = emptyScope : scopes st })
 
 popScope :: Interpret' r Scope
 popScope = do
@@ -119,7 +125,10 @@ modifyTop f = do
     modify (\st -> st { scopes = f (head ss) : tail ss })
 
 bind :: VarRef -> Tm -> Interpret' r ()
-bind var term = modifyTop (M.insert var term)
+bind var term = modifyTop (\scope -> scope { bindings = M.insert var term (bindings scope) })
+
+sawArg :: Interpret' r ()
+sawArg = modifyTop (\(Scope i s) -> Scope (i+1) s)
 
 bareSrc :: W t -> Text
 bareSrc (W (Pos _ src _) _) = bareToaq src
@@ -170,6 +179,14 @@ interpretRubis (Rubi p1 ru bi p2) = do
     f2 <- interpretRubis p2
     pure $ Con (unW ru) f1 f2
 
+interpretRel :: Rel -> Interpret Formula
+interpretRel (Single c) = interpretRelC c
+interpretRel (Conn x na conn y) = Con (unW conn) <$> interpretRelC x <*> interpretRel y
+interpretRel (ConnTo to conn x to' y) = Con (unW conn) <$> interpretRel x <*> interpretRel y
+
+interpretRelC :: RelC -> Interpret Formula
+interpretRelC (Rel pred cy) = interpretPredication pred
+
 interpretPredication :: Predication -> Interpret Formula
 interpretPredication (Single c) = interpretPredicationC c
 interpretPredication (Conn x na conn y) = Con (unW conn) <$> interpretPredicationC x <*> interpretPredication y
@@ -187,8 +204,8 @@ interpretPredicationS (Predication (Predicate vp) terms) =
         f $/ concat ts
 
 interpretTerm :: Term -> Interpret [Tm]
-interpretTerm (Tnp np) = (:[]) <$> interpretNp np
-interpretTerm _ = error "term"
+interpretTerm (Tnp np) = do t <- interpretNp np; sawArg; pure [t]
+interpretTerm _ = error "todo adverbials, termsets"
 
 interpretNp :: Np -> Interpret Tm
 interpretNp = interpretConn interpretNpC
@@ -201,36 +218,52 @@ interpretNpC (Focused mao npf) =
         v <- makeFreeVar Nothing
         lift $ do
             formula <- k (Var v)
-            pure $ Prd (bareSrc mao <> "jeo") [t, Evt (Qua Ja v Tru formula)]
+            pure $ Prd (bareSrc mao <> "jeo") [t, Ccl (Qua Ja v Tru formula)]
 
 interpretNpF :: NpF -> Interpret Tm
 interpretNpF (Unr npr) = interpretNpR npr
-interpretNpF (ArgRel arg rel) = error "todo relp"
+interpretNpF (ArgRel (Bound vp) rel) = error "todo RelP on bound var?"
+interpretNpF (ArgRel (Ncc cc) rel) = error "todo: RelP on content clause"
+interpretNpF (ArgRel (Ndp (Dp det vp)) rel) =
+    let transform verb = TmFun 1 1 "a" $ \[t] -> do
+        f_main <- verb $/ [t]
+        pushScope
+        bind "hoa" t -- todo autohoa!?
+        f_rel <- interpretConn interpretRelC rel
+        popScope
+        pure $ Con Ru f_main f_rel
+    in bindVpWithTransform transform (unW det) vp
 
-bindVp :: Determiner -> Maybe Vp -> Interpret Tm
-bindVp det Nothing =
+
+bindVpWithTransform :: (VerbFun -> VerbFun) -> Determiner -> Maybe Vp -> Interpret Tm
+bindVpWithTransform verbTransform det Nothing =
     shiftT $ \k -> do
         v <- makeFreeVar Nothing
         lift $ Qua det v Tru <$> k (Var v)
-bindVp det (Just vp) =
+bindVpWithTransform verbTransform det (Just vp) =
     shiftT $ \k -> do
         let name = vpToName vp
         v <- makeFreeVar (Just name)
         -- bind vars in the interpreter state:
         bind name (Var v)
+        Scope argsSeen _ <- head <$> gets scopes
         di <- gets stDictionary
-        case lookupPronoun di name of
-            Just prn -> bind prn (Var v) -- todo: aq
+        let anaphora = if argsSeen == 0 then Just "aq" else lookupPronoun di name
+        case anaphora of
+            Just prn -> bind prn (Var v)
             Nothing -> pure ()
         f <- interpretVp vp
-        restriction <- f $/ [Var v]
+        restriction <- verbTransform f $/ [Var v]
         lift $ Qua det v restriction <$> k (Var v)
+
+bindVp :: Determiner -> Maybe Vp -> Interpret Tm
+bindVp = bindVpWithTransform id
 
 interpretNpR :: NpR -> Interpret Tm
 interpretNpR (Bound vp) = do
     let name = vpToName vp
     ss <- gets scopes
-    case msum $ map (M.lookup name) ss of
+    case msum $ map (M.lookup name . bindings) ss of
         Just tm -> pure tm 
         Nothing -> bindVp Ke (Just vp)
 interpretNpR (Ndp (Dp det vp)) = bindVp (unW det) vp
@@ -240,7 +273,7 @@ interpretNpR (Ncc (Cc predication cy)) = do
         f' <- interpretPredication predication
         popScope
         pure f'
-    pure (Evt f)
+    pure (Ccl f)
 
 -- A function [Tm] -> a, tagged with min and max arity and a serial frame.
 data TmFun a = TmFun Int Int Text ([Tm] -> a)
@@ -280,12 +313,12 @@ serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
         "0" ->
             TmFun l2 h2 frame2 $ \ts -> do
                 p2 <- v2 $/ ts
-                p1 <- v1 $/ [Evt p2]
+                p1 <- v1 $/ [Ccl p2]
                 pure $ p1
         "c 1" ->
             TmFun (max 1 l2) h2 frame2 $ \(t:ts) -> do
                 p2 <- v2 $/ (t:ts)
-                p1 <- v1 $/ [t, Evt p2]
+                p1 <- v1 $/ [t, Ccl p2]
                 pure $ p1
 
 
@@ -322,7 +355,7 @@ lpi dict text =
         Right discourse = parseDiscourse tokens
         cont = interpretDiscourse discourse
     in
-        evalState (evalContT cont) (InterpretState [] [M.empty] dict)
+        evalState (evalContT cont) (InterpretState [] [emptyScope] dict)
 
 lpis :: Text -> IO ()
 lpis text = do
