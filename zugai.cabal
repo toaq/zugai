@@ -48,6 +48,7 @@ library
     , containers >=0.6
     , microaeson >=0.1.0.1
     , mtl >=2.2.2
+    , optparse-applicative >=0.16
     , parsec >=3.1.14.0
     , pretty-simple
     , split >=0.2.3.4
@@ -70,6 +71,7 @@ executable zugai-exe
     , containers >=0.6
     , microaeson >=0.1.0.1
     , mtl >=2.2.2
+    , optparse-applicative >=0.16
     , parsec >=3.1.14.0
     , pretty-simple
     , split >=0.2.3.4
@@ -97,6 +99,7 @@ test-suite zugai-test
     , hspec
     , microaeson >=0.1.0.1
     , mtl >=2.2.2
+    , optparse-applicative >=0.16
     , parsec >=3.1.14.0
     , pretty-simple
     , split >=0.2.3.4

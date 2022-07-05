@@ -134,7 +134,7 @@ instance ToTree VpC where
     toTree (Serial x y) = Pair "Serial" (toTree x) (toTree y)
     toTree (Nonserial x) = toTree x
 instance ToTree VpN where
-    toTree (Vname nv name tmr) = toTreeTerminator "Vname" (Pair "Vname" (toTree $ show nv) (toTree name)) tmr
+    toTree (Vname nv name tmr) = toTreeTerminator "Vname" (Pair "Vname" (toTree nv) (toTree name)) tmr
     toTree (Vshu shu text) = Pair "Vquote" (Tag "Quoter" $ toTree shu) (Tag "Quoted" $ toTree text)
     toTree (Voiv oiv np tmr) = toTreeTerminator "Vinc" (Pair "Vinc" (Tag "OIV" $ toTree oiv) (toTree np)) tmr
     toTree (Vmo mo disc teo) = toTreeTerminator "Vquote" (Pair "Vquote" (Tag "Quoter" $ toTree mo) (toTree disc)) teo
@@ -164,6 +164,7 @@ instance ToTree Text where toTree t = Leaf t
 instance ToTree (Text, Tone) where toTree (t, _) = Leaf t
 instance ToTree String where toTree t = toTree (T.pack t)
 
+instance ToTree NameVerb where toTree nv = Tag "NameVerb" $ toTree $ show nv
 instance ToTree Determiner where toTree det = Tag "Det" $ toTree $ show det
 instance ToTree Connective where toTree t = Tag "Co" $ toTree $ show t
 instance ToTree Complementizer where toTree t = Tag "C" $ toTree $ show t

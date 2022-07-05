@@ -2,32 +2,73 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 module Main where
 
+import Control.Exception
+import Control.Monad
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Options.Applicative
 
 import Dictionary
 import English
+import Interpret
 import Lex
 import Lib
-import Parse
+import Parse hiding (Parser)
 import Tree
 
-makeDocument :: Text -> Text
-makeDocument t =
-    T.unlines
-        [ "\\documentclass[preview,border=30pt]{standalone}"
-        , "\\usepackage{amssymb}"
-        , "\\usepackage{qtree}"
-        , "\\begin{document}"
-        , t
-        , "\\end{document}" ]
+data InputMode = FromStdin | FromFile String
+
+parseInputMode :: Parser InputMode
+parseInputMode = (FromFile <$> strOption (long "input" <> short 'i' <> metavar "FILENAME" <> help "File to read input from")) <|> pure FromStdin
+
+data OutputMode = ToZugaiParseTree | ToXbarLatex | ToEnglish | ToLogic deriving Eq
+parseOutputMode :: Parser OutputMode
+parseOutputMode =
+    flag' ToZugaiParseTree (long "to-zugai-tree" <> help "Output mode: dump zugai's internal parse tree")
+    <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
+    <|> flag' ToEnglish (long "to-english" <> help "Output mode: badly machine-translated English")
+    <|> flag' ToLogic (long "to-logic" <> help "Output mode: predicate logic notation")
+
+data CliOptions = CliOptions
+  { inputMode :: InputMode
+  , outputMode :: OutputMode
+  , lineByLine :: Bool }
+
+parseCli :: Parser CliOptions
+parseCli = CliOptions <$> parseInputMode <*> parseOutputMode <*> flag False True (long "line-by-line" <> help "Process each line in the input as a separate text")
+
+cliInfo :: ParserInfo CliOptions
+cliInfo = info (parseCli <**> helper) (fullDesc <> progDesc "Parse and interpret Toaq text.")
+
+data ZugaiException = ZugaiException String deriving Show
+
+instance Exception ZugaiException
+
+unwrap :: Show a => Either a b -> IO b
+unwrap (Left a) = throwIO (ZugaiException $ show a)
+unwrap (Right b) = pure b
+
+processInput :: OutputMode -> Dictionary -> Text -> IO ()
+processInput om dict unstrippedInput = do
+    let input = T.strip unstrippedInput
+    lexed <- unwrap (lexToaq input)
+    parsed <- unwrap (parseDiscourse lexed)
+    let output =
+          case om of
+            ToZugaiParseTree -> T.pack $ show parsed
+            ToXbarLatex -> input <> "\n\n" <> treeToLatex (Just (glossWith dict)) (toTree parsed) <> "\n"
+            ToEnglish -> "**" <> input <> "** = " <> toEnglish dict parsed
+            ToLogic -> T.intercalate "\n" $ map showFormula $ interpret dict parsed
+    T.putStrLn output
 
 main :: IO ()
 main = do
+    CliOptions im om lineByLine <- execParser cliInfo
+    input <- case im of FromStdin -> T.getContents; FromFile s -> T.readFile s
     dict <- readDictionary
-    let gloss = glossWith dict
-    line <- T.getLine
-    let Right parsed = parseDiscourse =<< lexToaq line
-    -- T.putStrLn $ makeDocument $ treeToLatex (Just gloss) $ toTree parsed
-    T.putStrLn (toEnglish dict parsed)
+    when (om == ToXbarLatex) $ T.putStrLn "\\documentclass[preview,border=30pt]{standalone}\n\\usepackage{amssymb}\n\\usepackage{qtree}\n\\begin{document}"
+    if lineByLine
+        then mapM_ (processInput om dict) (T.lines input)
+        else processInput om dict input
+    when (om == ToXbarLatex) $ T.putStrLn "\\end{document}"

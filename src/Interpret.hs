@@ -233,13 +233,14 @@ interpretNpF (Unr npr) = interpretNpR npr
 interpretNpF (ArgRel (Bound vp) rel) = error "todo RelP on bound var?"
 interpretNpF (ArgRel (Ncc cc) rel) = error "todo: RelP on content clause"
 interpretNpF (ArgRel (Ndp (Dp det vp)) rel) =
-    let transform verb = TmFun 1 1 "a" $ \[t] -> do
-        f_main <- verb $/ [t]
-        pushScope
-        bind "hoa" t -- todo autohoa!?
-        f_rel <- interpretConn interpretRelC rel
-        popScope
-        pure $ Con Ru f_main f_rel
+    let transform verb =
+            TmFun 1 1 "a" $ \[t] -> do
+                f_main <- verb $/ [t]
+                pushScope
+                bind "hoa" t -- todo autohoa!?
+                f_rel <- interpretConn interpretRelC rel
+                popScope
+                pure $ Con Ru f_main f_rel
     in bindVpWithTransform transform (unW det) vp
 
 isHighVerb :: Vp -> Bool
@@ -376,14 +377,19 @@ interpretVpN (Vverb v) = do
     let frame = maybe "a" id $ lookupFrame dict (bareSrc v)
     pure $ TmFun 0 999 frame $ \ts -> pure $ Prd (bareSrc v) ts
 
+interpret :: Dictionary -> Discourse -> [Formula]
+interpret dict discourse =
+    evalState
+        (evalContT (interpretDiscourse discourse))
+        (InterpretState [] [emptyScope] dict)
+
 lpi :: Dictionary -> Text -> [Formula]
 lpi dict text =
     let
         Right tokens = lexToaq text
         Right discourse = parseDiscourse tokens
-        cont = interpretDiscourse discourse
     in
-        evalState (evalContT cont) (InterpretState [] [emptyScope] dict)
+        interpret dict discourse
 
 lpis :: Text -> IO ()
 lpis text = do
