@@ -200,3 +200,14 @@ treeToLatex annotate tree = "\\Tree " <> go tree
                 noteText = f src
                 (cmd, transform) = if T.all isUpper noteText then ("\\textsc", T.toLower) else ("\\textit", id)
             in "\\\\" <> cmd <> "{" <> transform noteText <> "}"
+
+-- Convert a Tree to HTML.
+treeToHtml :: Maybe (Text -> Text) -> Tree -> Text
+treeToHtml annotate tree = div "zugai-tree" (go tree)
+    where
+        div className content = "<div class=\"" <> className <> "\">" <> content <> "</div>"
+        go (Leaf src) = div "leaf" (div "src" src <> note annotate src)
+        go (Tag t sub) = div "node" (div "tag" t <> div "children" (go sub))
+        go (Pair t x y) = div "node" (div "tag" t <> div "children" (go x <> go y))
+        note Nothing _ = ""
+        note (Just f) src = div "gloss" (f src)

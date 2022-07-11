@@ -22,11 +22,17 @@ data InputMode = FromStdin | FromFile String
 parseInputMode :: Parser InputMode
 parseInputMode = (FromFile <$> strOption (long "input" <> short 'i' <> metavar "FILENAME" <> help "File to read input from")) <|> pure FromStdin
 
-data OutputMode = ToZugaiParseTree | ToXbarLatex | ToEnglish | ToLogic deriving Eq
+data OutputMode
+    = ToZugaiParseTree
+    | ToXbarLatex
+    | ToXbarHtml
+    | ToEnglish
+    | ToLogic deriving Eq
 parseOutputMode :: Parser OutputMode
 parseOutputMode =
     flag' ToZugaiParseTree (long "to-zugai-tree" <> help "Output mode: dump zugai's internal parse tree")
     <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
+    <|> flag' ToXbarHtml (long "to-xbar-html" <> help "Output mode: HTML X-bar tree")
     <|> flag' ToEnglish (long "to-english" <> help "Output mode: badly machine-translated English")
     <|> flag' ToLogic (long "to-logic" <> help "Output mode: predicate logic notation")
 
@@ -58,6 +64,7 @@ processInput om dict unstrippedInput = do
           case om of
             ToZugaiParseTree -> T.pack $ show parsed
             ToXbarLatex -> input <> "\n\n" <> treeToLatex (Just (glossWith dict)) (toTree parsed) <> "\n"
+            ToXbarHtml -> treeToHtml (Just (glossWith dict)) (toTree parsed)
             ToEnglish -> "**" <> input <> "** = " <> toEnglish dict parsed
             ToLogic -> T.intercalate "\n" $ map showFormula $ interpret dict parsed
     T.putStrLn output
