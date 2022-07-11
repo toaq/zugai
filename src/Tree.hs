@@ -12,6 +12,8 @@ import qualified Data.Text as T
 import Lex
 import Parse
 import Text.Parsec (SourcePos)
+import qualified Data.Aeson.Micro as J
+import Data.Aeson.Micro ((.=), object)
 
 data Tree
     = Tag Text Tree
@@ -211,3 +213,9 @@ treeToHtml annotate tree = div "zugai-tree" (go tree)
         go (Pair t x y) = div "node" (div "tag" t <> div "children" (go x <> go y))
         note Nothing _ = ""
         note (Just f) src = div "gloss" (f src)
+
+-- Convert a Tree to JSON.
+treeToJson :: Maybe (Text -> Text) -> Tree -> J.Value
+treeToJson annotate (Leaf src) = object $ ["type" .= J.String "leaf", "src" .= J.String src, "gloss" .= case annotate of Just f -> J.String (f src); _ -> J.Null]
+treeToJson annotate (Tag t sub) = object $ ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array [treeToJson annotate sub]]
+treeToJson annotate (Pair t x y) = object $ ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array (treeToJson annotate <$> [x,y])]

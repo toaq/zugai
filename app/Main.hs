@@ -5,8 +5,11 @@ module Main where
 import Control.Exception
 import Control.Monad
 import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Data.Aeson.Micro qualified as J
+import Data.ByteString qualified as BS
 import Options.Applicative
 
 import Dictionary
@@ -26,6 +29,7 @@ data OutputMode
     = ToZugaiParseTree
     | ToXbarLatex
     | ToXbarHtml
+    | ToXbarJson
     | ToEnglish
     | ToLogic deriving Eq
 parseOutputMode :: Parser OutputMode
@@ -33,6 +37,7 @@ parseOutputMode =
     flag' ToZugaiParseTree (long "to-zugai-tree" <> help "Output mode: dump zugai's internal parse tree")
     <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
     <|> flag' ToXbarHtml (long "to-xbar-html" <> help "Output mode: HTML X-bar tree")
+    <|> flag' ToXbarJson (long "to-xbar-json" <> help "Output mode: JSON X-bar tree")
     <|> flag' ToEnglish (long "to-english" <> help "Output mode: badly machine-translated English")
     <|> flag' ToLogic (long "to-logic" <> help "Output mode: predicate logic notation")
 
@@ -62,12 +67,13 @@ processInput om dict unstrippedInput = do
     parsed <- unwrap (parseDiscourse lexed)
     let output =
           case om of
-            ToZugaiParseTree -> T.pack $ show parsed
-            ToXbarLatex -> input <> "\n\n" <> treeToLatex (Just (glossWith dict)) (toTree parsed) <> "\n"
-            ToXbarHtml -> treeToHtml (Just (glossWith dict)) (toTree parsed)
-            ToEnglish -> "**" <> input <> "** = " <> toEnglish dict parsed
-            ToLogic -> T.intercalate "\n" $ map showFormula $ interpret dict parsed
-    T.putStrLn output
+            ToZugaiParseTree -> encodeUtf8 $ T.pack $ show parsed
+            ToXbarLatex -> encodeUtf8 $ input <> "\n\n" <> treeToLatex (Just (glossWith dict)) (toTree parsed) <> "\n"
+            ToXbarHtml -> encodeUtf8 $ treeToHtml (Just (glossWith dict)) (toTree parsed)
+            ToXbarJson -> J.encodeStrict $ treeToJson (Just (glossWith dict)) (toTree parsed)
+            ToEnglish -> encodeUtf8 $ "**" <> input <> "** = " <> toEnglish dict parsed
+            ToLogic -> encodeUtf8 $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
+    BS.putStr (output <> "\n")
 
 main :: IO ()
 main = do
