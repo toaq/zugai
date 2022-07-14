@@ -50,7 +50,8 @@ data Pos t = Pos { posPos :: SourcePos, posSrc :: Text, posVal :: t } deriving (
 instance Functor Pos where
     fmap f (Pos x y z) = Pos x y (f z)
 instance Show t => Show (Pos t) where
-    show x = show (posVal x) ++ "\x1b[96m~" ++ T.unpack (posSrc x) ++ "\x1b[0m" -- "\x1b[32m" ++ T.unpack (posSrc x) ++ "\x1b[0m"
+    show x = show (posSrc x)
+    -- show x = show (posVal x) ++ "\x1b[96m~" ++ T.unpack (posSrc x) ++ "\x1b[0m" -- "\x1b[32m" ++ T.unpack (posSrc x) ++ "\x1b[0m"
 
 toneFromChar :: Char -> Maybe Tone
 toneFromChar '2' = Just T2

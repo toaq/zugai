@@ -57,9 +57,11 @@ parseCli = CliOptions <$> parseInputMode <*> parseOutputMode <*> flag False True
 cliInfo :: ParserInfo CliOptions
 cliInfo = info (parseCli <**> helper) (fullDesc <> progDesc "Parse and interpret Toaq text.")
 
-data ZugaiException = ZugaiException String deriving Show
+data ZugaiException = ZugaiException String
 
 instance Exception ZugaiException
+instance Show ZugaiException where
+    show (ZugaiException s) = s
 
 unwrap :: Show a => Either a b -> IO b
 unwrap (Left a) = throwIO (ZugaiException $ show a)
