@@ -83,7 +83,7 @@ showQua Tuq = "Λ"
 showQua Tu = "∀"
 showQua Ke = "ι"
 showQua Ja = "λ"
-showQua q = T.pack $ show q
+showQua q = T.toLower (T.pack $ show q) <> " "
 
 showTm :: Tm -> Text
 showTm (Var v) = v
@@ -344,10 +344,27 @@ serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
                 p2 <- v2 $/ ts
                 p1 <- v1 $/ [Ccl p2]
                 pure $ p1
+        "c 0" ->
+            TmFun (max 1 l2) h2 frame2 $ \(t:ts) -> do
+                p2 <- v2 $/ ts
+                p1 <- v1 $/ [t, Ccl p2]
+                pure $ p1
+        "c c 0" ->
+            TmFun (max 2 l2) h2 frame2 $ \(t:t':ts) -> do
+                p2 <- v2 $/ ts
+                p1 <- v1 $/ [t, t', Ccl p2]
+                pure $ p1
         "c 1" ->
             TmFun (max 1 l2) h2 frame2 $ \(t:ts) -> do
-                p2 <- v2 $/ (t:ts)
-                p1 <- v1 $/ [t, Ccl p2]
+                v <- makeFreeVar Nothing
+                p2 <- v2 $/ (Var v:ts)
+                p1 <- v1 $/ [t, Ccl (Qua Ja v Tru p2)]
+                pure $ p1
+        "c c 1" ->
+            TmFun (max 2 l2) h2 frame2 $ \(t:t':ts) -> do
+                v <- makeFreeVar Nothing
+                p2 <- v2 $/ (Var v:ts)
+                p1 <- v1 $/ [t, t', Ccl (Qua Ja v Tru p2)]
                 pure $ p1
 
 
