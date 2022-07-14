@@ -366,6 +366,20 @@ serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
                 p2 <- v2 $/ (Var v:ts)
                 p1 <- v1 $/ [t, t', Ccl (Qua Ja v Tru p2)]
                 pure $ p1
+        "c 2" ->
+            TmFun (max 1 l2) h2 frame2 $ \(t:ts) -> do
+                v <- makeFreeVar Nothing
+                v' <- makeFreeVar Nothing
+                p2 <- v2 $/ (Var v:Var v':ts)
+                p1 <- v1 $/ [t, Ccl (Qua Ja v Tru (Qua Ja v' Tru p2))]
+                pure $ p1
+        "c c 2" ->
+            TmFun (max 2 l2) h2 frame2 $ \(t:t':ts) -> do
+                v <- makeFreeVar Nothing
+                v' <- makeFreeVar Nothing
+                p2 <- v2 $/ (Var v:Var v':ts)
+                p1 <- v1 $/ [t, t', Ccl (Qua Ja v Tru (Qua Ja v' Tru p2))]
+                pure $ p1
 
 
 interpretVpC :: VpC -> Interpret VerbFun
