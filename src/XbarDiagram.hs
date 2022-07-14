@@ -30,7 +30,7 @@ toa color height t =
         d <> boundingRect (d # pad 1.5) # lcA transparent
 
 xbarToDiagram :: (Text -> Text) -> Xbar -> Diagram B
-xbarToDiagram gloss xbar = go 1 xbar {- # showEnvelope # showOrigin -} # frame 0.5 # bg (sRGB24 0x36 0x39 0x3E) where
+xbarToDiagram gloss xbar = go 1 xbar {- # showEnvelope # showOrigin -} # frame 0.25 # bg (sRGB24 0x36 0x39 0x3E) where
     conn i j = connectPerim' (with & arrowHead .~ noHead & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (90@@deg)
     go :: Integer -> Xbar -> Diagram B
     go i xbar = center $ case xbar of

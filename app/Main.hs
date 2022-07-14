@@ -77,7 +77,7 @@ processInput om dict unstrippedInput = do
             ToXbarHtml -> pure $ encodeUtf8 $ xbarToHtml (Just (glossWith dict)) (toXbar parsed)
             ToXbarJson -> pure $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (toXbar parsed)
             ToXbarSvg -> do renderSVG "output.svg" (mkHeight 500) (xbarToDiagram (glossWith dict) (toXbar parsed)); pure "Written to output.svg"
-            ToEnglish -> pure $ encodeUtf8 $ "**" <> input <> "** = " <> toEnglish dict parsed
+            ToEnglish -> pure $ encodeUtf8 $ toEnglish dict parsed
             ToLogic -> pure $ encodeUtf8 $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
     BS.putStr (output <> "\n")
 
