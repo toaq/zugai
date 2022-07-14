@@ -119,7 +119,7 @@ toToneless x | isFocuser x = Just (Focuser x)
 toToneless x | isSentenceConnector x = Just (SentenceConnector x)
 toToneless _ = Nothing
 
-toToken :: LexOptions -> String -> Either String Token
+toToken :: LexOptions -> String -> Either String (Token, Tone)
 toToken opt word =
     let base = T.pack (filter isLetter word)
         tone' = msum (map toneFromChar word)
@@ -128,29 +128,29 @@ toToken opt word =
     in case base of
         _ | Just token <- toToneless base ->
             if tone' == Just T8 || tone' == Nothing
-                then Right token
+                then Right (token, T8)
                 else Left (T.unpack base <> " must have neutral tone")
-        "la" -> Right (Complementizer La tone)
-        "ma" -> Right (Complementizer Ma tone)
-        "tio" -> Right (Complementizer Tio tone)
-        "po" -> Right (Oiv ("po", tone))
-        "jei" -> Right (Oiv ("jei", tone))
-        "mea" -> Right (Oiv ("mea", tone))
-        "mo" -> Right (Mo tone)
-        "lu" -> Right (Lu tone)
-        "shu" -> Right (Shu tone)
-        "mi" -> Right (NameVerb Mi tone)
-        "miru" -> Right (NameVerb Miru tone)
-        _ | isIllocution base -> Right (Illocution (base, tone))
-        _ | isInterjection base -> Right (Interjection (base, tone))
-        _ -> Right (Verb (base, tone))
+        "la" -> Right (Complementizer La tone, tone)
+        "ma" -> Right (Complementizer Ma tone, tone)
+        "tio" -> Right (Complementizer Tio tone, tone)
+        "po" -> Right (Oiv ("po", tone), tone)
+        "jei" -> Right (Oiv ("jei", tone), tone)
+        "mea" -> Right (Oiv ("mea", tone), tone)
+        "mo" -> Right (Mo tone, tone)
+        "lu" -> Right (Lu tone, tone)
+        "shu" -> Right (Shu tone, tone)
+        "mi" -> Right (NameVerb Mi tone, tone)
+        "miru" -> Right (NameVerb Miru tone, tone)
+        _ | isIllocution base -> Right (Illocution (base, tone), tone)
+        _ | isInterjection base -> Right (Interjection (base, tone), tone)
+        _ -> Right (Verb (base, tone), tone)
 
 tokenParser :: LexOptions -> Parsec Text () (Pos Token)
 tokenParser opt = do
     pos <- getPosition
     text <- T.pack <$> many1 (satisfy isToaqChar)
     case toToken opt $ T.unpack $ normalizeToaq text of
-        Right token -> pure (Pos pos text token)
+        Right (token, _) -> pure (Pos pos text token)
         Left err -> fail err
 
 trivia :: Parsec Text () ()

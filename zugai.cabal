@@ -47,6 +47,7 @@ library
     , base >=4.7 && <5
     , bytestring >=0.10.12
     , bytestring-trie >=0.2.7
+    , colour >=2.3.6
     , containers >=0.6
     , diagrams
     , diagrams-lib
@@ -75,6 +76,7 @@ executable zugai-exe
     , base >=4.7 && <5
     , bytestring >=0.10.12
     , bytestring-trie >=0.2.7
+    , colour >=2.3.6
     , containers >=0.6
     , diagrams
     , diagrams-lib
@@ -107,6 +109,7 @@ test-suite zugai-test
     , base >=4.7 && <5
     , bytestring >=0.10.12
     , bytestring-trie >=0.2.7
+    , colour >=2.3.6
     , containers >=0.6
     , diagrams
     , diagrams-lib

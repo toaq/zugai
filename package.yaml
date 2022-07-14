@@ -23,6 +23,7 @@ dependencies:
 - base >= 4.7 && < 5
 - bytestring >= 0.10.12
 - bytestring-trie >= 0.2.7
+- colour >= 2.3.6
 - containers >= 0.6
 - diagrams
 - diagrams-lib
