@@ -18,7 +18,7 @@ import Interpret
 import Lex
 import Lib
 import Parse hiding (Parser)
-import Tree
+import Xbar
 
 data InputMode = FromStdin | FromFile String
 
@@ -68,9 +68,9 @@ processInput om dict unstrippedInput = do
     let output =
           case om of
             ToZugaiParseTree -> encodeUtf8 $ T.pack $ show parsed
-            ToXbarLatex -> encodeUtf8 $ input <> "\n\n" <> treeToLatex (Just (glossWith dict)) (toTree parsed) <> "\n"
-            ToXbarHtml -> encodeUtf8 $ treeToHtml (Just (glossWith dict)) (toTree parsed)
-            ToXbarJson -> J.encodeStrict $ treeToJson (Just (glossWith dict)) (toTree parsed)
+            ToXbarLatex -> encodeUtf8 $ input <> "\n\n" <> xbarToLatex (Just (glossWith dict)) (toXbar parsed) <> "\n"
+            ToXbarHtml -> encodeUtf8 $ xbarToHtml (Just (glossWith dict)) (toXbar parsed)
+            ToXbarJson -> J.encodeStrict $ xbarToJson (Just (glossWith dict)) (toXbar parsed)
             ToEnglish -> encodeUtf8 $ "**" <> input <> "** = " <> toEnglish dict parsed
             ToLogic -> encodeUtf8 $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
     BS.putStr (output <> "\n")

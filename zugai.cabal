@@ -34,7 +34,7 @@ library
       Parse
       TextUtils
       ToName
-      Tree
+      Xbar
   other-modules:
       Paths_zugai
   hs-source-dirs:
