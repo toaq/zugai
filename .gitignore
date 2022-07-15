@@ -8,3 +8,4 @@ a.tex
 output.svg
 output.png
 texput.log
+__pycache__
