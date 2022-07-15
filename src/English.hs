@@ -100,7 +100,7 @@ instance ToEnglish RelC where
 instance ToEnglish Cc where
     toEnglish d (Cc pred tmr) = "[" <> toEnglish d pred <> "]"
 instance ToEnglish VpC where
-    toEnglish d (Serial x y) = toEnglish d x <> "∘" <> toEnglish d y
+    toEnglish d (Serial x y) = toEnglish d x <> "–" <> toEnglish d y
     toEnglish d (Nonserial x) = toEnglish d x
 instance ToEnglish VpN where
     toEnglish d (Vname nv name tmr) = capitalize (toEnglish d name)
