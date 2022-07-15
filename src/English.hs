@@ -27,6 +27,7 @@ fixUp "ASS" = "."
 fixUp "PST" = "did"
 fixUp "PRE" = "now"
 fixUp "FUT" = "will"
+fixUp "hereby" = "!"
 fixUp "optative" = "!"
 fixUp "promissive" = "."
 fixUp "it.I" = "they"
@@ -46,7 +47,7 @@ instance ToEnglish Fragment where
     toEnglish d (FrPrenex x) = toEnglish d x
     toEnglish d (FrTerms ts) = T.intercalate ", " (toEnglish d <$> toList ts)
 instance ToEnglish Prenex where
-    toEnglish d (Prenex ts bi) = "as for " <> T.intercalate ", " (toEnglish d <$> toList ts) <> ": "
+    toEnglish d (Prenex ts bi) = T.intercalate ", " (toEnglish d <$> toList ts) <> ": "
 instance ToEnglish Statement where
     toEnglish d (Statement (Just prenex) preds) = toEnglish d prenex <> toEnglish d preds
     toEnglish d (Statement Nothing preds) = toEnglish d preds
@@ -97,9 +98,9 @@ instance ToEnglish Dp where
 instance ToEnglish RelC where
     toEnglish d (Rel pred tmr) = toEnglish d pred
 instance ToEnglish Cc where
-    toEnglish d (Cc pred tmr) = toEnglish d pred
+    toEnglish d (Cc pred tmr) = "[" <> toEnglish d pred <> "]"
 instance ToEnglish VpC where
-    toEnglish d (Serial x y) = toEnglish d x <> "-" <> toEnglish d y
+    toEnglish d (Serial x y) = toEnglish d x <> "∘" <> toEnglish d y
     toEnglish d (Nonserial x) = toEnglish d x
 instance ToEnglish VpN where
     toEnglish d (Vname nv name tmr) = capitalize (toEnglish d name)
@@ -123,7 +124,7 @@ instance ToEnglish t => ToEnglish (W t) where
 instance ToEnglish (Text, Tone) where
     toEnglish d (t, _) = toEnglish d t
 instance ToEnglish Text where
-    toEnglish d t = fixUp $ glossWith d t
+    toEnglish d t = case fixUp $ glossWith d t of "???" -> t; e -> e
 instance ToEnglish Determiner where
     toEnglish _ Sa = "some"
     toEnglish _ Tu = "every"
