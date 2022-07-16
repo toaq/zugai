@@ -30,6 +30,7 @@ fixUp "ASS" = "."
 fixUp "PST" = "did"
 fixUp "PRE" = "now"
 fixUp "FUT" = "will"
+fixUp "something" = "thing" -- rai
 fixUp "hereby" = "!"
 fixUp "optative" = "!"
 fixUp "promissive" = "."
@@ -106,7 +107,7 @@ instance ToEnglish VpC where
     toEnglish d (Serial x y) = toEnglish d x <> "–" <> toEnglish d y
     toEnglish d (Nonserial x) = toEnglish d x
 instance ToEnglish VpN where
-    toEnglish d (Vname nv name tmr) = capitalize (toEnglish d name)
+    toEnglish d (Vname nv name tmr) = capitalize (T.strip $ toEnglish d name)
     toEnglish d (Vshu shu text) = "\"" <> posSrc text <> "\""
     toEnglish d (Voiv oiv np tmr) = toEnglish d oiv <> " " <> toEnglish d np
     toEnglish d (Vmo mo disc teo) = "«" <> toEnglish d disc <> "»"
