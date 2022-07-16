@@ -10,9 +10,12 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Aeson.Micro qualified as J
 import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BSL
 import Options.Applicative
 import Diagrams.Prelude (mkHeight)
-import Diagrams.Backend.SVG (renderSVG)
+import Diagrams.Backend.SVG
+import Diagrams.Core.Compile (renderDia)
+import Graphics.Svg.Core (renderBS)
 
 import Dictionary
 import English
@@ -42,7 +45,7 @@ parseOutputMode =
     <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
     <|> flag' ToXbarHtml (long "to-xbar-html" <> help "Output mode: HTML X-bar tree")
     <|> flag' ToXbarJson (long "to-xbar-json" <> help "Output mode: JSON X-bar tree")
-    <|> flag' ToXbarSvg (long "to-xbar-svg" <> help "Output mode: SVG X-bar tree, written to output.svg")
+    <|> flag' ToXbarSvg (long "to-xbar-svg" <> help "Output mode: SVG X-bar tree")
     <|> flag' ToEnglish (long "to-english" <> help "Output mode: badly machine-translated English")
     <|> flag' ToLogic (long "to-logic" <> help "Output mode: predicate logic notation")
 
@@ -72,16 +75,16 @@ processInput om dict unstrippedInput = do
     let input = T.strip unstrippedInput
     lexed <- unwrap (lexToaq input)
     parsed <- unwrap (parseDiscourse lexed)
-    output <-
-        case om of
-            ToZugaiParseTree -> pure $ encodeUtf8 $ T.pack $ show parsed
-            ToXbarLatex -> pure $ encodeUtf8 $ input <> "\n\n" <> xbarToLatex (Just (glossWith dict)) (toXbar parsed) <> "\n"
-            ToXbarHtml -> pure $ encodeUtf8 $ xbarToHtml (Just (glossWith dict)) (toXbar parsed)
-            ToXbarJson -> pure $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (toXbar parsed)
-            ToXbarSvg -> do renderSVG "output.svg" (mkHeight 500) (xbarToDiagram (glossWith dict) (toXbar parsed)); pure "Written to output.svg"
-            ToEnglish -> pure $ encodeUtf8 $ toEnglish dict parsed
-            ToLogic -> pure $ encodeUtf8 $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
-    BS.putStr (output <> "\n")
+    let enc = BSL.fromStrict . encodeUtf8
+    let output = case om of
+            ToZugaiParseTree -> enc $ T.pack $ show parsed
+            ToXbarLatex -> enc $ input <> "\n\n" <> xbarToLatex (Just (glossWith dict)) (toXbar parsed) <> "\n"
+            ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (toXbar parsed)
+            ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (toXbar parsed)
+            ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (toXbar parsed))
+            ToEnglish -> enc $ toEnglish dict parsed
+            ToLogic -> enc $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
+    BSL.putStr (output <> "\n")
 
 main :: IO ()
 main = do

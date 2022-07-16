@@ -50,6 +50,7 @@ library
     , colour >=2.3.6
     , containers >=0.6
     , diagrams
+    , diagrams-core
     , diagrams-lib
     , diagrams-svg
     , hashable >=1.4
@@ -59,6 +60,7 @@ library
     , parsec >=3.1.14.0
     , pretty-simple
     , split >=0.2.3.4
+    , svg-builder
     , text
     , transformers >=0.5.6.2
     , unicode-transforms >=0.4.0.1
@@ -79,6 +81,7 @@ executable zugai-exe
     , colour >=2.3.6
     , containers >=0.6
     , diagrams
+    , diagrams-core
     , diagrams-lib
     , diagrams-svg
     , hashable >=1.4
@@ -88,6 +91,7 @@ executable zugai-exe
     , parsec >=3.1.14.0
     , pretty-simple
     , split >=0.2.3.4
+    , svg-builder
     , text
     , transformers >=0.5.6.2
     , unicode-transforms >=0.4.0.1
@@ -112,6 +116,7 @@ test-suite zugai-test
     , colour >=2.3.6
     , containers >=0.6
     , diagrams
+    , diagrams-core
     , diagrams-lib
     , diagrams-svg
     , hashable >=1.4
@@ -122,6 +127,7 @@ test-suite zugai-test
     , parsec >=3.1.14.0
     , pretty-simple
     , split >=0.2.3.4
+    , svg-builder
     , text
     , transformers >=0.5.6.2
     , unicode-transforms >=0.4.0.1

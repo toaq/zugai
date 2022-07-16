@@ -26,7 +26,7 @@ async def on_message(message):
             return
 
         # put "inkscape" on path
-        run2 = subprocess.run(["inkscape", "output.svg", "-h", "800", "--export-filename=output.png"], capture_output=True)
+        run2 = subprocess.run(["inkscape", "--pipe", "-h", "800", "--export-filename=output.png"], input=run1.stdout, capture_output=True)
         if run2.returncode != 0:
             print(run2)
             await message.channel.send('Failed to convert to png.')
