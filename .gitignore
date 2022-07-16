@@ -9,3 +9,6 @@ output.svg
 output.png
 texput.log
 __pycache__
+toadua-dump.json
+toadua-basic.json
+

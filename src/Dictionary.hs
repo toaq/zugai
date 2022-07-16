@@ -10,6 +10,7 @@ import Data.Map qualified as M
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Trie qualified as Trie
 
@@ -63,8 +64,11 @@ glossNormalize t =
 readDictionary :: IO Dictionary
 readDictionary = do
     dict <- B.readFile "dictionary/dictionary.json"
+    extra <- T.readFile "toadua-glosses.txt"
+    let unofficial = [(glossNormalize head, Entry head "verb" (T.strip gloss) Nothing) | line <- T.lines extra, let (head,gloss) = T.breakOn " " line]
     let Just entries = decodeStrict dict :: Maybe [Entry]
-    pure $ M.fromList [(glossNormalize $ entryToaq e, e) | e <- entries]
+    let official = [(glossNormalize $ entryToaq e, e) | e <- entries]
+    pure $ M.fromList $ unofficial ++ official
 
 glossWith :: Dictionary -> Text -> Text
 glossWith dictionary =
