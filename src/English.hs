@@ -20,8 +20,10 @@ capitalize :: Text -> Text
 capitalize t = T.toUpper (T.take 1 t) <> T.drop 1 t
 
 sentencify :: Text -> Text
-sentencify "" = "(Empty sentence)."
-sentencify t = capitalize t <> (if T.last t `T.elem` ".?!" then "" else ".")
+sentencify t =
+    case T.unwords (T.words t) of
+        "" -> "(Empty sentence)."
+        t -> capitalize t <> (if T.last t `T.elem` ".?!" then "" else ".")
 
 fixUp :: Text -> Text
 fixUp "ASS" = "."
