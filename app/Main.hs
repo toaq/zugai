@@ -4,12 +4,14 @@ module Main where
 
 import Control.Exception
 import Control.Monad
+import System.Exit
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Aeson.Micro qualified as J
 import Data.ByteString qualified as BS
+import Data.String qualified as S
 import Options.Applicative
 import Diagrams.Prelude (mkHeight)
 import Diagrams.Backend.SVG (renderSVG)
@@ -23,10 +25,14 @@ import Parse hiding (Parser)
 import Xbar
 import XbarDiagram
 
-data InputMode = FromStdin | FromFile String
+data InputSource = FromStdin | FromFile String
+data OutputDestination = ToStdout | ToFile String
 
-parseInputMode :: Parser InputMode
-parseInputMode = (FromFile <$> strOption (long "input" <> short 'i' <> metavar "FILENAME" <> help "File to read input from")) <|> pure FromStdin
+parseInputSource :: Parser InputSource
+parseInputSource = (FromFile <$> strOption (long "input" <> short 'i' <> metavar "FILENAME" <> help "File to read input from")) <|> pure FromStdin
+
+parseOutputDestination :: Parser OutputDestination
+parseOutputDestination = (ToFile <$> strOption (long "output" <> short 'o' <> metavar "FILENAME" <> help "File to write output to")) <|> pure ToStdout
 
 data OutputMode
     = ToZugaiParseTree
@@ -42,17 +48,18 @@ parseOutputMode =
     <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
     <|> flag' ToXbarHtml (long "to-xbar-html" <> help "Output mode: HTML X-bar tree")
     <|> flag' ToXbarJson (long "to-xbar-json" <> help "Output mode: JSON X-bar tree")
-    <|> flag' ToXbarSvg (long "to-xbar-svg" <> help "Output mode: SVG X-bar tree, written to output.svg")
+    <|> flag' ToXbarSvg (long "to-xbar-svg" <> help "Output mode: SVG X-bar tree")
     <|> flag' ToEnglish (long "to-english" <> help "Output mode: badly machine-translated English")
     <|> flag' ToLogic (long "to-logic" <> help "Output mode: predicate logic notation")
 
 data CliOptions = CliOptions
-  { inputMode :: InputMode
-  , outputMode :: OutputMode
+  { outputMode :: OutputMode
+  , inputSource :: InputSource
+  , outputDestination :: OutputDestination
   , lineByLine :: Bool }
 
 parseCli :: Parser CliOptions
-parseCli = CliOptions <$> parseInputMode <*> parseOutputMode <*> flag False True (long "line-by-line" <> help "Process each line in the input as a separate text")
+parseCli = CliOptions <$> parseOutputMode <*> parseInputSource <*> parseOutputDestination <*> flag False True (long "line-by-line" <> help "Process each line in the input as a separate text")
 
 cliInfo :: ParserInfo CliOptions
 cliInfo = info (parseCli <**> helper) (fullDesc <> progDesc "Parse and interpret Toaq text.")
@@ -67,29 +74,40 @@ unwrap :: Show a => Either a b -> IO b
 unwrap (Left a) = throwIO (ZugaiException $ show a)
 unwrap (Right b) = pure b
 
-processInput :: OutputMode -> Dictionary -> Text -> IO ()
-processInput om dict unstrippedInput = do
+latexTemplate :: BS.ByteString -> BS.ByteString
+latexTemplate s = "\\documentclass[preview,border=30pt]{standalone}\n\\usepackage{amssymb}\n\\usepackage{qtree}\n\\begin{document}" <> s <> "\\end{document}"
+
+processInput :: OutputMode -> OutputDestination -> Dictionary -> Text -> IO ()
+processInput om od dict unstrippedInput = do
     let input = T.strip unstrippedInput
     lexed <- unwrap (lexToaq input)
     parsed <- unwrap (parseDiscourse lexed)
     output <-
         case om of
-            ToZugaiParseTree -> pure $ encodeUtf8 $ T.pack $ show parsed
-            ToXbarLatex -> pure $ encodeUtf8 $ input <> "\n\n" <> xbarToLatex (Just (glossWith dict)) (toXbar parsed) <> "\n"
-            ToXbarHtml -> pure $ encodeUtf8 $ xbarToHtml (Just (glossWith dict)) (toXbar parsed)
-            ToXbarJson -> pure $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (toXbar parsed)
-            ToXbarSvg -> do renderSVG "output.svg" (mkHeight 500) (xbarToDiagram (glossWith dict) (toXbar parsed)); pure "Written to output.svg"
-            ToEnglish -> pure $ encodeUtf8 $ toEnglish dict parsed
-            ToLogic -> pure $ encodeUtf8 $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
-    BS.putStr (output <> "\n")
+            ToXbarSvg -> case od of
+                ToStdout -> do BS.putStr "Can't render SVG to standard output (yet)"; exitWith (ExitFailure 1); return Nothing
+                ToFile s -> do renderSVG s (mkHeight 500) (xbarToDiagram (glossWith dict) (toXbar parsed)); return Nothing
+            _ -> pure $ Just $ case om of
+                ToZugaiParseTree -> encodeUtf8 $ T.pack $ show parsed
+                ToXbarLatex -> latexTemplate $ encodeUtf8 $ input <> "\n\n" <> xbarToLatex (Just (glossWith dict)) (toXbar parsed) <> "\n"
+                ToXbarHtml -> encodeUtf8 $ xbarToHtml (Just (glossWith dict)) (toXbar parsed)
+                ToXbarJson -> J.encodeStrict $ xbarToJson (Just (glossWith dict)) (toXbar parsed)
+                ToEnglish -> encodeUtf8 $ toEnglish dict parsed
+                ToLogic -> encodeUtf8 $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
+    case output of
+        Just out -> (case od of
+            ToStdout -> BS.putStr
+            ToFile s -> BS.appendFile s)
+            (out <> "\n")
+        Nothing -> pure ()
 
 main :: IO ()
 main = do
-    CliOptions im om lineByLine <- execParser cliInfo
-    input <- case im of FromStdin -> T.getContents; FromFile s -> T.readFile s
+    CliOptions om is od lineByLine <- execParser cliInfo
+    input <- case is of FromStdin -> T.getContents; FromFile s -> T.readFile s
     dict <- readDictionary
-    when (om == ToXbarLatex) $ T.putStrLn "\\documentclass[preview,border=30pt]{standalone}\n\\usepackage{amssymb}\n\\usepackage{qtree}\n\\begin{document}"
+    case od of ToFile s -> BS.writeFile s BS.empty; _ -> pure ()
     if lineByLine
-        then mapM_ (processInput om dict) (T.lines input)
-        else processInput om dict input
-    when (om == ToXbarLatex) $ T.putStrLn "\\end{document}"
+        then mapM_ (processInput om od dict) (T.lines input)
+        else processInput om od dict input
+    case od of ToFile s -> BS.putStr ("Wrote to " <> (S.fromString s) <> "\n"); _ -> pure ()
