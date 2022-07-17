@@ -50,7 +50,8 @@ toa :: Colour Double -> Double -> Text -> Diagram B
 toa color height t =
     let
         str = if t == "" then "∅" else T.unpack t
-        d = stroke (textSVG str height) # fc color # lw none # centerX
+        color' = if color == rui && t == "" then discordBg else color
+        d = stroke (textSVG str height) # fc color' # lw none # centerX
     in
         d <> boundingRect (d # frame 0.2) # lcA transparent
 

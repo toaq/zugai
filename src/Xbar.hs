@@ -9,11 +9,13 @@ import Data.Char
 import Data.Foldable
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.List.NonEmpty (NonEmpty(..))
 import Lex
 import Parse
 import Text.Parsec (SourcePos)
 import qualified Data.Aeson.Micro as J
 import Data.Aeson.Micro ((.=), object)
+import ToName
 
 data Xbar
     = Tag Text Xbar
@@ -26,7 +28,7 @@ class ToXbar a where
 
 -- Turn n≥1 terms into a parse tree with a "term" or "terms" head.
 termsToXbar :: Foldable t => t Term -> Xbar
-termsToXbar = foldr1 (Pair "Terms") . map toXbar . toList
+termsToXbar = foldl1 (Pair "Terms") . map toXbar . toList
 
 -- When rendering an elided VP after "sa", this "∅" VP is rendered as a fallback.
 nullVp :: SourcePos -> Vp
@@ -37,6 +39,13 @@ terminated :: Text -> Xbar -> Terminator -> Xbar
 terminated _ t Nothing = t
 terminated tag t (Just word) = Pair tag t (Tag "End" $ toXbar word)
 
+covert :: Xbar
+covert = Leaf ""
+
+prenexToXbar :: NonEmpty Term -> W () -> Xbar -> Xbar
+prenexToXbar (t:|[]) bi c = Pair "TopicP" (toXbar t) (Pair "Topic'" (Tag "Topic" $ toXbar bi) c)
+prenexToXbar (t:|(t':ts)) bi c = Pair "TopicP" (toXbar t) (Pair "Topic'" (Tag "Topic" covert) (prenexToXbar (t':|ts) bi c))
+
 instance ToXbar Discourse where
     toXbar (Discourse ds) = foldr1 (Pair "Discourse") (toXbar <$> ds)
 instance ToXbar DiscourseItem where
@@ -45,17 +54,15 @@ instance ToXbar DiscourseItem where
     toXbar (DiFree x) = toXbar x
 instance ToXbar Sentence where
     toXbar (Sentence sc stmt ill) =
-        let t = case ill of Just i -> Pair "S" (toXbar stmt) (Tag "Illoc" $ toXbar i)
-                            Nothing -> toXbar stmt
-        in case sc of Just sc -> Pair "S" (Tag "SConn" $ toXbar sc) t
+        let t = case ill of Just i -> Pair "SAP" (toXbar stmt) (Tag "SA" $ toXbar i)
+                            Nothing -> Pair "SAP" (toXbar stmt) (Tag "SA" (Leaf ""))
+        in case sc of Just sc -> Pair "SAP'" (Tag "SConn" $ toXbar sc) t
                       Nothing -> t
 instance ToXbar Fragment where
-    toXbar (FrPrenex x) = toXbar x
+    toXbar (FrPrenex (Prenex ts bi)) = prenexToXbar ts bi covert
     toXbar (FrTerms ts) = termsToXbar ts
-instance ToXbar Prenex where
-    toXbar (Prenex ts bi) = Pair "Prenex" (termsToXbar ts) (Tag "End" $ toXbar bi)
 instance ToXbar Statement where
-    toXbar (Statement (Just prenex) preds) = Pair "Stmt" (toXbar prenex) (toXbar preds)
+    toXbar (Statement (Just (Prenex ts bi)) preds) = prenexToXbar ts bi (toXbar preds)
     toXbar (Statement Nothing preds) = toXbar preds
 instance ToXbar PredicationsRubi where
     toXbar (Rubi p1 ru bi ps) = Pair "VP" (Pair "VP" (toXbar p1) (Pair "Co" (toXbar ru) (Tag "End" $ toXbar bi))) (toXbar ps)
@@ -66,7 +73,7 @@ instance ToXbar PredicationC where
 instance ToXbar PredicationS where
     toXbar (Predication predicate []) = Tag "VP" (toXbar predicate)
     -- toXbar (Predication predicate terms) = Pair "Pred" (toXbar predicate) (termsToXbar terms)
-    toXbar (Predication predicate terms) = foldl (Pair "VP") (toXbar predicate) (toXbar <$> terms)
+    toXbar (Predication predicate terms) = Pair "VP" (toXbar predicate) $ foldr1 (Pair "Terms") (toXbar <$> terms)
 instance ToXbar Predicate where
     toXbar (Predicate vp) = Tag "Verb" (toXbar vp)
 instance ToXbar Term where
@@ -123,11 +130,11 @@ instance ToXbar NpF where
     toXbar (ArgRel arg rel) = Pair "NPrel" (toXbar arg) (toXbar rel)
     toXbar (Unr np) = toXbar np
 instance ToXbar NpR where
-    toXbar (Bound vp) = Tag "NP" $ toXbar vp
+    toXbar (Bound vp) = Tag "DP" (toXbar vp) -- Pair "DP" (Tag "D" $ Leaf "•\x0301") $ Tag "VP" (Leaf $ toName vp)
     toXbar (Ndp dp) = toXbar dp
     toXbar (Ncc cc) = toXbar cc
 instance ToXbar Dp where
-    toXbar (Dp det@(W pos _) vp) = Pair "DP" (Tag "Det" $ Leaf (posSrc pos)) (toXbar $ maybe (nullVp $ posPos pos) id vp)
+    toXbar (Dp det@(W pos _) vp) = Pair "DP" (Tag "D" $ Leaf (posSrc pos)) (toXbar $ maybe (nullVp $ posPos pos) id vp)
 instance ToXbar RelC where
     toXbar (Rel pred tmr) = terminated "RelP" (toXbar pred) tmr
 instance ToXbar Cc where
@@ -167,7 +174,7 @@ instance ToXbar (Text, Tone) where toXbar (t, _) = Leaf t
 instance ToXbar String where toXbar t = toXbar (T.pack t)
 
 instance ToXbar NameVerb where toXbar nv = Tag "NameVerb" $ toXbar $ show nv
-instance ToXbar Determiner where toXbar det = Tag "Det" $ toXbar $ show det
+instance ToXbar Determiner where toXbar det = Tag "D" $ toXbar $ show det
 instance ToXbar Connective where toXbar t = Tag "Co" $ toXbar $ show t
 instance ToXbar Complementizer where toXbar t = Tag "C" $ toXbar $ show t
 
