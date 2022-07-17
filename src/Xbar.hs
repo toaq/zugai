@@ -20,7 +20,8 @@ import ToName
 data Xbar
     = Tag Text Xbar
     | Pair Text Xbar Xbar
-    | Leaf Text -- Source word and gloss
+    | Leaf Text -- Source word
+    | Roof Text Text -- Tag and source text
     deriving (Eq, Show)
 
 class ToXbar a where
@@ -130,7 +131,7 @@ instance ToXbar NpF where
     toXbar (ArgRel arg rel) = Pair "NPrel" (toXbar arg) (toXbar rel)
     toXbar (Unr np) = toXbar np
 instance ToXbar NpR where
-    toXbar (Bound vp) = Tag "DP" (toXbar vp) -- Pair "DP" (Tag "D" $ Leaf "•\x0301") $ Tag "VP" (Leaf $ toName vp)
+    toXbar (Bound vp) = Roof "DP" (toSrc vp) -- Pair "DP" (Tag "D" $ Leaf "•\x0301") $ Tag "VP" (Leaf $ toName vp)
     toXbar (Ndp dp) = toXbar dp
     toXbar (Ncc cc) = toXbar cc
 instance ToXbar Dp where
@@ -182,6 +183,7 @@ instance ToXbar Complementizer where toXbar t = Tag "C" $ toXbar $ show t
 -- predication(predicate(verb(de))) becomes just verb(de).
 simplifyXbar :: Xbar -> Xbar
 simplifyXbar t@(Leaf _) = t
+simplifyXbar t@(Roof _ _) = t
 simplifyXbar t@(Tag _ (Leaf _)) = t
 simplifyXbar (Tag _ sub) = simplifyXbar sub
 simplifyXbar (Pair t x y) = Pair t (simplifyXbar x) (simplifyXbar y)
@@ -189,6 +191,7 @@ simplifyXbar (Pair t x y) = Pair t (simplifyXbar x) (simplifyXbar y)
 -- Show an Xbar tree using indentation and ANSI colors.
 showXbarAnsi :: Xbar -> [Text]
 showXbarAnsi (Leaf src) = ["\x1b[94m" <> src <> "\x1b[0m"]
+showXbarAnsi (Roof t src) = ["\x1b[95m" <> t <> ": " <> src <> "\x1b[0m"]
 showXbarAnsi (Tag t sub) =
     case showXbarAnsi sub of
         [one] -> [t <> ": " <> one]
@@ -197,10 +200,11 @@ showXbarAnsi (Pair t x y) = (t<>":") : map ("  "<>) (showXbarAnsi x) ++ map ("  
 
 -- Convert an Xbar tree to LaTeX \usepackage{qtree} format.
 xbarToLatex :: Maybe (Text -> Text) -> Xbar -> Text
-xbarToLatex annotate xbar = "\\Xbar " <> go xbar
+xbarToLatex annotate xbar = "\\Tree " <> go xbar
     where
-        go (Leaf src) =
-            "{\\textsf{ " <> (if src == "" then "$\\varnothing$" else src) <> "}" <> note annotate src <> "}"
+        goSrc src = "\\textsf{ " <> (if src == "" then "$\\varnothing$" else src) <> "}" <> note annotate src
+        go (Leaf src) = "{" <> goSrc src <> "}"
+        go (Roof t src) = "\\qroof{" <> goSrc src <> "}." <> t
         go (Tag t sub) = "[." <> t <> " " <> go sub <> " ]" <> (if False && t == "CP" then " !{\\qframesubtree}" else "")
         go (Pair t x y) = "[." <> t <> " " <> go x <> " " <> go y <> " ]"
         note Nothing _ = ""
@@ -216,6 +220,7 @@ xbarToHtml annotate xbar = div "zugai-tree" (go xbar)
     where
         div className content = "<div class=\"" <> className <> "\">" <> content <> "</div>"
         go (Leaf src) = div "leaf" (div "src" src <> note annotate src)
+        go (Roof t src) = div "roof" (div "tag" t <> div "src" src)
         go (Tag t sub) = div "node" (div "tag" t <> div "children" (go sub))
         go (Pair t x y) = div "node" (div "tag" t <> div "children" (go x <> go y))
         note Nothing _ = ""
@@ -226,5 +231,6 @@ xbarToJson :: Maybe (Text -> Text) -> Xbar -> J.Value
 xbarToJson annotate xbar =
     case xbar of
         Leaf src -> object ["type" .= J.String "leaf", "src" .= J.String src, "gloss" .= case annotate of Just f -> J.String (f src); _ -> J.Null]
+        Roof t src -> object ["type" .= J.String "roof", "tag" .= J.String t, "src" .= J.String src]
         Tag t sub -> object ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array [xbarToJson annotate sub]]
         Pair t x y -> object ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array (xbarToJson annotate <$> [x,y])]

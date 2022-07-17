@@ -15,8 +15,7 @@ import TextUtils
 class ToName a where
     toName :: a -> Text
 
-instance ToName Discourse where
-    toName (Discourse xs) = T.unwords (toName <$> xs)
+instance ToName Discourse where toName (Discourse xs) = T.unwords (toName <$> xs)
 instance ToName DiscourseItem where
     toName (DiSentence x) = toName x
     toName (DiFragment x) = toName x
@@ -109,3 +108,97 @@ instance ToName NameVerb where toName = T.toLower . T.pack . show
 instance ToName Determiner where toName = T.toLower . T.pack . show
 instance ToName Connective where toName = T.toLower . T.pack . show
 instance ToName Complementizer where toName = T.toLower . T.pack . show
+
+class ToSrc a where
+    toSrc :: a -> Text
+
+instance ToSrc Discourse where toSrc (Discourse xs) = T.unwords (toSrc <$> xs)
+instance ToSrc DiscourseItem where
+    toSrc (DiSentence x) = toSrc x
+    toSrc (DiFragment x) = toSrc x
+    toSrc (DiFree x) = toSrc x
+instance ToSrc Sentence where
+    toSrc (Sentence sc stmt ill) = maybe "" ((<>" ").toSrc) sc <> toSrc stmt <> maybe "" ((""<>).toSrc) ill
+instance ToSrc Fragment where
+    toSrc (FrPrenex x) = toSrc x
+    toSrc (FrTerms ts) = T.unwords (toSrc <$> toList ts)
+instance ToSrc Prenex where
+    toSrc (Prenex ts bi) = T.unwords $ (toSrc <$> toList ts) <> [toSrc bi]
+instance ToSrc Statement where
+    toSrc (Statement (Just prenex) preds) = toSrc prenex <> toSrc preds
+    toSrc (Statement Nothing preds) = toSrc preds
+instance ToSrc PredicationsRubi where
+    toSrc (Rubi p1 ru bi ps) = T.unwords [toSrc p1, toSrc ru, toSrc bi, toSrc ps]
+    toSrc (NonRubi p) = toSrc p
+instance ToSrc PredicationC where
+    toSrc (CompPredication comp stmt) = toSrc comp <> " " <> toSrc stmt
+    toSrc (SimplePredication pred) = toSrc pred
+instance ToSrc PredicationS where
+    toSrc (Predication predicate ts) = T.unwords (toSrc predicate : (toSrc <$> ts))
+instance ToSrc Predicate where
+    toSrc (Predicate vp) = toSrc vp
+instance ToSrc Term where
+    toSrc (Tnp t) = toSrc t
+    toSrc (Tadvp t) = toSrc t
+    toSrc (Tpp t) = toSrc t
+    toSrc (Termset to (W (Pos _ _ ru) _) t1 to' t2) =
+        T.unwords [toSrc to, toSrc ru, (T.unwords $ toSrc <$> t1), toSrc to', (T.unwords $ toSrc <$> t2)]
+
+instance (ToSrc t) => ToSrc (Connable' na t) where
+    toSrc (Conn x na ru y) =
+        T.unwords [toSrc x, toSrc ru, toSrc y]
+    toSrc (ConnTo to (W (Pos _ _ ru) _) x to' y) =
+        T.unwords [toSrc to, toSrc ru, toSrc x, toSrc to', toSrc y]
+    toSrc (Single x) = toSrc x
+
+instance ToSrc AdvpC where
+    toSrc (Advp vp) = toSrc vp
+instance ToSrc PpC where
+    toSrc (Pp prep np) = toSrc prep <> " " <> toSrc np
+instance ToSrc PrepC where
+    toSrc (Prep vp) = toSrc vp
+instance ToSrc NpC where
+    toSrc (Focused foc np) = toSrc foc <> " " <> toSrc np
+    toSrc (Unf np) = toSrc np
+instance ToSrc NpF where
+    toSrc (ArgRel arg rel) = toSrc arg <> " " <> toSrc rel
+    toSrc (Unr np) = toSrc np
+instance ToSrc NpR where
+    toSrc (Bound vp) = toSrc vp
+    toSrc (Ndp dp) = toSrc dp
+    toSrc (Ncc cc) = toSrc cc
+instance ToSrc Dp where
+    toSrc (Dp det (Just vp)) = toSrc det <> " " <> toSrc vp
+    toSrc (Dp det Nothing) = toSrc det
+instance ToSrc RelC where
+    toSrc (Rel pred tmr) = toSrc pred <> toSrc tmr
+instance ToSrc Cc where
+    toSrc (Cc pred tmr) = toSrc pred <> toSrc tmr
+instance ToSrc VpC where
+    toSrc (Serial x y) = toSrc x <> " " <> toSrc y
+    toSrc (Nonserial x) = toSrc x
+instance ToSrc VpN where
+    toSrc (Vname nv name tmr) = toSrc nv <> " " <> toSrc name <> toSrc tmr
+    toSrc (Vshu shu text) = toSrc shu <> " " <> toSrc text
+    toSrc (Voiv oiv np tmr) = toSrc oiv <> " " <> toSrc np <> " " <> toSrc tmr
+    toSrc (Vmo mo disc teo) = T.unwords [toSrc mo, toSrc disc, toSrc teo]
+    toSrc (Vlu lu stmt ky) = T.unwords [toSrc lu, toSrc stmt, toSrc ky]
+    toSrc (Vverb w) = toSrc w
+instance ToSrc Name where
+    toSrc (VerbName x) = toSrc x
+    toSrc (TermName x) = toSrc x
+instance ToSrc FreeMod where
+    toSrc (Fint teto) = toSrc teto
+    toSrc (Fvoc hu np) = T.unwords [toSrc hu, toSrc np]
+    toSrc (Finc ju sentence) = T.unwords [toSrc ju, toSrc sentence]
+    toSrc (Fpar kio disc ki) = T.unwords [toSrc kio, toSrc disc, toSrc ki]
+instance ToSrc (Pos t) where
+    toSrc (Pos _ src _) = src
+instance ToSrc (W t) where
+    toSrc (W w fms) = T.unwords (toSrc w : (toSrc <$> fms))
+
+instance ToSrc NameVerb where toSrc = T.pack . show
+instance ToSrc Determiner where toSrc = T.pack . show
+instance ToSrc Connective where toSrc = T.pack . show
+instance ToSrc Complementizer where toSrc = T.pack . show
+instance ToSrc Terminator where toSrc = T.pack . show
