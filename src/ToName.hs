@@ -21,7 +21,7 @@ instance ToName DiscourseItem where
     toName (DiFragment x) = toName x
     toName (DiFree x) = toName x
 instance ToName Sentence where
-    toName (Sentence sc stmt ill) = maybe "" ((<>" ").toName) sc <> toName stmt <> maybe "" ((""<>).toName) ill
+    toName (Sentence sc stmt ill) = maybe "" ((<>" ").toName) sc <> toName stmt <> maybe "" ((" "<>).toName) ill
 instance ToName Fragment where
     toName (FrPrenex x) = toName x
     toName (FrTerms ts) = T.unwords (toName <$> toList ts)

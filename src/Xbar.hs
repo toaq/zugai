@@ -1,20 +1,27 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE AllowAmbiguousTypes, ScopedTypeVariables, TypeApplications #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Xbar where
 
 -- This module convers zugai parse trees to https://toaq-org.netlify.app/parser/ style *binary* (X-bar) parse trees.
 
+import Control.Monad.State
+import Data.Aeson.Micro ((.=), object)
+import Data.Aeson.Micro qualified as J
 import Data.Char
 import Data.Foldable
-import Data.Text (Text)
-import qualified Data.Text as T
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Text (Text)
+import Data.Text qualified as T
+import Text.Parsec (SourcePos)
+
 import Lex
 import Parse
-import Text.Parsec (SourcePos)
-import qualified Data.Aeson.Micro as J
-import Data.Aeson.Micro ((.=), object)
+import Scope
 import ToName
 
 data Xbar
@@ -23,6 +30,20 @@ data Xbar
     | Leaf Text -- Source word
     | Roof Text Text -- Tag and source text
     deriving (Eq, Show)
+
+data XbarState = XbarState { xbarNodeCounter :: Int, xbarScopes :: [Scope Int] } deriving (Eq, Show)
+
+newtype Mx a = Mx { unMx :: State XbarState a } deriving (Functor, Applicative, Monad, MonadState XbarState)
+
+instance HasScopes Int Mx where
+    getScopes = gets xbarScopes
+    setScopes ss = modify (\xs -> xs { xbarScopes = ss })
+
+nextNodeNumber :: Mx Int
+nextNodeNumber = do
+    i <- gets xbarNodeCounter
+    modify (\s -> s { xbarNodeCounter = i + 1 })
+    pure i
 
 class ToXbar a where
     toXbar :: a -> Xbar

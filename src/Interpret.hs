@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Interpret where
 
 import Control.Monad.Trans.Cont
@@ -17,26 +18,17 @@ import TextUtils
 import ToName
 import Lex
 import Parse
+import Scope
 
 type VarName = Text -- like "P" or "B1".
 -- Maybe De Bruijn stuff might be easier to deal with,
 -- but I want to assign "good" names based on verbs in sentence,
 -- like "sa fu" becoming F.
 
-type VarRef = Text -- like "de poq" or "ta": VP-turned-to-text or pronoun word that refers to a variable
-data Scope =
-    Scope
-        { argsSeen :: Int  -- args seen so far in clause: used to make aq decisions
-        , bindings :: Map VarRef Tm  -- after "sa dẻ pỏq", generate var "D" and map "de poq" + "ta" to "D" here.
-        } deriving (Eq, Show)
-
-emptyScope :: Scope
-emptyScope = Scope 0 M.empty
-
 data InterpretState =
     InterpretState
         { usedVars :: [VarName]  -- for clarity, makeFreeVar should avoid even variables that have gone out of scope
-        , scopes :: [Scope]  -- cons = push, tail = pop
+        , scopes :: [Scope Tm]  -- cons = push, tail = pop
         -- maybe move popped scopes somewhere so we can interpret quasi-donkey-anaphora?
         , stDictionary :: Dictionary
         } deriving (Eq, Show)
@@ -69,6 +61,10 @@ data Formula
 
 type Interpret' r = ContT r (State InterpretState)
 type Interpret = Interpret' Formula
+
+instance HasScopes Tm (Interpret' r) where
+    getScopes = gets scopes
+    setScopes s = modify (\i -> i { scopes = s })
 
 showCon :: Connective -> Text
 showCon Ra = "∨"
@@ -111,26 +107,6 @@ makeFreeVar verb = do
     let free = head (candidates \\ used)
     modify (\st -> st { usedVars = free : usedVars st })
     pure free
-
-pushScope :: Interpret' r ()
-pushScope = modify (\st -> st { scopes = emptyScope : scopes st })
-
-popScope :: Interpret' r Scope
-popScope = do
-    ss <- gets scopes
-    modify (\st -> st { scopes = tail ss })
-    pure (head ss)
-
-modifyTop :: (Scope -> Scope) -> Interpret' r ()
-modifyTop f = do
-    ss <- gets scopes
-    modify (\st -> st { scopes = f (head ss) : tail ss })
-
-bind :: VarRef -> Tm -> Interpret' r ()
-bind var term = modifyTop (\scope -> scope { bindings = M.insert var term (bindings scope) })
-
-incrementArgsSeen :: Interpret' r ()
-incrementArgsSeen = modifyTop (\(Scope i s) -> Scope (i+1) s)
 
 bareSrc :: W t -> Text
 bareSrc (W (Pos _ src _) _) = bareToaq src

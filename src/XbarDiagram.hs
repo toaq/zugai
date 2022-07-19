@@ -58,10 +58,11 @@ toa color height t =
 xbarToDiagram :: (Text -> Text) -> Xbar -> Diagram B
 xbarToDiagram gloss xbar = go 1 xbar {- # showEnvelope # showOrigin -} # frame 0.25 # bg (sRGB24 0x36 0x39 0x3E) where
     conn i j = connectPerim' (with & arrowHead .~ noHead & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (90@@deg)
+    gloss' = T.unwords . map gloss . T.words
     go :: Integer -> Xbar -> Diagram B
     go i xbar = center $ case xbar of
         Leaf t -> (toa (wordColor t) 1 t <> toa rui 0.8 (gloss t) # moveTo (0^&(-0.75))) # named i
-        Roof t src -> vsep 0.1 [toa bao 1 t # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 src]
+        Roof t src -> vsep 0.1 [toa bao 1 t # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 src, toa rui 0.8 (gloss' src)]
         Tag t x -> vsep 0.5 [toa bao 1 t # named i, go (2*i) x] # conn i (2*i)
         Pair t x y -> vsep 1 [toa bao 1 t # named i, center (hsep 0.2 [go (2*i) x, go (2*i+1) y])] # conn i (2*i) # conn i (2*i+1)
 
