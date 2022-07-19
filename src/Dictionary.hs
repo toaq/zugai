@@ -63,8 +63,8 @@ glossNormalize t =
 
 readDictionary :: IO Dictionary
 readDictionary = do
-    dict <- B.readFile "dictionary/dictionary.json"
-    extra <- T.readFile "toadua-glosses.txt"
+    dict <- B.readFile "data/dictionary/dictionary.json"
+    extra <- T.readFile "data/toadua-glosses.txt"
     let unofficial = [(glossNormalize head, Entry head "verb" (T.strip gloss) Nothing) | line <- T.lines extra, let (head,gloss) = T.breakOn " " line]
     let Just entries = decodeStrict dict :: Maybe [Entry]
     let official = [(glossNormalize $ entryToaq e, e) | e <- entries]
