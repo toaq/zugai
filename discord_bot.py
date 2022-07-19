@@ -1,5 +1,5 @@
 import discord
-import os, sys
+import os, sys, io
 import subprocess
 
 client = discord.Client()
@@ -26,13 +26,13 @@ async def on_message(message):
             return
 
         # put "inkscape" on path
-        run2 = subprocess.run(["inkscape", "--pipe", "-h", "800", "--export-filename=output.png"], input=run1.stdout, capture_output=True)
+        run2 = subprocess.run(["inkscape", "--pipe", "-h", "800", "--export-filename=-", "--export-type=png"], input=run1.stdout, capture_output=True)
         if run2.returncode != 0:
             print(run2)
             await message.channel.send('Failed to convert to png.')
             return
 
-        file = discord.File("output.png", filename="image.png")
+        file = discord.File(io.BytesIO(run2.stdout), filename="image.png")
         #embed = discord.Embed()
         #embed.set_thumbnail(url="attachment://image.png")
         await message.channel.send(file=file)
