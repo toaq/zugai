@@ -1,0 +1,16 @@
+*
+!app
+!data
+!old
+!src
+!test
+!ChangeLog.md
+!README.md
+!LICENSE
+!zugai.cabal
+!Setup.hs
+!discord_bot.py
+!web_server.py
+!package.yaml
+!stack.yaml
+!stack.yaml.lock
