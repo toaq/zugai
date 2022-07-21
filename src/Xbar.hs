@@ -25,15 +25,18 @@ import Scope
 import ToName
 
 data Xbar
-    = Tag Text Xbar
-    | Pair Text Xbar Xbar
-    | Leaf Text -- Source word
-    | Roof Text Text -- Tag and source text
+    = Tag Int Text Xbar
+    | Pair Int Text Xbar Xbar
+    | Leaf Int Text -- Source word
+    | Roof Int Text Text -- Tag and source text
     deriving (Eq, Show)
 
 data XbarState = XbarState { xbarNodeCounter :: Int, xbarScopes :: [Scope Int] } deriving (Eq, Show)
 
 newtype Mx a = Mx { unMx :: State XbarState a } deriving (Functor, Applicative, Monad, MonadState XbarState)
+
+runXbar :: Discourse -> Xbar
+runXbar d = evalState (unMx (toXbar d)) (XbarState 0 [])
 
 instance HasScopes Int Mx where
     getScopes = gets xbarScopes
@@ -46,67 +49,114 @@ nextNodeNumber = do
     pure i
 
 class ToXbar a where
-    toXbar :: a -> Xbar
+    toXbar :: a -> Mx Xbar
+
+mkTag :: Text -> Xbar -> Mx Xbar
+mkTag t x = do i <- nextNodeNumber; pure $ Tag i t x
+
+mkPair :: Text -> Xbar -> Xbar -> Mx Xbar
+mkPair t x y = do i <- nextNodeNumber; pure $ Pair i t x y
+
+mkLeaf :: Text -> Mx Xbar
+mkLeaf t = do i <- nextNodeNumber; pure $ Leaf i t
+
+mkRoof :: Text -> Text -> Mx Xbar
+mkRoof t s = do i <- nextNodeNumber; pure $ Roof i t s
+
+{-
+foldl1M :: Monad m => (a -> a -> m a) -> [a] -> m a
+foldl1M f [x] = pure x
+foldl1M f (x:y:z) = do r <- f x y; foldl1M f (r:z)
+-}
 
 -- Turn n≥1 terms into a parse tree with a "term" or "terms" head.
-termsToXbar :: Foldable t => t Term -> Xbar
-termsToXbar = foldl1 (Pair "Terms") . map toXbar . toList
+termsToXbar :: Foldable t => t Term -> Mx Xbar
+termsToXbar = foldl1 (\ma mb -> do a <- ma; b <- mb; mkPair "Terms" a b) . map toXbar . toList
 
 -- When rendering an elided VP after "sa", this "∅" VP is rendered as a fallback.
 nullVp :: SourcePos -> Vp
 nullVp sourcePos = Single (Nonserial (Vverb (W (Pos sourcePos "" "") [])))
 
 -- Pair a construct with its optional terminator.
-terminated :: Text -> Xbar -> Terminator -> Xbar
-terminated _ t Nothing = t
-terminated tag t (Just word) = Pair tag t (Tag "End" $ toXbar word)
+terminated :: Text -> Xbar -> Terminator -> Mx Xbar
+terminated _ t Nothing = pure t
+terminated tag t (Just word) = mkPair tag t =<< (mkTag "End" =<< toXbar word)
 
-covert :: Xbar
-covert = Leaf ""
+covert :: Mx Xbar
+covert = mkLeaf ""
 
-prenexToXbar :: NonEmpty Term -> W () -> Xbar -> Xbar
-prenexToXbar (t:|[]) bi c = Pair "TopicP" (toXbar t) (Pair "Topic'" (Tag "Topic" $ toXbar bi) c)
-prenexToXbar (t:|(t':ts)) bi c = Pair "TopicP" (toXbar t) (Pair "Topic'" (Tag "Topic" covert) (prenexToXbar (t':|ts) bi c))
+prenexToXbar :: NonEmpty Term -> W () -> Xbar -> Mx Xbar
+prenexToXbar (t:|[]) bi c = do
+    t1 <- toXbar bi
+    t2 <- mkTag "Topic" t1
+    t3 <- toXbar t
+    t4 <- mkPair "Topic'" t2 c
+    mkPair "TopicP" t3 t4
+prenexToXbar (t:|(t':ts)) bi c = do
+    t1 <- mkTag "Topic" =<< covert
+    t2 <- prenexToXbar (t':|ts) bi c
+    t3 <- toXbar t
+    t4 <- mkPair "Topic'" t1 t2
+    mkPair "TopicP" t3 t4
 
 instance ToXbar Discourse where
-    toXbar (Discourse ds) = foldr1 (Pair "Discourse") (toXbar <$> ds)
+    toXbar (Discourse ds) = foldl1 (\ma mb -> do a <- ma; b <- mb; mkPair "Discourse" a b) (toXbar <$> ds)
 instance ToXbar DiscourseItem where
     toXbar (DiSentence x) = toXbar x
     toXbar (DiFragment x) = toXbar x
     toXbar (DiFree x) = toXbar x
 instance ToXbar Sentence where
-    toXbar (Sentence sc stmt ill) =
-        let t = case ill of Just i -> Pair "SAP" (toXbar stmt) (Tag "SA" $ toXbar i)
-                            Nothing -> Pair "SAP" (toXbar stmt) (Tag "SA" (Leaf ""))
-        in case sc of Just sc -> Pair "SAP'" (Tag "SConn" $ toXbar sc) t
-                      Nothing -> t
+    toXbar (Sentence msc stmt ill) = do
+        t <- do
+            sa <- case ill of Just i -> mkTag "SA" =<< toXbar i; Nothing -> covert
+            x <- toXbar stmt
+            y <- mkTag "SA" sa
+            mkPair "SAP" x y
+        t1 <- case msc of Just sc -> toXbar sc; Nothing -> covert
+        t2 <- mkTag "SConn" t1
+        mkPair "SAP" t2 t
 instance ToXbar Fragment where
-    toXbar (FrPrenex (Prenex ts bi)) = prenexToXbar ts bi covert
+    toXbar (FrPrenex (Prenex ts bi)) = prenexToXbar ts bi =<< covert
     toXbar (FrTerms ts) = termsToXbar ts
 instance ToXbar Statement where
-    toXbar (Statement (Just (Prenex ts bi)) preds) = prenexToXbar ts bi (toXbar preds)
+    toXbar (Statement (Just (Prenex ts bi)) preds) = prenexToXbar ts bi =<< toXbar preds
     toXbar (Statement Nothing preds) = toXbar preds
 instance ToXbar PredicationsRubi where
-    toXbar (Rubi p1 ru bi ps) = Pair "VP" (Pair "VP" (toXbar p1) (Pair "Co" (toXbar ru) (Tag "End" $ toXbar bi))) (toXbar ps)
+    toXbar (Rubi p1 ru bi ps) = do
+        tp1 <- toXbar p1
+        tru <- toXbar ru
+        tbi <- mkTag "End" =<< toXbar bi
+        tco <- mkPair "Co" tru tbi
+        tvp <- mkPair "VP" tp1 tco
+        tps <- toXbar ps
+        mkPair "VP" tvp tps
     toXbar (NonRubi p) = toXbar p
 instance ToXbar PredicationC where
-    toXbar (CompPredication comp stmt) = Pair "CP" (toXbar comp) (toXbar stmt)
+    toXbar (CompPredication comp stmt) = do x <- toXbar comp; y <- toXbar stmt; mkPair "CP" x y
     toXbar (SimplePredication pred) = toXbar pred
 instance ToXbar PredicationS where
-    toXbar (Predication predicate []) = Tag "VP" (toXbar predicate)
+    toXbar (Predication predicate []) = mkTag "VP" =<< toXbar predicate
     -- toXbar (Predication predicate terms) = Pair "Pred" (toXbar predicate) (termsToXbar terms)
-    toXbar (Predication predicate terms) = Pair "VP" (toXbar predicate) $ foldr1 (Pair "Terms") (toXbar <$> terms)
+    toXbar (Predication predicate terms) = do
+        tp <- toXbar predicate
+        tt <- foldr1 (\ma mb -> do a<-ma;b<-mb; mkPair "Terms" a b) (toXbar <$> terms)
+        mkPair "VP" tp tt
 instance ToXbar Predicate where
-    toXbar (Predicate vp) = Tag "Verb" (toXbar vp)
+    toXbar (Predicate vp) = mkTag "Verb" =<< toXbar vp
 instance ToXbar Term where
     toXbar (Tnp t) = toXbar t
     toXbar (Tadvp t) = toXbar t
     toXbar (Tpp t) = toXbar t
-    toXbar (Termset to ru t1 to' t2) =
-        Pair "Termset"
-            (Pair "Co'" (Tag "Co" $ toXbar to) (toXbar ru))
-            (Pair "CoP(Termset)" (termsToXbar t1)
-                (Pair "Co'" (Tag "Co" $ toXbar to') (termsToXbar t2)))
+    toXbar (Termset to ru t1 to' t2) = do
+        tto <- mkTag "Co" =<< toXbar to
+        tru <- toXbar ru
+        ttoru <- mkPair "Co'" tto tru
+        tt1 <- termsToXbar t1
+        tto' <- mkTag "Co" =<< toXbar to'
+        tt2 <- termsToXbar t2
+        ti <- mkPair "Co'" tto' tt2
+        tj <- mkPair "CoP(Termset)" tt1 ti
+        mkPair "Termset" ttoru tj
 
 -- Typeclass for associating a "connectand name" with a type
 -- so that we can generate strings like Co(NP), Co(VP), etc. in the generic Connable' instance.
@@ -122,112 +172,147 @@ instance ConnName PpC where connName = "PP"
 -- A little helper typeclass to deal with "na" in the Connable' instance below.
 -- We just want to handle the types na=() (no "na") and na=(W()) (yes "na") differently in toXbar.
 class ToXbarNa na where
-    toXbarNa :: Xbar -> na -> Xbar
+    toXbarNa :: Xbar -> na -> Mx Xbar
 
-instance ToXbarNa () where toXbarNa t () = t
-instance ToXbarNa (W ()) where toXbarNa t na = Pair "CoP" t (Tag "End" $ toXbar na)
+instance ToXbarNa () where toXbarNa t () = pure t
+instance ToXbarNa (W ()) where
+    toXbarNa t na = do
+        t1 <- toXbar na
+        t2 <- mkTag "End" t1
+        mkPair "CoP" t t2
 
 instance (ToXbar t, ToXbarNa na, ConnName t) => ToXbar (Connable' na t) where
-    toXbar (Conn x na ru y) =
-        Pair ("CoP(" <> connName @t <> ")")
-            (toXbarNa (toXbar x) na)
-            (Pair "Co'" (toXbar ru) (toXbar y))
-    toXbar (ConnTo to ru x to' y) =
-        Pair ("CoP(" <> connName @t <> ")")
-            (Pair "Co'" (Tag "Co" $ toXbar to) (toXbar ru))
-            (Pair ("CoP(" <> connName @t <> ")") (toXbar x)
-                (Pair "Co'" (Tag "Co" $ toXbar to') (toXbar y)))
+    toXbar (Conn x na ru y) = do
+        tx <- toXbar x
+        t1 <- toXbarNa tx na
+        tr <- toXbar ru
+        ty <- toXbar y
+        t2 <- mkPair "Co'" tr ty
+        mkPair ("CoP(" <> connName @t <> ")") t1 t2
+    toXbar (ConnTo to ru x to' y) = do
+        tt <- mkTag "Co" =<< toXbar to
+        tr <- toXbar ru
+        t1 <- mkPair "Co'" tt tr
+        tx <- toXbar x
+        tt' <- mkTag "Co" =<< toXbar to'
+        ty <- toXbar y
+        t3 <- mkPair "Co'" tt' ty
+        t2 <- mkPair ("CoP(" <> connName @t <> ")") tx t3
+        mkPair ("CoP(" <> connName @t <> ")") t1 t2
     toXbar (Single x) = toXbar x
 
 instance ToXbar AdvpC where
-    toXbar (Advp vp) = Tag "AdvP" (toXbar vp)
+    toXbar (Advp vp) = mkTag "AdvP" =<< toXbar vp
 instance ToXbar PpC where
-    toXbar (Pp prep np) = Pair "PP" (toXbar prep) (toXbar np)
+    toXbar (Pp prep np) = do x <- toXbar prep; y<-toXbar np; mkPair "PP" x y
 instance ToXbar PrepC where
-    toXbar (Prep vp) = Tag "P" (toXbar vp)
+    toXbar (Prep vp) = mkTag "P" =<< toXbar vp
 instance ToXbar NpC where
-    toXbar (Focused foc np) = Pair "Foc" (toXbar foc) (toXbar np)
+    toXbar (Focused foc np) = do x<-toXbar foc; y<-toXbar np; mkPair "Foc" x y
     toXbar (Unf np) = toXbar np
 instance ToXbar NpF where
-    toXbar (ArgRel arg rel) = Pair "NPrel" (toXbar arg) (toXbar rel)
+    toXbar (ArgRel arg rel) = do x<-toXbar arg; y<-toXbar rel; mkPair "NPrel" x y
     toXbar (Unr np) = toXbar np
 instance ToXbar NpR where
-    toXbar (Bound vp) = Roof "DP" (toSrc vp) -- Pair "DP" (Tag "D" $ Leaf "•\x0301") $ Tag "VP" (Leaf $ toName vp)
+    toXbar (Bound vp) = mkRoof "DP" (toSrc vp) -- Pair "DP" (Tag "D" $ Leaf "•\x0301") $ Tag "VP" (Leaf $ toName vp)
     toXbar (Ndp dp) = toXbar dp
     toXbar (Ncc cc) = toXbar cc
 instance ToXbar Dp where
-    toXbar (Dp det@(W pos _) vp) = Pair "DP" (Tag "D" $ Leaf (posSrc pos)) (toXbar $ maybe (nullVp $ posPos pos) id vp)
+    toXbar (Dp det@(W pos _) vp) = do
+        td <- mkTag "D" =<< mkLeaf (posSrc pos)
+        tv <- toXbar $ maybe (nullVp $ posPos pos) id vp
+        mkPair "DP" td tv
 instance ToXbar RelC where
-    toXbar (Rel pred tmr) = terminated "RelP" (toXbar pred) tmr
+    toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "RelP" x tmr
 instance ToXbar Cc where
-    toXbar (Cc pred tmr) = terminated "CP" (Tag "CP" $ toXbar pred) tmr
+    toXbar (Cc pred tmr) = do x <- mkTag "CP" =<< toXbar pred; terminated "CP" x tmr
 instance ToXbar VpC where
-    toXbar (Serial x y) = Pair "Serial" (toXbar x) (toXbar y)
+    toXbar (Serial x y) = do xx <- toXbar x; yy<-toXbar y; mkPair "Serial" xx yy
     toXbar (Nonserial x) = toXbar x
 instance ToXbar VpN where
-    toXbar (Vname nv name tmr) = terminated "Vname" (Pair "Vname" (toXbar nv) (toXbar name)) tmr
-    toXbar (Vshu shu text) = Pair "Vquote" (Tag "Quoter" $ toXbar shu) (Tag "Quoted" $ toXbar text)
-    toXbar (Voiv oiv np tmr) = terminated "Vinc" (Pair "Vinc" (Tag "OIV" $ toXbar oiv) (toXbar np)) tmr
-    toXbar (Vmo mo disc teo) = terminated "Vquote" (Pair "Vquote" (Tag "Quoter" $ toXbar mo) (toXbar disc)) teo
-    toXbar (Vlu lu stmt ky) = terminated "Vfree" (Pair "Vfree" (Tag "Free" $ toXbar lu) (toXbar stmt)) ky
-    toXbar (Vverb w) = Tag "V" (toXbar w)
+    toXbar (Vname nv name tmr) = do
+        t1 <- toXbar nv
+        t2 <- toXbar name
+        t3 <- mkPair "Vname" t1 t2
+        terminated "Vname" t3 tmr
+    toXbar (Vshu shu text) = do
+        t1 <- mkTag "Quoter" =<< toXbar shu
+        t2 <- mkTag "Quoted" =<< toXbar text
+        mkPair "Vquote" t1 t2
+    toXbar (Voiv oiv np tmr) = do
+        t1 <- mkTag "OIV" =<< toXbar oiv
+        t2 <- toXbar np
+        t3 <- mkPair "Vinc" t1 t2
+        terminated "Vinc" t3 tmr
+    toXbar (Vmo mo disc teo) = do
+        t1 <- mkTag "Quoter" =<< toXbar mo
+        t2 <- toXbar disc
+        t3 <- mkPair "Vquote" t1 t2
+        terminated "Vquote" t3 teo
+    toXbar (Vlu lu stmt ky) = do
+        t1 <- mkTag "Free" =<< toXbar lu
+        t2 <- toXbar stmt
+        t3 <- mkPair "Vfree" t1 t2
+        terminated "Vfree" t3 ky
+    toXbar (Vverb w) = mkTag "V" =<< toXbar w
 instance ToXbar Name where
     toXbar (VerbName x) = toXbar x
     toXbar (TermName x) = toXbar x
 instance ToXbar FreeMod where
-    toXbar (Fint teto) = Tag "Interj" (toXbar teto)
-    toXbar (Fvoc hu np) = Pair "Voc" (toXbar hu) (toXbar np)
-    toXbar (Finc ju sentence) = Pair "Inc" (toXbar ju) (toXbar sentence)
-    toXbar (Fpar kio disc ki) = Pair "Par" (toXbar kio) (Pair "Par" (toXbar disc) (toXbar ki))
+    toXbar (Fint teto) = mkTag "Interj" =<< toXbar teto
+    toXbar (Fvoc hu np) = do x<-toXbar hu; y<-toXbar np; mkPair "Voc" x y
+    toXbar (Finc ju sentence) = do x<-toXbar ju; y<-toXbar sentence; mkPair "Inc" x y
+    toXbar (Fpar kio disc ki) = do x<-toXbar kio; y<-toXbar disc; z<-toXbar ki; mkPair "Par" x =<< mkPair "Par" y z
 instance ToXbar () where
-    toXbar () = Leaf "()"
+    toXbar () = mkLeaf "()"
 --instance ToXbar (Pos Text) where
 --    toXbar (Pos _ src txt) = Leaf src txt
 instance ToXbar t => ToXbar (Pos t) where
-    toXbar (Pos _ src t) =
-        case toXbar t of
-            Leaf _ -> Leaf src
-            Tag t (Leaf _) -> Tag t (Leaf src)
-            x -> x
+    toXbar (Pos _ src t) = do
+        inner <- toXbar t
+        case inner of
+            Leaf _ _ -> mkLeaf src
+            Tag _ t (Leaf _ _) -> mkTag t =<< mkLeaf src
+            x -> pure x
 instance ToXbar t => ToXbar (W t) where
-    toXbar (W w fms) = foldl (Pair "Free") (toXbar w) (toXbar <$> fms)
-instance ToXbar Text where toXbar t = Leaf t
-instance ToXbar (Text, Tone) where toXbar (t, _) = Leaf t
+    toXbar (W w fms) = foldl (\ma mb -> do a<-ma; b<-mb; mkPair "Free" a b) (toXbar w) (toXbar <$> fms)
+instance ToXbar Text where toXbar t = mkLeaf t
+instance ToXbar (Text, Tone) where toXbar (t, _) = mkLeaf t
 instance ToXbar String where toXbar t = toXbar (T.pack t)
 
-instance ToXbar NameVerb where toXbar nv = Tag "NameVerb" $ toXbar $ show nv
-instance ToXbar Determiner where toXbar det = Tag "D" $ toXbar $ show det
-instance ToXbar Connective where toXbar t = Tag "Co" $ toXbar $ show t
-instance ToXbar Complementizer where toXbar t = Tag "C" $ toXbar $ show t
+instance ToXbar NameVerb where toXbar nv = mkTag "NameVerb" =<< toXbar (show nv)
+instance ToXbar Determiner where toXbar det = mkTag "D" =<< toXbar (show det)
+instance ToXbar Connective where toXbar t = mkTag "Co" =<< toXbar (show t)
+instance ToXbar Complementizer where toXbar t = mkTag "C" =<< toXbar (show t)
 
 -- Cut one-child nodes out of an Xbar tree.
 -- predication(predicate(verb(de))) becomes just verb(de).
 simplifyXbar :: Xbar -> Xbar
-simplifyXbar t@(Leaf _) = t
-simplifyXbar t@(Roof _ _) = t
-simplifyXbar t@(Tag _ (Leaf _)) = t
-simplifyXbar (Tag _ sub) = simplifyXbar sub
-simplifyXbar (Pair t x y) = Pair t (simplifyXbar x) (simplifyXbar y)
+simplifyXbar t@(Leaf _ _) = t
+simplifyXbar t@(Roof _ _ _) = t
+simplifyXbar t@(Tag _ _ (Leaf _ _)) = t
+simplifyXbar (Tag _ _ sub) = simplifyXbar sub
+simplifyXbar (Pair i t x y) = Pair i t (simplifyXbar x) (simplifyXbar y)
 
 -- Show an Xbar tree using indentation and ANSI colors.
 showXbarAnsi :: Xbar -> [Text]
-showXbarAnsi (Leaf src) = ["\x1b[94m" <> src <> "\x1b[0m"]
-showXbarAnsi (Roof t src) = ["\x1b[95m" <> t <> ": " <> src <> "\x1b[0m"]
-showXbarAnsi (Tag t sub) =
+showXbarAnsi (Leaf _ src) = ["\x1b[94m" <> src <> "\x1b[0m"]
+showXbarAnsi (Roof _ t src) = ["\x1b[95m" <> t <> ": " <> src <> "\x1b[0m"]
+showXbarAnsi (Tag _ t sub) =
     case showXbarAnsi sub of
         [one] -> [t <> ": " <> one]
         many -> (t<>":") : map ("  "<>) many
-showXbarAnsi (Pair t x y) = (t<>":") : map ("  "<>) (showXbarAnsi x) ++ map ("  "<>) (showXbarAnsi y)
+showXbarAnsi (Pair _ t x y) = (t<>":") : map ("  "<>) (showXbarAnsi x) ++ map ("  "<>) (showXbarAnsi y)
 
 -- Convert an Xbar tree to LaTeX \usepackage{qtree} format.
 xbarToLatex :: Maybe (Text -> Text) -> Xbar -> Text
 xbarToLatex annotate xbar = "\\Tree " <> go xbar
     where
         goSrc src = "\\textsf{ " <> (if src == "" then "$\\varnothing$" else src) <> "}" <> note annotate src
-        go (Leaf src) = "{" <> goSrc src <> "}"
-        go (Roof t src) = "\\qroof{" <> goSrc src <> "}." <> t
-        go (Tag t sub) = "[." <> t <> " " <> go sub <> " ]" <> (if False && t == "CP" then " !{\\qframesubtree}" else "")
-        go (Pair t x y) = "[." <> t <> " " <> go x <> " " <> go y <> " ]"
+        go (Leaf _ src) = "{" <> goSrc src <> "}"
+        go (Roof _ t src) = "\\qroof{" <> goSrc src <> "}." <> t
+        go (Tag _ t sub) = "[." <> t <> " " <> go sub <> " ]" <> (if False && t == "CP" then " !{\\qframesubtree}" else "")
+        go (Pair _ t x y) = "[." <> t <> " " <> go x <> " " <> go y <> " ]"
         note Nothing _ = ""
         note (Just f) src =
             let
@@ -240,10 +325,10 @@ xbarToHtml :: Maybe (Text -> Text) -> Xbar -> Text
 xbarToHtml annotate xbar = div "zugai-tree" (go xbar)
     where
         div className content = "<div class=\"" <> className <> "\">" <> content <> "</div>"
-        go (Leaf src) = div "leaf" (div "src" src <> note annotate src)
-        go (Roof t src) = div "roof" (div "tag" t <> div "src" src)
-        go (Tag t sub) = div "node" (div "tag" t <> div "children" (go sub))
-        go (Pair t x y) = div "node" (div "tag" t <> div "children" (go x <> go y))
+        go (Leaf _ src) = div "leaf" (div "src" src <> note annotate src)
+        go (Roof _ t src) = div "roof" (div "tag" t <> div "src" src)
+        go (Tag _ t sub) = div "node" (div "tag" t <> div "children" (go sub))
+        go (Pair _ t x y) = div "node" (div "tag" t <> div "children" (go x <> go y))
         note Nothing _ = ""
         note (Just f) src = div "gloss" (f src)
 
@@ -251,7 +336,7 @@ xbarToHtml annotate xbar = div "zugai-tree" (go xbar)
 xbarToJson :: Maybe (Text -> Text) -> Xbar -> J.Value
 xbarToJson annotate xbar =
     case xbar of
-        Leaf src -> object ["type" .= J.String "leaf", "src" .= J.String src, "gloss" .= case annotate of Just f -> J.String (f src); _ -> J.Null]
-        Roof t src -> object ["type" .= J.String "roof", "tag" .= J.String t, "src" .= J.String src]
-        Tag t sub -> object ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array [xbarToJson annotate sub]]
-        Pair t x y -> object ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array (xbarToJson annotate <$> [x,y])]
+        Leaf _ src -> object ["type" .= J.String "leaf", "src" .= J.String src, "gloss" .= case annotate of Just f -> J.String (f src); _ -> J.Null]
+        Roof _ t src -> object ["type" .= J.String "roof", "tag" .= J.String t, "src" .= J.String src]
+        Tag _ t sub -> object ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array [xbarToJson annotate sub]]
+        Pair _ t x y -> object ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array (xbarToJson annotate <$> [x,y])]

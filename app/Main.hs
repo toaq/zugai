@@ -78,10 +78,10 @@ processInput om dict unstrippedInput = do
     let enc = BSL.fromStrict . encodeUtf8
     let output = case om of
             ToZugaiParseTree -> enc $ T.pack $ show parsed
-            ToXbarLatex -> enc $ input <> "\n\n" <> xbarToLatex (Just (glossWith dict)) (toXbar parsed) <> "\n"
-            ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (toXbar parsed)
-            ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (toXbar parsed)
-            ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (toXbar parsed))
+            ToXbarLatex -> enc $ input <> "\n\n" <> xbarToLatex (Just (glossWith dict)) (runXbar parsed) <> "\n"
+            ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (runXbar parsed)
+            ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (runXbar parsed)
+            ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (runXbar parsed))
             ToEnglish -> enc $ toEnglish dict parsed
             ToLogic -> enc $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
     BSL.putStr (output <> "\n")
