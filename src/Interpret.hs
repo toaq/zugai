@@ -12,6 +12,7 @@ import Data.Map (Map)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Text (Text)
+import Debug.Trace
 
 import Dictionary
 import TextUtils
@@ -53,7 +54,7 @@ data Formula
 
 -- (p -> Interpret' r a): interpret p into an a-value, within a continuation that eventually results in r.
 -- reset :: Cont r r -> Cont r' r
--- 
+--
 -- shift :: ((a -> r) -> Cont r r) -> Cont r a
 -- So shift (\k -> ...) can make a "term-in-formula" continuation (Cont r a)
 -- out of a function that uses k :: a -> r to specify a "formula" continuation (Cont r r).
@@ -114,18 +115,19 @@ bareSrc (W (Pos _ src _) _) = bareToaq src
 vpToName :: Vp -> Text
 vpToName = toName
 
-interpretConn :: (c -> Interpret a) -> Connable' na c -> Interpret a
+interpretConn :: Show a => (c -> Interpret a) -> Connable' na c -> Interpret a
 interpretConn f (Single c) = f c
 interpretConn f (Conn x na conn y) =
     shiftT $ \k -> do
-        t1 <- f x
-        t2 <- interpretConn f y
-        lift $ Con (unW conn) <$> k t1 <*> k t2
+        fx <- resetT $ f x >>= lift . k
+        fy <- resetT $ interpretConn f y >>= lift . k
+        pure $ Con (unW conn) fx fy
+        -- lift $ Con (unW conn) <$> k t1 <*> k t2
 interpretConn f (ConnTo to conn x to' y) =
     shiftT $ \k -> do
-        t1 <- interpretConn f x
-        t2 <- interpretConn f y
-        lift $ Con (unW conn) <$> k t1 <*> k t2
+        fx <- resetT $ interpretConn f x >>= lift . k
+        fy <- resetT $ interpretConn f y >>= lift . k
+        pure $ Con (unW conn) fx fy
 
 interpretDiscourse :: Discourse -> Interpret' [Formula] [Formula]
 interpretDiscourse (Discourse dis) = do
@@ -228,7 +230,8 @@ interpretAdvpC (Advp vp) = do
         shiftT $ \k -> do
             f <- interpretVp vp
             formula <- lift (k [])
-            f $/ [Ccl formula]
+            f $/ [Ccl $ formula]
+            -- f $/ [Ccl formula]
     else
         shiftT $ \k -> do
             f <- interpretVp vp
@@ -269,7 +272,7 @@ interpretNpR (Bound vp) = do
     let name = vpToName vp
     ss <- gets scopes
     case msum $ map (M.lookup name . bindings) ss of
-        Just tm -> pure tm 
+        Just tm -> pure tm
         Nothing -> bindVp Ke (Just vp)
 interpretNpR (Ndp (Dp det vp)) = bindVp (unW det) vp
 interpretNpR (Ncc (Cc predication cy)) = do
@@ -310,7 +313,7 @@ serialize :: VerbFun -> VerbFun -> VerbFun
 serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
     case frame1 of
         -- TODO: generalize
-        "a" -> 
+        "a" ->
             TmFun (max 1 l2) h2 frame2 $ \ts -> do
                 p2 <- v2 $/ ts
                 p1 <- v1 $/ [head ts]
