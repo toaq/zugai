@@ -215,13 +215,14 @@ interpretNpF (ArgRel (Ncc cc) rel) = error "todo: RelP on content clause"
 interpretNpF (ArgRel (Ndp (Dp det vp)) rel) =
     let transform verb =
             TmFun 1 1 "a" $ \[t] -> do
-                f_main <- verb $/ [t]
+                tf <- case verb of Just v -> do x <- v$/[t]; pure $ \y -> Con Ru x y
+                                   Nothing -> pure id
                 pushScope
                 bind "hoa" t -- todo autohoa!?
                 f_rel <- interpretConn interpretRelC rel
                 popScope
-                pure $ Con Ru f_main f_rel
-    in bindVpWithTransform transform (unW det) vp
+                pure $ tf f_rel
+    in bindVpWithTransform (Just . transform) (unW det) vp
 
 isHighVerb :: Vp -> Bool
 isHighVerb vp = head (T.words (vpToName vp)) `elem` T.words "bu nai pu jia chufaq lui za hoai hai he hiq she ao dai ea le di duai"
@@ -245,11 +246,15 @@ interpretAdvpC (Advp vp) = do
 interpretPpC :: PpC -> Interpret [Tm]
 interpretPpC (Pp prep np) = pure []
 
-bindVpWithTransform :: (VerbFun -> VerbFun) -> Determiner -> Maybe Vp -> Interpret Tm
+bindVpWithTransform :: (Maybe VerbFun -> Maybe VerbFun) -> Determiner -> Maybe Vp -> Interpret Tm
 bindVpWithTransform verbTransform det Nothing =
     shiftT $ \k -> do
         v <- makeFreeVar Nothing
-        lift $ Qua det v Tru <$> k (Var v)
+        restriction <-
+            case verbTransform Nothing of
+                Just f' -> f' $/ [Var v]
+                Nothing -> pure Tru
+        lift $ Qua det v restriction <$> k (Var v)
 bindVpWithTransform verbTransform det (Just vp) =
     shiftT $ \k -> do
         let name = vpToName vp
@@ -263,7 +268,10 @@ bindVpWithTransform verbTransform det (Just vp) =
             Just prn -> bind prn (Var v)
             Nothing -> pure ()
         f <- interpretVp vp
-        restriction <- verbTransform f $/ [Var v]
+        restriction <-
+            case verbTransform (Just f) of
+                Just f' -> f' $/ [Var v]
+                Nothing -> pure Tru
         lift $ Qua det v restriction <$> k (Var v)
 
 bindVp :: Determiner -> Maybe Vp -> Interpret Tm
