@@ -44,3 +44,6 @@ bind var term = modifyTop (\scope -> scope { bindings = M.insert var term (bindi
 
 incrementArgsSeen :: HasScopes t m => m ()
 incrementArgsSeen = modifyTop (\(Scope i s) -> Scope (i+1) s)
+
+resetArgsSeen :: HasScopes t m => m ()
+resetArgsSeen = modifyTop (\(Scope i s) -> Scope 0 s)

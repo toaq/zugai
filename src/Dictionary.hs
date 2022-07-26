@@ -13,6 +13,7 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Trie qualified as Trie
+import Debug.Trace
 
 import Lex (isIllocution)
 import TextUtils
@@ -53,7 +54,11 @@ lookupFrame d t = verbFrame <$> (entryVerbInfo =<< d M.!? bareToaq t)
 
 -- lookupPronoun d "poq" == Just "ho"
 lookupPronoun :: Dictionary -> Text -> Maybe Text
-lookupPronoun d t = verbPronominalClass <$> (entryVerbInfo =<< d M.!? bareToaq t)
+lookupPronoun d t =
+    case bareToaq <$> T.words t of
+        "lu":_ -> Just "kuy"
+        x:_ -> verbPronominalClass <$> (entryVerbInfo =<< d M.!? x)
+        [] -> Nothing
 
 glossNormalize :: Text -> Text
 glossNormalize t =

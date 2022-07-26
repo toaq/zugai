@@ -149,6 +149,7 @@ interpretStatement :: Statement -> Interpret Formula
 interpretStatement (Statement Nothing rubis) = resetT (interpretRubis rubis)
 interpretStatement (Statement (Just (Prenex ts bi)) rubis) =
     resetT $ do
+        incrementArgsSeen -- hack: treat topics as >0
         mapM interpretTerm $ toList ts -- is it ok to ignore topics?
         interpretRubis rubis
 
@@ -180,6 +181,7 @@ interpretPredicationS :: PredicationS -> Interpret Formula
 interpretPredicationS (Predication (Predicate vp) terms) =
     resetT $ do
         f <- interpretVp vp
+        resetArgsSeen
         xs <- mapM interpretTerm terms
         f $/ concat xs
 
@@ -281,6 +283,7 @@ interpretNpR (Ncc (Cc predication cy)) = do
         f' <- interpretPredication predication
         popScope
         pure f'
+    bind "rou" (Ccl f) -- probably better to bind it to a var...
     pure (Ccl f)
 
 -- A function [Tm] -> a, tagged with min and max arity and a serial frame.
