@@ -129,9 +129,9 @@ instance ToXbar Sentence where
             x <- toXbar stmt
             y <- mkTag "SA" sa
             mkPair "SAP" x y
-        t1 <- case msc of Just sc -> toXbar sc; Nothing -> covert
-        t2 <- mkTag "SConn" t1
-        mkPair "SAP" t2 t
+        case msc of
+            Just sc -> do xSConn <- mkTag "SConn" =<< toXbar sc; mkPair "SAP" xSConn t
+            Nothing -> pure t
 instance ToXbar Fragment where
     toXbar (FrPrenex (Prenex ts bi)) = prenexToXbar ts bi =<< covert
     toXbar (FrTerms ts) = termsToXbar ts
