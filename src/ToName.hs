@@ -201,4 +201,5 @@ instance ToSrc NameVerb where toSrc = T.pack . show
 instance ToSrc Determiner where toSrc = T.pack . show
 instance ToSrc Connective where toSrc = T.pack . show
 instance ToSrc Complementizer where toSrc = T.pack . show
-instance ToSrc Terminator where toSrc = T.pack . show
+instance ToSrc Terminator where
+  toSrc = T.pack . maybe "" ((' ' :) . show)
