@@ -156,7 +156,7 @@ instance ToXbar PredicationsRubi where
     toXbar (NonRubi p) = toXbar p
 instance ToXbar PredicationC where
     toXbar (CompPredication comp stmt) = do x <- toXbar comp; y <- toXbar stmt; mkPair "CP" x y
-    toXbar (SimplePredication pred) = toXbar pred
+    toXbar (SimplePredication pred) = do x <- mkTag "C" =<< covert; y <- toXbar pred; mkPair "CP" x y
 instance ToXbar PredicationS where
     toXbar (Predication predicate []) = mkTag "VP" =<< toXbar predicate
     -- toXbar (Predication predicate terms) = Pair "Pred" (toXbar predicate) (termsToXbar terms)
@@ -170,16 +170,16 @@ instance ToXbar PredicationS where
         move xVTrace xV
         mkPair "FP" xV xVP
     toXbar (Predication predicate [tA,tS,tO]) = do
-        xV <- retag "F+v+V" <$> toXbar predicate
+        xV <- retag "F+𝑣+V" <$> toXbar predicate
         xDPA <- toXbar tA
-        xv <- mkLeaf "v"
+        xv <- mkLeaf "𝑣"
         xDPS <- toXbar tS
         xVTrace <- toXbar predicate
         xDPO <- toXbar tO
         xV' <- mkPair "V'" xVTrace xDPO
         xVP <- mkPair "VP" xDPS xV'
-        xv' <- mkPair "v'" xv xVP
-        xvP <- mkPair "vP" xDPA xv'
+        xv' <- mkPair "𝑣'" xv xVP
+        xvP <- mkPair "𝑣P" xDPA xv'
         move xVTrace xv
         move xv xV
         mkPair "FP" xV xvP
