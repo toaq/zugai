@@ -53,7 +53,7 @@ toa color height t =
         str = if t == "" then "∅" else T.unpack t
         color' = if color == rui && t == "" then discordBg else color
         d = TD.text str # TD.font "Linux Libertine O" # TD.fontSizeL height # fc color' # lw none # centerX
-        strut' = strut $ flip V2 height $ height / 2 * (fromIntegral (length str))
+        strut' = strut $ flip V2 height $ 0.6 * height * (fromIntegral (length str))
     in
         d <> boundingRect (d `atop` strut' # frame 0.2) # lcA transparent
 
@@ -66,7 +66,8 @@ xbarToDiagram gloss (xbar,movements) =
         # bg (sRGB24 0x36 0x39 0x3E)
         where
     conn     i j = connectPerim' (with & arrowHead .~ noHead & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (90@@deg)
-    connMove i j = connectPerim' (with & headStyle %~ fc bao & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (270@@deg)
+    moveShaft = arc xDir (-1/3 @@ turn)
+    connMove i j = connectPerim' (with & headStyle %~ fc bao & arrowShaft .~ moveShaft & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (270@@deg)
     gloss' "v" = ""
     gloss' x = T.unwords $ map gloss (T.words x)
     named' i = named (-1-i) -- ughhgghfhgjfhg
