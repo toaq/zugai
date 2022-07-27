@@ -277,7 +277,7 @@ instance ToXbar Dp where
 instance ToXbar RelC where
     toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "RelP" x tmr
 instance ToXbar Cc where
-    toXbar (Cc pred tmr) = do x <- mkTag "CP" =<< toXbar pred; terminated "CP" x tmr
+    toXbar (Cc pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
 instance ToXbar VpC where
     toXbar (Serial x y) = do xx <- toXbar x; yy<-toXbar y; mkPair "Serial" xx yy
     toXbar (Nonserial x) = toXbar x
@@ -354,7 +354,7 @@ xbarToLatex annotate xbar = "\\Tree " <> go xbar
         goSrc src = "\\textsf{ " <> (if src == "" then "$\\varnothing$" else src) <> "}" <> note annotate src
         go (Leaf _ src) = "{" <> goSrc src <> "}"
         go (Roof _ t src) = "\\qroof{" <> goSrc src <> "}." <> t
-        go (Tag _ t sub) = "[." <> t <> " " <> go sub <> " ]" <> (if False && t == "CP" then " !{\\qframesubtree}" else "")
+        go (Tag _ t sub) = "[." <> t <> " " <> go sub <> " ]"
         go (Pair _ t x y) = "[." <> t <> " " <> go x <> " " <> go y <> " ]"
         note Nothing _ = ""
         note (Just f) src =
