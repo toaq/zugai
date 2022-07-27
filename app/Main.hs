@@ -81,7 +81,7 @@ processInput om dict unstrippedInput = do
             ToXbarLatex -> enc $ input <> "\n\n" <> xbarToLatex (Just (glossWith dict)) (runXbar parsed) <> "\n"
             ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (runXbar parsed)
             ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (runXbar parsed)
-            ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (runXbar parsed))
+            ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (runXbarWithMovements parsed))
             ToEnglish -> enc $ toEnglish dict parsed
             ToLogic -> enc $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
     BSL.putStr (output <> "\n")

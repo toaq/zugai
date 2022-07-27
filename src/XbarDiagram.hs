@@ -11,6 +11,7 @@ import Diagrams.Backend.SVG
 import Graphics.SVGFonts
 import Data.Colour.RGBSpace
 import Data.Colour.RGBSpace.HSL
+import Debug.Trace
 
 import Lex
 import TextUtils
@@ -55,14 +56,24 @@ toa color height t =
     in
         d <> boundingRect (d # frame 0.2) # lcA transparent
 
-xbarToDiagram :: (Text -> Text) -> Xbar -> Diagram B
-xbarToDiagram gloss xbar = go 1 xbar {- # showEnvelope # showOrigin -} # frame 0.25 # bg (sRGB24 0x36 0x39 0x3E) where
-    conn i j = connectPerim' (with & arrowHead .~ noHead & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (90@@deg)
+xbarToDiagram :: (Text -> Text) -> (Xbar, [Movement]) -> Diagram B
+xbarToDiagram gloss (xbar,movements) =
+        go 1 xbar
+        {- # showEnvelope # showOrigin -}
+        # (\d -> foldr goMove d movements)
+        # frame 0.25
+        # bg (sRGB24 0x36 0x39 0x3E)
+        where
+    conn     i j = connectPerim' (with & arrowHead .~ noHead & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (90@@deg)
+    connMove i j = connectPerim' (with & headStyle %~ fc bao & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (270@@deg)
     gloss' = T.unwords . map gloss . T.words
+    named' i = named (-1-i) -- ughhgghfhgjfhg
+    goMove :: Movement -> Diagram B -> Diagram B
+    goMove (Movement i j) dia = dia # connMove (-1-i) (-1-j)
     go :: Integer -> Xbar -> Diagram B
-    go i xbar = center $ case xbar of
-        Leaf _ t -> (toa (wordColor t) 1 t <> toa rui 0.8 (gloss t) # moveTo (0^&(-0.75))) # named i
-        Roof _ t src -> vsep 0.1 [toa bao 1 t # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 src, toa rui 0.8 (gloss' src)]
-        Tag _ t x -> vsep 0.5 [toa bao 1 t # named i, go (2*i) x] # conn i (2*i)
-        Pair _ t x y -> vsep 1 [toa bao 1 t # named i, center (hsep 0.2 [go (2*i) x, go (2*i+1) y])] # conn i (2*i) # conn i (2*i+1)
+    go i xbar = center $ opacity (if or [j == Xbar.index xbar | Movement j _ <- movements] then 0.5 else 1.0) $ case xbar of
+        Leaf j t -> (toa (wordColor t) 1 t <> toa rui 0.8 (gloss t) # moveTo (0^&(-0.75))) # named i # named' j
+        Roof j t src -> vsep 0.1 [toa bao 1 t # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 src, toa rui 0.8 (gloss' src)] # named' j
+        Tag j t x -> vsep 0.5 [toa bao 1 t # named i, go (2*i) x] # named' j # conn i (2*i)
+        Pair j t x y -> vsep 1 [toa bao 1 t # named i, center (hsep 0.2 [go (2*i) x, go (2*i+1) y])] # named' j # conn i (2*i) # conn i (2*i+1)
 

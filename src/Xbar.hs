@@ -31,12 +31,30 @@ data Xbar
     | Roof Int Text Text -- Tag and source text
     deriving (Eq, Show)
 
-data XbarState = XbarState { xbarNodeCounter :: Int, xbarScopes :: [Scope Int] } deriving (Eq, Show)
+index :: Xbar -> Int
+index (Tag i _ _) = i
+index (Pair i _ _ _) = i
+index (Leaf i _) = i
+index (Roof i _ _) = i
+
+data Movement = Movement Int Int deriving (Eq, Ord, Show)
+
+data XbarState =
+    XbarState
+        { xbarNodeCounter :: Int
+        , xbarScopes :: [Scope Int]
+        , xbarMovements :: [Movement]
+        } deriving (Eq, Show)
 
 newtype Mx a = Mx { unMx :: State XbarState a } deriving (Functor, Applicative, Monad, MonadState XbarState)
 
+runXbarWithMovements :: Discourse -> (Xbar, [Movement])
+runXbarWithMovements d =
+    case runState (unMx (toXbar d)) (XbarState 0 [] []) of
+        (x, s) -> (x, xbarMovements s)
+
 runXbar :: Discourse -> Xbar
-runXbar d = evalState (unMx (toXbar d)) (XbarState 0 [])
+runXbar = fst . runXbarWithMovements
 
 instance HasScopes Int Mx where
     getScopes = gets xbarScopes
@@ -63,11 +81,10 @@ mkLeaf t = do i <- nextNodeNumber; pure $ Leaf i t
 mkRoof :: Text -> Text -> Mx Xbar
 mkRoof t s = do i <- nextNodeNumber; pure $ Roof i t s
 
-{-
-foldl1M :: Monad m => (a -> a -> m a) -> [a] -> m a
-foldl1M f [x] = pure x
-foldl1M f (x:y:z) = do r <- f x y; foldl1M f (r:z)
--}
+move :: Xbar -> Xbar -> Mx ()
+move src tgt =
+    let m = Movement (index src) (index tgt)
+    in modify (\s -> s { xbarMovements = m : xbarMovements s })
 
 -- Turn n≥1 terms into a parse tree with a "term" or "terms" head.
 termsToXbar :: Foldable t => t Term -> Mx Xbar
@@ -137,12 +154,21 @@ instance ToXbar PredicationC where
 instance ToXbar PredicationS where
     toXbar (Predication predicate []) = mkTag "VP" =<< toXbar predicate
     -- toXbar (Predication predicate terms) = Pair "Pred" (toXbar predicate) (termsToXbar terms)
+    toXbar (Predication predicate [tS,tO]) = do
+        xV <- toXbar predicate
+        xDPS <- toXbar tS
+        xVTrace <- toXbar predicate
+        xDPO <- toXbar tO
+        xV' <- mkPair "V'" xVTrace xDPO
+        xVP <- mkPair "VP" xDPS xV'
+        move xVTrace xV
+        mkPair "FP" xV xVP
     toXbar (Predication predicate terms) = do
         tp <- toXbar predicate
         tt <- foldr1 (\ma mb -> do a<-ma;b<-mb; mkPair "Terms" a b) (toXbar <$> terms)
         mkPair "VP" tp tt
 instance ToXbar Predicate where
-    toXbar (Predicate vp) = mkTag "Verb" =<< toXbar vp
+    toXbar (Predicate vp) = {- mkTag "Verb" =<< -} toXbar vp
 instance ToXbar Term where
     toXbar (Tnp t) = toXbar t
     toXbar (Tadvp t) = toXbar t
@@ -284,15 +310,6 @@ instance ToXbar NameVerb where toXbar nv = mkTag "NameVerb" =<< toXbar (show nv)
 instance ToXbar Determiner where toXbar det = mkTag "D" =<< toXbar (show det)
 instance ToXbar Connective where toXbar t = mkTag "Co" =<< toXbar (show t)
 instance ToXbar Complementizer where toXbar t = mkTag "C" =<< toXbar (show t)
-
--- Cut one-child nodes out of an Xbar tree.
--- predication(predicate(verb(de))) becomes just verb(de).
-simplifyXbar :: Xbar -> Xbar
-simplifyXbar t@(Leaf _ _) = t
-simplifyXbar t@(Roof _ _ _) = t
-simplifyXbar t@(Tag _ _ (Leaf _ _)) = t
-simplifyXbar (Tag _ _ sub) = simplifyXbar sub
-simplifyXbar (Pair i t x y) = Pair i t (simplifyXbar x) (simplifyXbar y)
 
 -- Show an Xbar tree using indentation and ANSI colors.
 showXbarAnsi :: Xbar -> [Text]
