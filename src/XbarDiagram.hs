@@ -7,8 +7,8 @@ module XbarDiagram where
 import Data.Text (Text)
 import qualified Data.Text as T
 import Diagrams.Prelude
+import qualified Diagrams.TwoD.Text as TD
 import Diagrams.Backend.SVG
-import Graphics.SVGFonts
 import Data.Colour.RGBSpace
 import Data.Colour.RGBSpace.HSL
 import Debug.Trace
@@ -52,9 +52,10 @@ toa color height t =
     let
         str = if t == "" then "∅" else T.unpack t
         color' = if color == rui && t == "" then discordBg else color
-        d = stroke (textSVG str height) # fc color' # lw none # centerX
+        d = TD.text str # TD.font "Linux Libertine O" # TD.fontSizeL height # fc color' # lw none # centerX
+        strut' = strut $ flip V2 height $ height / 2 * (fromIntegral (length str))
     in
-        d <> boundingRect (d # frame 0.2) # lcA transparent
+        d <> boundingRect (d `atop` strut' # frame 0.2) # lcA transparent
 
 xbarToDiagram :: (Text -> Text) -> (Xbar, [Movement]) -> Diagram B
 xbarToDiagram gloss (xbar,movements) =

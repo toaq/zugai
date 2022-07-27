@@ -37,7 +37,6 @@ dependencies:
 - pretty-simple
 - split >= 0.2.3.4
 - svg-builder
-- SVGFonts
 - text
 - transformers >= 0.5.6.2
 - unicode-transforms >= 0.4.0.1
