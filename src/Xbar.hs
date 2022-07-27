@@ -37,6 +37,12 @@ index (Pair i _ _ _) = i
 index (Leaf i _) = i
 index (Roof i _ _) = i
 
+retag :: Text -> Xbar -> Xbar
+retag t (Tag i _ x) = Tag i t x
+retag t (Pair i _ x y) = Pair i t x y
+retag _ (Leaf i g) = Leaf i g
+retag t (Roof i _ g) = Roof i t g
+
 data Movement = Movement Int Int deriving (Eq, Ord, Show)
 
 data XbarState =
@@ -155,7 +161,7 @@ instance ToXbar PredicationS where
     toXbar (Predication predicate []) = mkTag "VP" =<< toXbar predicate
     -- toXbar (Predication predicate terms) = Pair "Pred" (toXbar predicate) (termsToXbar terms)
     toXbar (Predication predicate [tS,tO]) = do
-        xV <- toXbar predicate
+        xV <- retag "F+V" <$> toXbar predicate
         xDPS <- toXbar tS
         xVTrace <- toXbar predicate
         xDPO <- toXbar tO
@@ -164,7 +170,7 @@ instance ToXbar PredicationS where
         move xVTrace xV
         mkPair "FP" xV xVP
     toXbar (Predication predicate [tA,tS,tO]) = do
-        xV <- toXbar predicate
+        xV <- retag "F+v+V" <$> toXbar predicate
         xDPA <- toXbar tA
         xv <- mkLeaf "v"
         xDPS <- toXbar tS
@@ -174,7 +180,8 @@ instance ToXbar PredicationS where
         xVP <- mkPair "VP" xDPS xV'
         xv' <- mkPair "v'" xv xVP
         xvP <- mkPair "vP" xDPA xv'
-        move xVTrace xV
+        move xVTrace xv
+        move xv xV
         mkPair "FP" xV xvP
     toXbar (Predication predicate terms) = do
         tp <- toXbar predicate
