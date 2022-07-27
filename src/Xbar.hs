@@ -131,7 +131,7 @@ instance ToXbar DiscourseItem where
 instance ToXbar Sentence where
     toXbar (Sentence msc stmt ill) = do
         t <- do
-            sa <- case ill of Just i -> mkTag "SA" =<< toXbar i; Nothing -> covert
+            sa <- case ill of Just i -> toXbar i; Nothing -> covert
             x <- toXbar stmt
             y <- mkTag "SA" sa
             mkPair "SAP" x y
