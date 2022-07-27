@@ -163,6 +163,19 @@ instance ToXbar PredicationS where
         xVP <- mkPair "VP" xDPS xV'
         move xVTrace xV
         mkPair "FP" xV xVP
+    toXbar (Predication predicate [tA,tS,tO]) = do
+        xV <- toXbar predicate
+        xDPA <- toXbar tA
+        xv <- mkLeaf "v"
+        xDPS <- toXbar tS
+        xVTrace <- toXbar predicate
+        xDPO <- toXbar tO
+        xV' <- mkPair "V'" xVTrace xDPO
+        xVP <- mkPair "VP" xDPS xV'
+        xv' <- mkPair "v'" xv xVP
+        xvP <- mkPair "vP" xDPA xv'
+        move xVTrace xV
+        mkPair "FP" xV xvP
     toXbar (Predication predicate terms) = do
         tp <- toXbar predicate
         tt <- foldr1 (\ma mb -> do a<-ma;b<-mb; mkPair "Terms" a b) (toXbar <$> terms)
