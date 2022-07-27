@@ -67,14 +67,15 @@ xbarToDiagram gloss (xbar,movements) =
         where
     conn     i j = connectPerim' (with & arrowHead .~ noHead & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (90@@deg)
     connMove i j = connectPerim' (with & headStyle %~ fc bao & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (270@@deg)
-    gloss' = T.unwords . map gloss . T.words
+    gloss' "v" = ""
+    gloss' x = T.unwords $ map gloss (T.words x)
     named' i = named (-1-i) -- ughhgghfhgjfhg
     goMove :: Movement -> Diagram B -> Diagram B
     goMove (Movement i j) dia = dia # connMove (-1-i) (-1-j)
     go :: Integer -> Xbar -> Diagram B
     go i xbar = center $ opacity (if or [j == Xbar.index xbar | Movement j _ <- movements] then 0.5 else 1.0) $ case xbar of
-        Leaf j t -> (toa (wordColor t) 1 t <> toa rui 0.8 (gloss t) # moveTo (0^&(-0.75))) # named i # named' j
-        Roof j t src -> vsep 0.1 [toa bao 1 t # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 src, toa rui 0.8 (gloss' src)] # named' j
+        Leaf j t -> (toa (wordColor t) 1 t === toa rui 0.8 (gloss' t)) # named i # named' j
+        Roof j t src -> vsep 0.1 [toa bao 1 t # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 src] === toa rui 0.8 (gloss' src) # named' j
         Tag j t x -> vsep 0.5 [toa bao 1 t # named i, go (2*i) x] # named' j # conn i (2*i)
         Pair j t x y -> vsep 1 [toa bao 1 t # named i, center (hsep 0.2 [go (2*i) x, go (2*i+1) y])] # named' j # conn i (2*i) # conn i (2*i+1)
 
