@@ -38,11 +38,9 @@ data DiscourseItem = DiSentence Sentence | DiFragment Fragment | DiFree FreeMod 
 data Sentence = Sentence (Maybe (W Text {-je-})) Statement (Maybe (W Toned {-da-})) deriving (Eq, Show)
 data Fragment = FrPrenex Prenex | FrTerms (NonEmpty Term) deriving (Eq, Show)
 data Prenex = Prenex (NonEmpty Term) (W () {-bi-}) deriving (Eq, Show)
-data Statement = Statement (Maybe Prenex) PredicationsRubi deriving (Eq, Show)
-data PredicationsRubi = Rubi Predication (W Connective) (W () {-bi-}) PredicationsRubi | NonRubi Predication deriving (Eq, Show)
+data Statement = Statement (Maybe (W Complementizer)) (Maybe Prenex) Predication deriving (Eq, Show)
 type Predication = ConnableNa PredicationC
-data PredicationC = CompPredication (W Complementizer) Statement | SimplePredication PredicationS deriving (Eq, Show)
-data PredicationS = Predication Predicate [Term] deriving (Eq, Show)
+data PredicationC = Predication Predicate [Term] deriving (Eq, Show)
 data Predicate = Predicate Vp deriving (Eq, Show)
 data Term
     = Tnp Np | Tadvp Advp | Tpp Pp
@@ -245,23 +243,14 @@ pTerm = try pTermset <|> (Tnp <$> pNp) <|> (Tadvp <$> pAdvp) <|> (Tpp <$> pPp)
 pPredicate :: Tone -> Parser Predicate
 pPredicate tone = Predicate <$> pVp tone
 
-pPredicationS :: Tone -> Parser PredicationS
-pPredicationS tone = Predication <$> pPredicate tone <*> many pTerm
-
 pPredicationC :: Tone -> Parser PredicationC
-pPredicationC tone = (CompPredication <$> pComplementizer tone <*> pStatement_nocomp) <|> (SimplePredication <$> pPredicationS tone)
+pPredicationC tone = Predication <$> pPredicate tone <*> many pTerm
 
 pPredication :: Tone -> Parser Predication
 pPredication tone = pConnableNa (pPredicationC tone) (pPredicationC T4)
 
 pStatement :: Parser Statement
-pStatement = Statement <$> optionMaybe (try pPrenex) <*> pPredicationsRubi
-
-pPredicationsRubi :: Parser PredicationsRubi
-pPredicationsRubi = do h <- pPredication T4; try (Rubi h <$> pConnective <*> pBi <*> pPredicationsRubi) <|> pure (NonRubi h)
-
-pStatement_nocomp :: Parser Statement
-pStatement_nocomp = Statement <$> optionMaybe (try pPrenex) <*> (NonRubi . Single . SimplePredication <$> pPredicationS T4)
+pStatement = Statement <$> optionMaybe (try (pComplementizer T4)) <*> optionMaybe (try pPrenex) <*> pPredication T4
 
 pPrenex :: Parser Prenex
 pPrenex = Prenex <$> manyNE pTerm <*> pBi

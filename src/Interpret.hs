@@ -147,19 +147,12 @@ interpretSentence (Sentence je stmt da) = do
     pure f
 
 interpretStatement :: Statement -> Interpret Formula
-interpretStatement (Statement Nothing rubis) = resetT (interpretRubis rubis)
-interpretStatement (Statement (Just (Prenex ts bi)) rubis) =
+interpretStatement (Statement c Nothing p) = resetT (interpretPredication p)
+interpretStatement (Statement c (Just (Prenex ts bi)) p) =
     resetT $ do
         incrementArgsSeen -- hack: treat topics as >0
         mapM interpretTerm $ toList ts -- is it ok to ignore topics?
-        interpretRubis rubis
-
-interpretRubis :: PredicationsRubi -> Interpret Formula
-interpretRubis (NonRubi p) = interpretPredication p
-interpretRubis (Rubi p1 ru bi p2) = do
-    f1 <- interpretPredication p1
-    f2 <- interpretRubis p2
-    pure $ Con (unW ru) f1 f2
+        interpretPredication p
 
 interpretRel :: Rel -> Interpret Formula
 interpretRel (Single c) = interpretRelC c
@@ -175,11 +168,7 @@ interpretPredication (Conn x na conn y) = Con (unW conn) <$> interpretPredicatio
 interpretPredication (ConnTo to conn x to' y) = Con (unW conn) <$> interpretPredication x <*> interpretPredication y
 
 interpretPredicationC :: PredicationC -> Interpret Formula
-interpretPredicationC (SimplePredication p) = interpretPredicationS p
-interpretPredicationC (CompPredication comp stmt) = interpretStatement stmt -- not sure how to handle ma/tio
-
-interpretPredicationS :: PredicationS -> Interpret Formula
-interpretPredicationS (Predication (Predicate vp) terms) =
+interpretPredicationC (Predication (Predicate vp) terms) =
     resetT $ do
         f <- interpretVp vp
         resetArgsSeen
@@ -235,7 +224,6 @@ interpretAdvpC (Advp vp) = do
             f <- interpretVp vp
             formula <- lift (k [])
             f $/ [Ccl $ formula]
-            -- f $/ [Ccl formula]
     else
         shiftT $ \k -> do
             f <- interpretVp vp

@@ -6,6 +6,7 @@ module English where
 
 import Data.Char
 import Data.Foldable
+import Data.Maybe
 import Data.Text (Text)
 import Dictionary
 import qualified Data.Text as T
@@ -53,15 +54,8 @@ instance ToEnglish Fragment where
 instance ToEnglish Prenex where
     toEnglish d (Prenex ts bi) = T.intercalate ", " (toEnglish d <$> toList ts) <> ": "
 instance ToEnglish Statement where
-    toEnglish d (Statement (Just prenex) preds) = toEnglish d prenex <> toEnglish d preds
-    toEnglish d (Statement Nothing preds) = toEnglish d preds
-instance ToEnglish PredicationsRubi where
-    toEnglish d (Rubi p1 ru bi ps) = toEnglish d p1 <> ", " <> toEnglish d ru <> " " <> toEnglish d ps
-    toEnglish d (NonRubi p) = toEnglish d p
+    toEnglish d (Statement mc mp pred) = T.unwords $ catMaybes [toEnglish d <$> mc, toEnglish d <$> mp, Just $ toEnglish d pred]
 instance ToEnglish PredicationC where
-    toEnglish d (CompPredication comp stmt) = toEnglish d comp <> " " <> toEnglish d stmt
-    toEnglish d (SimplePredication pred) = toEnglish d pred
-instance ToEnglish PredicationS where
     toEnglish d (Predication predicate []) = toEnglish d predicate
     toEnglish d (Predication predicate (t:ts)) = T.unwords (toEnglish d t : toEnglish d predicate : (toEnglish d <$> ts))
 instance ToEnglish Predicate where
@@ -150,7 +144,7 @@ instance ToEnglish Connective where
     toEnglish d Ru = "and"
     toEnglish d Ro = "or"
     toEnglish d Roi = "and"
-    
+
 forethoughtToEnglish :: Connective -> Text
 forethoughtToEnglish Ra = "either/both"
 forethoughtToEnglish Ri = "which of"

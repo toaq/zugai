@@ -148,22 +148,14 @@ instance ToXbar Fragment where
     toXbar (FrPrenex (Prenex ts bi)) = prenexToXbar ts bi =<< covert
     toXbar (FrTerms ts) = termsToXbar ts
 instance ToXbar Statement where
-    toXbar (Statement (Just (Prenex ts bi)) preds) = prenexToXbar ts bi =<< toXbar preds
-    toXbar (Statement Nothing preds) = toXbar preds
-instance ToXbar PredicationsRubi where
-    toXbar (Rubi p1 ru bi ps) = do
-        tp1 <- toXbar p1
-        tru <- toXbar ru
-        tbi <- mkTag "End" =<< toXbar bi
-        tco <- mkPair "Co" tru tbi
-        tvp <- mkPair "VP" tp1 tco
-        tps <- toXbar ps
-        mkPair "VP" tvp tps
-    toXbar (NonRubi p) = toXbar p
+    toXbar (Statement mc mp pred) = do
+        xC <- case mc of Just c -> toXbar c
+                         Nothing -> mkTag "C" =<< covert
+        xFP <- toXbar pred
+        xTopicP <- case mp of Just (Prenex ts bi) -> prenexToXbar ts bi xFP
+                              Nothing -> pure xFP
+        mkPair "CP" xC xTopicP
 instance ToXbar PredicationC where
-    toXbar (CompPredication comp stmt) = do x <- toXbar comp; y <- toXbar stmt; mkPair "CP" x y
-    toXbar (SimplePredication pred) = do x <- mkTag "C" =<< covert; y <- toXbar pred; mkPair "CP" x y
-instance ToXbar PredicationS where
     toXbar (Predication predicate []) = mkTag "VP" =<< toXbar predicate
     -- toXbar (Predication predicate terms) = Pair "Pred" (toXbar predicate) (termsToXbar terms)
     toXbar (Predication predicate [tS,tO]) = do

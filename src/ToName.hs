@@ -1,6 +1,7 @@
 module ToName where
 
 import Data.Foldable
+import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as T
 import Lex
@@ -28,15 +29,8 @@ instance ToName Fragment where
 instance ToName Prenex where
     toName (Prenex ts bi) = T.unwords (toName <$> toList ts) <> " bi"
 instance ToName Statement where
-    toName (Statement (Just prenex) preds) = toName prenex <> toName preds
-    toName (Statement Nothing preds) = toName preds
-instance ToName PredicationsRubi where
-    toName (Rubi p1 ru bi ps) = toName p1 <> " ru bi " <> toName ps
-    toName (NonRubi p) = toName p
+    toName (Statement mc mp preds) = T.unwords $ catMaybes [toName <$> mc, toName <$> mp, Just $ toName preds]
 instance ToName PredicationC where
-    toName (CompPredication comp stmt) = toName comp <> " " <> toName stmt
-    toName (SimplePredication pred) = toName pred
-instance ToName PredicationS where
     toName (Predication predicate ts) = T.unwords (toName predicate : (toName <$> ts))
 instance ToName Predicate where
     toName (Predicate vp) = toName vp
@@ -125,15 +119,8 @@ instance ToSrc Fragment where
 instance ToSrc Prenex where
     toSrc (Prenex ts bi) = T.unwords $ (toSrc <$> toList ts) <> [toSrc bi]
 instance ToSrc Statement where
-    toSrc (Statement (Just prenex) preds) = toSrc prenex <> toSrc preds
-    toSrc (Statement Nothing preds) = toSrc preds
-instance ToSrc PredicationsRubi where
-    toSrc (Rubi p1 ru bi ps) = T.unwords [toSrc p1, toSrc ru, toSrc bi, toSrc ps]
-    toSrc (NonRubi p) = toSrc p
+    toSrc (Statement mc mp preds) = T.unwords $ catMaybes [toSrc <$> mc, toSrc <$> mp, Just $ toSrc preds]
 instance ToSrc PredicationC where
-    toSrc (CompPredication comp stmt) = toSrc comp <> " " <> toSrc stmt
-    toSrc (SimplePredication pred) = toSrc pred
-instance ToSrc PredicationS where
     toSrc (Predication predicate ts) = T.unwords (toSrc predicate : (toSrc <$> ts))
 instance ToSrc Predicate where
     toSrc (Predicate vp) = toSrc vp
