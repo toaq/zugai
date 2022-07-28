@@ -36,6 +36,35 @@ async def on_message(message):
         #embed = discord.Embed()
         #embed.set_thumbnail(url="attachment://image.png")
         await message.channel.send(file=file)
+    elif cmd == "forest":
+        run1 = subprocess.run(["zugai-exe", "--to-xbar-latex"], input=sentence.encode(), capture_output=True)
+        if run1.returncode != 0:
+            print(run1)
+            await message.channel.send(f'Failed to parse.\n```\n{run1.stderr.decode().strip()}\n```')
+            return
+
+        with open("a.tex", "wb") as f: f.write(run1.stdout)
+
+        run2 = subprocess.run(["xelatex", "a.tex"])
+        if run2.returncode != 0:
+            print(run2)
+            await message.channel.send('Failed to convert to pdf.')
+            return
+
+        run3 = subprocess.run(["convert", "-density", "250", "-quality", "100", "-trim",
+            "-bordercolor", "White", "-border", "30x30", "-define", "png:color-type=6",
+            "-background", "white", "-alpha", "remove", "-alpha", "off",
+            "a.pdf", "a.png"])
+        if run3.returncode != 0:
+            print(run3)
+            await message.channel.send('Failed to convert to png.')
+            return
+
+        file = discord.File(open("a.png", "rb"), filename="image.png")
+        await message.channel.send(file=file)
+
+
+
     elif cmd in ("english", "logic"):
         run1 = subprocess.run(["zugai-exe", "--to-" + cmd], input=sentence.encode(), capture_output=True)
         if run1.returncode != 0:

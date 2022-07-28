@@ -78,7 +78,7 @@ processInput om dict unstrippedInput = do
     let enc = BSL.fromStrict . encodeUtf8
     let output = case om of
             ToZugaiParseTree -> enc $ T.pack $ show parsed
-            ToXbarLatex -> enc $ input <> "\n\n" <> xbarToLatex (Just (glossWith dict)) (runXbar parsed) <> "\n"
+            ToXbarLatex -> enc $ xbarToLatex (Just (glossWith dict)) (runXbarWithMovements parsed)
             ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (runXbar parsed)
             ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (runXbar parsed)
             ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (runXbarWithMovements parsed))
@@ -91,7 +91,7 @@ main = do
     CliOptions im om lineByLine <- execParser cliInfo
     input <- case im of FromStdin -> T.getContents; FromFile s -> T.readFile s
     dict <- readDictionary
-    when (om == ToXbarLatex) $ T.putStrLn "\\documentclass[preview,border=30pt]{standalone}\n\\usepackage{amssymb}\n\\usepackage{qtree}\n\\begin{document}"
+    when (om == ToXbarLatex) $ T.putStrLn "\\documentclass[preview,border=30pt]{standalone}\n\\usepackage{amssymb}\n\\usepackage{ulem}\n\\usepackage[linguistics]{forest}\n\\begin{document}"
     if lineByLine
         then mapM_ (processInput om dict) (T.lines input)
         else processInput om dict input
