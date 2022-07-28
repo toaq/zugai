@@ -10,63 +10,39 @@ steps:
 - name: docker-exe
   image: plugins/docker
   settings:
-    registry: ghcr.io
-    username: uakci
-    password:
-      from_secret: registry_pass
+    registry: host.docker.internal:5000
     target: compile
-    repo: ghcr.io/toaq/zugai-exe
+    repo: host.docker.internal:5000/zugai-exe
     tags: latest
     cache-from:
-    - 'ghcr.io/toaq/zugai-exe:latest'
-  when:
-    repo:
-    - toaq/zugai
+    - host.docker.internal:5000/zugai-exe:latest
 - name: docker-bot
   image: plugins/docker
   settings:
-    registry: ghcr.io
-    username: uakci
-    password:
-      from_secret: registry_pass
+    registry: host.docker.internal:5000
     target: bot
-    repo: ghcr.io/toaq/zugai-bot
+    repo: host.docker.internal:5000/zugai-bot
     tags: latest
     cache-from:
-    - 'ghcr.io/toaq/zugai-exe:latest'
-    - 'ghcr.io/toaq/zugai-bot:latest'
-  when:
-    repo:
-    - toaq/zugai
+    - host.docker.internal:5000/zugai-exe:latest
+    - host.docker.internal:5000/zugai-bot:latest
 - name: webhook-bot
   image: plugins/webhook
   settings:
     urls:
       from_secret: bot_webhook_url
-  when:
-    repo:
-    - toaq/zugai
 - name: docker-web
   image: plugins/docker
   settings:
-    registry: ghcr.io
-    username: uakci
-    password:
-      from_secret: registry_pass
+    registry: host.docker.internal:5000
     target: web
-    repo: ghcr.io/toaq/zugai-web
+    repo: host.docker.internal:5000/zugai-web
     tags: latest
     cache-from:
-    - 'ghcr.io/toaq/zugai-exe:latest'
-    - 'ghcr.io/toaq/zugai-web:latest'
-  when:
-    repo:
-    - toaq/zugai
+    - host.docker.internal:5000/zugai-exe:latest
+    - host.docker.internal:5000/zugai-web:latest
 - name: webhook-web
   image: plugins/webhook
   settings:
     urls:
       from_secret: web_webhook_url
-  when:
-    repo:
-    - toaq/zugai
