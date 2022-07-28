@@ -1,0 +1,72 @@
+kind: pipeline
+type: docker
+name: default
+
+steps:
+- name: submodules
+  image: alpine/git
+  commands:
+  - git submodule update --init --recursive
+- name: docker-exe
+  image: plugins/docker
+  settings:
+    registry: ghcr.io
+    username: uakci
+    password:
+      from_secret: registry_pass
+    target: compile
+    repo: ghcr.io/toaq/zugai-exe
+    tags: latest
+    cache-from:
+    - 'ghcr.io/toaq/zugai-exe:latest'
+  when:
+    repo:
+    - toaq/zugai
+- name: docker-bot
+  image: plugins/docker
+  settings:
+    registry: ghcr.io
+    username: uakci
+    password:
+      from_secret: registry_pass
+    target: bot
+    repo: ghcr.io/toaq/zugai-bot
+    tags: latest
+    cache-from:
+    - 'ghcr.io/toaq/zugai-exe:latest'
+    - 'ghcr.io/toaq/zugai-bot:latest'
+  when:
+    repo:
+    - toaq/zugai
+- name: webhook-bot
+  image: plugins/webhook
+  settings:
+    urls:
+      from_secret: bot_webhook_url
+  when:
+    repo:
+    - toaq/zugai
+- name: docker-web
+  image: plugins/docker
+  settings:
+    registry: ghcr.io
+    username: uakci
+    password:
+      from_secret: registry_pass
+    target: web
+    repo: ghcr.io/toaq/zugai-web
+    tags: latest
+    cache-from:
+    - 'ghcr.io/toaq/zugai-exe:latest'
+    - 'ghcr.io/toaq/zugai-web:latest'
+  when:
+    repo:
+    - toaq/zugai
+- name: webhook-web
+  image: plugins/webhook
+  settings:
+    urls:
+      from_secret: web_webhook_url
+  when:
+    repo:
+    - toaq/zugai

@@ -6,32 +6,36 @@ RUN curl -sSL https://get.haskellstack.org/ | sh
 # prefetch ghc
 RUN stack ghci </dev/null
 
-COPY stack.yaml stack.yaml.lock package.yaml Setup.hs /src/
-RUN cd /src/; stack build --only-dependencies
+COPY stack.yaml stack.yaml.lock package.yaml Setup.hs /pkg/
+RUN cd /pkg/ \
+   && stack build --only-dependencies
 
-COPY . /src
-RUN cd /src \
+COPY src/ /pkg/src/
+COPY app/ /pkg/app/
+COPY test/ /pkg/test/
+RUN cd /pkg/ \
   && stack install \
-  && cp /root/.local/bin/zugai-exe /src/
+  && cp /root/.local/bin/zugai-exe /pkg/zugai-exe
 
 
 FROM debian AS base
 RUN apt update; apt install -y python3 python3-pip
+COPY data/ /pkg/data/
 
 
 FROM base AS bot
-RUN apt install -y inkscape
+RUN apt install -y inkscape fonts-linuxlibertine
 RUN pip3 install discord
-COPY --from=compile /src /src
-COPY --from=compile /root/.stack/snapshots /root/.stack/snapshots
-ENTRYPOINT cd /src \
-  && PATH=/src:"$PATH" python3 ./discord_bot.py
+COPY discord_bot.py /pkg/
+COPY --from=compile /pkg/zugai-exe /pkg/
+ENTRYPOINT cd /pkg/ \
+  && PATH=/pkg/:"$PATH" python3 ./discord_bot.py
 
 
 FROM base AS web
 EXPOSE 80
 RUN pip3 install flask
-COPY --from=compile /src /src
-COPY --from=compile /root/.stack/snapshots /root/.stack/snapshots
-ENTRYPOINT cd /src \
-  && FLASK_APP=web_server PATH=/src:"$PATH" python3 -m flask run -h 0.0.0.0 -p 80
+COPY web_server.py /pkg/
+COPY --from=compile /pkg/zugai-exe /pkg/
+ENTRYPOINT cd /pkg/ \
+  && PATH=/pkg/:"$PATH" FLASK_APP=web_server python3 -m flask run -h 0.0.0.0 -p 80
