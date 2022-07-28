@@ -52,8 +52,8 @@ async def on_message(message):
             return
 
         run3 = subprocess.run(["convert", "-density", "250", "-quality", "100", "-trim",
-            "-bordercolor", "White", "-border", "30x30", "-define", "png:color-type=6",
-            "-background", "white", "-alpha", "remove", "-alpha", "off",
+            "-bordercolor", "#36393E", "-border", "30x30", "-define", "png:color-type=6",
+            "-background", "#36393E", "-alpha", "remove", "-alpha", "off",
             "a.pdf", "a.png"])
         if run3.returncode != 0:
             print(run3)

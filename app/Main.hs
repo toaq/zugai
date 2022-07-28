@@ -86,12 +86,25 @@ processInput om dict unstrippedInput = do
             ToLogic -> enc $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
     BSL.putStr (output <> "\n")
 
+latexPreamble :: Text
+latexPreamble =
+    T.unlines
+        [ "\\documentclass[preview,border=30pt]{standalone}"
+        , "\\usepackage{amssymb}"
+        , "\\usepackage{ulem}"
+        , "\\usepackage{xcolor}"
+        , "\\usepackage[linguistics]{forest}"
+        , "\\begin{document}"
+        , "\\pagecolor[HTML]{36393E}"
+        , "\\color[HTML]{DCDDDE}"
+        ]
+
 main :: IO ()
 main = do
     CliOptions im om lineByLine <- execParser cliInfo
     input <- case im of FromStdin -> T.getContents; FromFile s -> T.readFile s
     dict <- readDictionary
-    when (om == ToXbarLatex) $ T.putStrLn "\\documentclass[preview,border=30pt]{standalone}\n\\usepackage{amssymb}\n\\usepackage{ulem}\n\\usepackage[linguistics]{forest}\n\\begin{document}"
+    when (om == ToXbarLatex) $ T.putStr latexPreamble
     if lineByLine
         then mapM_ (processInput om dict) (T.lines input)
         else processInput om dict input

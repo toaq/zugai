@@ -23,6 +23,7 @@ import Lex
 import Parse
 import Scope
 import ToName
+import TextUtils
 
 data Xbar
     = Tag Int Text Xbar
@@ -350,6 +351,12 @@ showXbarAnsi (Tag _ t sub) =
         many -> (t<>":") : map ("  "<>) many
 showXbarAnsi (Pair _ t x y) = (t<>":") : map ("  "<>) (showXbarAnsi x) ++ map ("  "<>) (showXbarAnsi y)
 
+colorWord :: Text -> Text
+colorWord t =
+    case toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
+        Right (Verb _, _) -> "{\\color[HTML]{88eeff}" <> t <> "}"
+        _ -> "{\\color[HTML]{ffcc88}" <> t <> "}"
+
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
 xbarToLatex :: Maybe (Text -> Text) -> (Xbar, [Movement]) -> Text
 xbarToLatex annotate (xbar, movements) =
@@ -362,18 +369,20 @@ xbarToLatex annotate (xbar, movements) =
         node i label children =
             "[" <> label <> ",tikz={\\node [name=n" <> tshow i <> ",inner sep=0,fit to=tree]{};}"
                 <> children <> "]"
-        go (Leaf i src) = node i (goSrc i src) ""
-        go (Roof i t src) = node i t ("[" <> goSrc i src <> ",roof]")
-        go (Tag i t sub) = node i t (go sub)
-        go (Pair i t x y) = node i t (go x <> " " <> go y)
+        label = T.replace "𝑣" "$v$"
+        go (Leaf i src) = node i (goSrc i (label src)) ""
+        go (Roof i t src) = node i (label t) ("[" <> goSrc i src <> ",roof]")
+        go (Tag i t sub) = node i (label t) (go sub)
+        go (Pair i t x y) = node i (label t) (go x <> " " <> go y)
         strikeIfTrace i s = if i `elem` traceIndices then "\\sout{" <> s <> "}" else s
-        goSrc i src = "\\textsf{" <> strikeIfTrace i (if src == "" then "$\\varnothing$" else src) <> "}" <> note annotate src
+        goSrc i src = "\\textsf{" <> strikeIfTrace i (if src == "" then "$\\varnothing$" else colorWord src) <> "}" <> note annotate src
         note Nothing _ = ""
+        note _ "$v$" = ""
         note (Just f) src =
             let
                 noteText = f src
                 (cmd, transform) = if T.all isUpper noteText then ("\\textsc", T.toLower) else ("\\textit", id)
-            in "\\\\" <> cmd <> "{" <> transform noteText <> "}"
+            in "\\\\" <> cmd <> "{\\color[HTML]{dcddde}" <> transform noteText <> "}"
         goMove (Movement i j) = "\\draw[->] (n" <> tshow i <> ") to[out=south,in=south] (n" <> tshow j <> ");"
 
 -- Convert an Xbar tree to HTML.

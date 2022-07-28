@@ -4,9 +4,16 @@ a.aux
 a.log
 a.pdf
 a.png
+a.svg
 a.tex
-output.svg
+test.aux
+test.log
+test.pdf
+test.png
+test.svg
+test.tex
 output.png
+output.svg
 texput.log
 __pycache__
 toadua-dump.json
