@@ -160,7 +160,7 @@ interpretRel (Conn x na conn y) = Con (unW conn) <$> interpretRelC x <*> interpr
 interpretRel (ConnTo to conn x to' y) = Con (unW conn) <$> interpretRel x <*> interpretRel y
 
 interpretRelC :: RelC -> Interpret Formula
-interpretRelC (Rel pred cy) = interpretPredication pred
+interpretRelC (Rel stmt cy) = interpretStatement stmt
 
 interpretPredication :: Predication -> Interpret Formula
 interpretPredication (Single c) = interpretPredicationC c
@@ -274,10 +274,10 @@ interpretNpR (Bound vp) = do
         Just tm -> pure tm
         Nothing -> bindVp Ke (Just vp)
 interpretNpR (Ndp (Dp det vp)) = bindVp (unW det) vp
-interpretNpR (Ncc (Cc predication cy)) = do
+interpretNpR (Ncc (Cc stmt cy)) = do
     f <- resetT $ do
         pushScope
-        f' <- interpretPredication predication
+        f' <- interpretStatement stmt
         popScope
         pure f'
     bind "rou" (Ccl f) -- probably better to bind it to a var...

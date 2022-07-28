@@ -5,6 +5,7 @@ import Data.List.NonEmpty qualified as N
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
 import Data.Text (Text)
+import Debug.Trace
 import Text.Parsec as P
 
 -- Most leaves of the parse tree are "W" (words with possible free modifiers after them).
@@ -58,8 +59,8 @@ data NpF = ArgRel NpR Rel | Unr NpR deriving (Eq, Show)
 data NpR = Bound Vp | Ndp Dp | Ncc Cc deriving (Eq, Show)
 data Dp = Dp (W Determiner) (Maybe Vp) deriving (Eq, Show)
 type Rel = Connable RelC
-data RelC = Rel Predication Terminator deriving (Eq, Show) -- t3
-data Cc = Cc Predication Terminator deriving (Eq, Show) -- t5
+data RelC = Rel Statement Terminator deriving (Eq, Show) -- t3
+data Cc = Cc Statement Terminator deriving (Eq, Show) -- t5
 type Vp = Connable VpC
 data VpC = Serial VpN VpC | Nonserial VpN deriving (Eq, Show)
 data VpN -- nonserial verb phrase
@@ -188,7 +189,7 @@ pVpN t =
     <|> (Vshu <$> pShu t <*> pRawWord)
     <|> (Voiv <$> pOiv t <*> pNp <*> pGa)
     <|> (Vmo <$> pMo t <*> pDiscourse <*> pTeo)
-    <|> (Vlu <$> pLu t <*> pStatement <*> pKy)
+    <|> (Vlu <$> pLu t <*> pStatement T4 <*> pKy)
     <|> (Vverb <$> pVerb t)
 
 pVp :: Tone -> Parser Vp
@@ -213,10 +214,10 @@ pNpR :: Parser NpR
 pNpR = (Bound <$> pVp T2) <|> (Ndp <$> pDp) <|> (Ncc <$> pCc)
 
 pCc :: Parser Cc
-pCc = Cc <$> pPredication T5 <*> pCy
+pCc = Cc <$> pStatement T5 <*> pCy
 
 pRel :: Parser Rel
-pRel = pConnableSame (Rel <$> pPredication T3 <*> pCy)
+pRel = pConnableSame (Rel <$> pStatement T3 <*> pCy)
 
 pAdvp :: Parser Advp
 pAdvp = pConnableSame (Advp <$> pVp T7)
@@ -249,14 +250,19 @@ pPredicationC tone = Predication <$> pPredicate tone <*> many pTerm
 pPredication :: Tone -> Parser Predication
 pPredication tone = pConnableNa (pPredicationC tone) (pPredicationC T4)
 
-pStatement :: Parser Statement
-pStatement = Statement <$> optionMaybe (try (pComplementizer T4)) <*> optionMaybe (try pPrenex) <*> pPredication T4
+pStatement :: Tone -> Parser Statement
+pStatement tone = do
+    -- TODO: tokenize tones so we don't have to write messes like this... and can show them as C
+    (c, tone') <- try (do c <- pComplementizer tone; pure (Just c, T4)) <|> pure (Nothing, tone)
+    p <- if tone' == T4 then optionMaybe (try pPrenex) else pure Nothing
+    q <- pPredication tone'
+    pure $ Statement c p q
 
 pPrenex :: Parser Prenex
 pPrenex = Prenex <$> manyNE pTerm <*> pBi
 
 pSentence :: Parser Sentence
-pSentence = Sentence <$> optionMaybe pSentenceConnector <*> pStatement <*> optionMaybe pIllocution
+pSentence = Sentence <$> optionMaybe pSentenceConnector <*> pStatement T4 <*> optionMaybe pIllocution
 
 pFragment :: Parser Fragment
 pFragment = try (FrPrenex <$> pPrenex) <|> (FrTerms <$> manyNE pTerm)
