@@ -9,13 +9,16 @@ import Data.Text.Normalize qualified as T
 tr :: Text -> Text -> Text -> Text
 tr froms tos = T.map (\c -> maybe c id $ lookup c $ T.zip froms tos)
 
+isCombiningDiacritic :: Char -> Bool
+isCombiningDiacritic c = c >= '\x0300' && c <= '\x0309'
+
 isToaqChar :: Char -> Bool
 isToaqChar c =
     isLetter c
     || c == 'ı'
     || c `T.elem` "'‘’"
     || c >= '2' && c <= '8'
-    || c >= '\x0300' && c <= '\x0309'
+    || isCombiningDiacritic c
 
 normalizeToaq :: Text -> Text
 normalizeToaq = tr "ı‘’" "i''" . T.normalize T.NFKD . T.toLower

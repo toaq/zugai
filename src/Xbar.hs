@@ -352,11 +352,14 @@ showXbarAnsi (Tag _ t sub) =
 showXbarAnsi (Pair _ t x y) = (t<>":") : map ("  "<>) (showXbarAnsi x) ++ map ("  "<>) (showXbarAnsi y)
 
 colorWord :: Text -> Text
-colorWord t | T.length t == 2 && T.last t >= '\x0300' = "{\\color[HTML]{ff88cc}" <> t <> "}"
-colorWord t =
-    case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
-        Right (Verb _) -> "{\\color[HTML]{99eeff}" <> t <> "}"
-        _ -> "{\\color[HTML]{ffcc88}" <> t <> "}"
+colorWord t = "{\\color[HTML]{" <> color <> "}" <> t <> "}"
+    where
+        color =
+            if T.length t == 2 && isCombiningDiacritic (T.last t)
+                then "ff88cc"
+                else case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
+                    Right (Verb _) -> "99eeff"
+                    _ -> "ffcc88"
 
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
 xbarToLatex :: Maybe (Text -> Text) -> (Xbar, [Movement]) -> Text
