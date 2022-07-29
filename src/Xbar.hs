@@ -391,15 +391,16 @@ xbarToLatex annotate (xbar, movements) =
         node i label children =
             "[" <> label <> ",tikz={\\node [name=n" <> tshow i <> ",inner sep=0,fit to=tree]{};}"
                 <> children <> "]"
-        label = T.replace "i" "ı" . T.replace "𝑣" "$v$" . T.replace "◌" "o"
+        label = T.replace "𝑣" "$v$" . T.replace "◌" "o"
         go (Leaf i src) = node i (goSrc i (label src)) ""
         go (Roof i t src) = node i (label t) ("[" <> goSrc i src <> ",roof]")
         go (Tag i t sub) = node i (label t) (go sub)
         go (Pair i t x y) = node i (label t) (go x <> " " <> go y)
         goSrc i src =
-            let src' = if src == "" then "$\\varnothing$"
-                       else if i `elem` traceIndices then "\\sout{" <> src <> "}"
-                       else colorWord src
+            let srci = T.replace "i" "ı" src
+                src' = if src == "" then "$\\varnothing$"
+                       else if i `elem` traceIndices then "\\sout{" <> srci <> "}"
+                       else colorWord srci
             in "\\textsf{" <> src' <> "}" <> note annotate src
         note (Just f) src | noteText <- f src, noteText /= "" =
             let (cmd, transform) = if T.all isUpper noteText then ("\\textsc", T.toLower) else ("\\textit", id)

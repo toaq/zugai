@@ -120,7 +120,7 @@ pComplementizerT4 = pW $ tok $ \t -> case t of Complementizer c@(CT4 _) -> Just 
 pComplementizerT5 = pW $ tok $ \t -> case t of Complementizer c@(CT5 _) -> Just c; _ -> Nothing
 
 pOiv :: Parser (W Text)
-pOiv = pW $ tok $ \t -> case t of Oiv te -> Just te; _ -> Nothing
+pOiv = pW $ tok $ \t -> case t of Oiv te -> Just te; T4jei -> Just "jei"; _ -> Nothing
 
 pPronoun :: Parser (W Text)
 pPronoun = pW $ tok $ \t -> case t of Pronoun te -> Just te; _ -> Nothing
@@ -284,4 +284,4 @@ pDiscourse :: Parser Discourse
 pDiscourse = Discourse <$> many pDiscourseItem
 
 parseDiscourse :: [Pos Token] -> Either ParseError Discourse
-parseDiscourse = parse (pDiscourse <* eof) ""
+parseDiscourse = parse (pDiscourse <* eof) "" . traceShowId

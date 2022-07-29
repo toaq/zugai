@@ -11,6 +11,7 @@ import Data.Text.IO qualified as T
 import Data.Aeson.Micro qualified as J
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
+import Debug.Trace
 import Options.Applicative
 import Diagrams.Prelude (mkHeight)
 import Diagrams.Backend.SVG
