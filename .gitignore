@@ -18,4 +18,4 @@ texput.log
 __pycache__
 toadua-dump.json
 toadua-basic.json
-
+.DS_Store

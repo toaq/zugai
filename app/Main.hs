@@ -94,6 +94,8 @@ latexPreamble =
         , "\\usepackage{ulem}"
         , "\\usepackage{xcolor}"
         , "\\usepackage[linguistics]{forest}"
+        , "\\usetikzlibrary{arrows.meta}"
+        , "\\tikzset{>={Stealth[width=2mm,length=2mm]}}"
         , "\\begin{document}"
         , "\\pagecolor[HTML]{36393E}"
         , "\\color[HTML]{DCDDDE}"

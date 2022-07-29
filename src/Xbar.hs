@@ -52,7 +52,7 @@ indicesBelow is _ = []
 retag :: Text -> Xbar -> Xbar
 retag t (Tag i _ x) = Tag i t x
 retag t (Pair i _ x y) = Pair i t x y
-retag _ (Leaf i s) = Leaf i s
+retag _ x@(Leaf _ _) = x
 retag t (Roof i _ s) = Roof i t s
 
 mapSrc :: (Text -> Text) -> Xbar -> Xbar
@@ -61,7 +61,7 @@ mapSrc f (Pair i t x y) = Pair i t (mapSrc f x) (mapSrc f y)
 mapSrc f (Leaf i s) = Leaf i (f s)
 mapSrc f (Roof i t s) = Roof i t (f s)
 
-data Movement = Movement Int Int deriving (Eq, Ord, Show)
+data Movement = Movement { movementSource :: Int, movementTarget :: Int } deriving (Eq, Ord, Show)
 
 data XbarState =
     XbarState
@@ -362,7 +362,7 @@ xbarToLatex :: Maybe (Text -> Text) -> (Xbar, [Movement]) -> Text
 xbarToLatex annotate (xbar, movements) =
     "\\begin{forest}\n[,phantom" <> go xbar <> "[,phantom,tikz={" <> T.unwords (map goMove movements) <> "}]]\\end{forest}"
     where
-        isMoved i = or [i==src | Movement src _ <- movements]
+        isMoved i = any ((i==) . movementSource) movements
         movedIndices = filter isMoved (indices xbar)
         traceIndices = indicesBelow movedIndices xbar
         tshow = T.pack . show
