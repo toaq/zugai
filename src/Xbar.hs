@@ -286,7 +286,7 @@ instance ToXbar NpC where
     toXbar (Focused foc np) = do x<-toXbar foc; y<-toXbar np; mkPair "Foc" x y
     toXbar (Unf np) = toXbar np
 instance ToXbar NpF where
-    toXbar (ArgRel arg rel) = do x<-toXbar arg; y<-toXbar rel; mkPair "NPrel" x y
+    toXbar (ArgRel arg rel) = do x<-toXbar arg; y<-toXbar rel; mkPair "DP" x y
     toXbar (Unr np) = toXbar np
 instance ToXbar NpR where
     toXbar (Npro txt) = mkTag "DP" =<< mkLeaf (inT2 $ unW txt)
