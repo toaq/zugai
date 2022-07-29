@@ -84,4 +84,4 @@ glossWith dictionary =
         go bs =
             [gloss:r | (pre, gloss, rest) <- reverse $ Trie.matches trie bs, r <- go rest]
     in
-        maybe "???" (T.intercalate "-") . listToMaybe . go . T.encodeUtf8 . glossNormalize
+        maybe "" (T.intercalate "-") . listToMaybe . go . T.encodeUtf8 . glossNormalize

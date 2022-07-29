@@ -49,11 +49,11 @@ instance (ToName t) => ToName (Connable' na t) where
     toName (Single x) = toName x
 
 instance ToName AdvpC where
-    toName (Advp vp) = "7" <> toName vp
+    toName (Advp _ vp) = "7" <> toName vp
 instance ToName PpC where
     toName (Pp prep np) = toName prep <> " " <> toName np
 instance ToName PrepC where
-    toName (Prep vp) = "6" <> toName vp
+    toName (Prep _ vp) = "6" <> toName vp
 instance ToName NpC where
     toName (Focused foc np) = toName foc <> " " <> toName np
     toName (Unf np) = toName np
@@ -61,7 +61,7 @@ instance ToName NpF where
     toName (ArgRel arg rel) = toName arg <> " " <> toName rel
     toName (Unr np) = toName np
 instance ToName NpR where
-    toName (Bound vp) = "2" <> toName vp
+    toName (Npro vp) = "2" <> toName vp
     toName (Ndp dp) = toName dp
     toName (Ncc cc) = toName cc
 instance ToName Dp where
@@ -101,7 +101,8 @@ instance ToName Text where
 instance ToName NameVerb where toName = T.toLower . T.pack . show
 instance ToName Determiner where toName = T.toLower . T.pack . show
 instance ToName Connective where toName = T.toLower . T.pack . show
-instance ToName Complementizer where toName = T.toLower . T.pack . show
+instance ToName CWord where toName = T.toLower . T.pack . show
+instance ToName Complementizer where toName = maybe "" toName . cword
 
 class ToSrc a where
     toSrc :: a -> Text
@@ -139,11 +140,11 @@ instance (ToSrc t) => ToSrc (Connable' na t) where
     toSrc (Single x) = toSrc x
 
 instance ToSrc AdvpC where
-    toSrc (Advp vp) = toSrc vp
+    toSrc (Advp _ vp) = toSrc vp
 instance ToSrc PpC where
     toSrc (Pp prep np) = toSrc prep <> " " <> toSrc np
 instance ToSrc PrepC where
-    toSrc (Prep vp) = toSrc vp
+    toSrc (Prep _ vp) = toSrc vp
 instance ToSrc NpC where
     toSrc (Focused foc np) = toSrc foc <> " " <> toSrc np
     toSrc (Unf np) = toSrc np
@@ -151,7 +152,7 @@ instance ToSrc NpF where
     toSrc (ArgRel arg rel) = toSrc arg <> " " <> toSrc rel
     toSrc (Unr np) = toSrc np
 instance ToSrc NpR where
-    toSrc (Bound vp) = toSrc vp
+    toSrc (Npro vp) = toSrc vp
     toSrc (Ndp dp) = toSrc dp
     toSrc (Ncc cc) = toSrc cc
 instance ToSrc Dp where
@@ -187,6 +188,7 @@ instance ToSrc (W t) where
 instance ToSrc NameVerb where toSrc = T.pack . show
 instance ToSrc Determiner where toSrc = T.pack . show
 instance ToSrc Connective where toSrc = T.pack . show
-instance ToSrc Complementizer where toSrc = T.pack . show
+instance ToSrc CWord where toSrc = T.pack . show
+instance ToSrc Complementizer where toSrc = maybe "" toSrc . cword
 instance ToSrc Terminator where
   toSrc = T.pack . maybe "" ((' ' :) . show)

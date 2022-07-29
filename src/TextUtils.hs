@@ -22,3 +22,9 @@ normalizeToaq = tr "ı‘’" "i''" . T.normalize T.NFKD . T.toLower
 
 bareToaq :: Text -> Text
 bareToaq = T.filter isLetter . normalizeToaq
+
+inT2 :: Text -> Text
+inT2 t =
+    case T.break (`T.elem` "aeiou") (normalizeToaq t) of
+        (c, vvq) | Just (v, vq) <- T.uncons vvq -> T.normalize T.NFKC $ c <> T.cons v "\x0301" <> vq
+        _ -> t

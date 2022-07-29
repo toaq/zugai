@@ -200,7 +200,7 @@ interpretNpC (Focused mao npf) =
 
 interpretNpF :: NpF -> Interpret Tm
 interpretNpF (Unr npr) = interpretNpR npr
-interpretNpF (ArgRel (Bound vp) rel) = error "todo RelP on bound var?"
+interpretNpF (ArgRel (Npro vp) rel) = error "todo RelP on pronoun?"
 interpretNpF (ArgRel (Ncc cc) rel) = error "todo: RelP on content clause"
 interpretNpF (ArgRel (Ndp (Dp det vp)) rel) =
     let transform verb =
@@ -218,7 +218,7 @@ isHighVerb :: Vp -> Bool
 isHighVerb vp = head (T.words (vpToName vp)) `elem` T.words "bu nai pu jia chufaq lui za hoai hai he hiq she ao dai ea le di duai"
 
 interpretAdvpC :: AdvpC -> Interpret [Tm]
-interpretAdvpC (Advp vp) = do
+interpretAdvpC (Advp _ vp) = do
     if isHighVerb vp then
         shiftT $ \k -> do
             f <- interpretVp vp
@@ -266,13 +266,17 @@ bindVpWithTransform verbTransform det (Just vp) =
 bindVp :: Determiner -> Maybe Vp -> Interpret Tm
 bindVp = bindVpWithTransform id
 
-interpretNpR :: NpR -> Interpret Tm
-interpretNpR (Bound vp) = do
+interpretT2 :: Vp -> Interpret Tm
+interpretT2 vp = do
     let name = vpToName vp
     ss <- gets scopes
     case msum $ map (M.lookup name . bindings) ss of
         Just tm -> pure tm
         Nothing -> bindVp Ke (Just vp)
+
+interpretNpR :: NpR -> Interpret Tm
+interpretNpR (Npro vp) = interpretT2 (Single . Nonserial . Vverb $ vp)
+interpretNpR (Ndp (Dp det (Just vp))) | unW det == DT2 = interpretT2 vp
 interpretNpR (Ndp (Dp det vp)) = bindVp (unW det) vp
 interpretNpR (Ncc (Cc stmt cy)) = do
     f <- resetT $ do

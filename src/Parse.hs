@@ -48,15 +48,15 @@ data Term
     | Termset (W () {-to-}) (W Connective) [Term] (W () {-to-}) [Term] deriving (Eq, Show)
 type Terminator = Maybe (W ())
 type Advp = Connable AdvpC
-data AdvpC = Advp Vp deriving (Eq, Show)
+data AdvpC = Advp (Pos () {-t7-}) Vp deriving (Eq, Show)
 type Pp = Connable PpC
 data PpC = Pp Prep Np deriving (Eq, Show)
 type Prep = Connable PrepC
-data PrepC = Prep Vp deriving (Eq, Show)
+data PrepC = Prep (Pos () {-t6-}) Vp deriving (Eq, Show)
 type Np = Connable NpC
 data NpC = Focused (W Text {-mao-}) NpF | Unf NpF deriving (Eq, Show)
 data NpF = ArgRel NpR Rel | Unr NpR deriving (Eq, Show)
-data NpR = Bound Vp | Ndp Dp | Ncc Cc deriving (Eq, Show)
+data NpR = Npro (W Text) | Ndp Dp | Ncc Cc deriving (Eq, Show)
 data Dp = Dp (W Determiner) (Maybe Vp) deriving (Eq, Show)
 type Rel = Connable RelC
 data RelC = Rel Statement Terminator deriving (Eq, Show) -- t3
@@ -114,22 +114,31 @@ pDeterminer = pW $ tok $ \t -> case t of Determiner d -> Just d; _ -> Nothing
 pConnective :: Parser (W Connective)
 pConnective = pW $ tok $ \t -> case t of Connective d -> Just d; _ -> Nothing
 
-pComplementizer :: Tone -> Parser (W Complementizer)
-pComplementizer tone = pW $ tok $ \t -> case t of Complementizer c to | to == tone -> Just c; _ -> Nothing
+pComplementizerT3, pComplementizerT4, pComplementizerT5 :: Parser (W Complementizer)
+pComplementizerT3 = pW $ tok $ \t -> case t of Complementizer c@(CT3 _) -> Just c; _ -> Nothing
+pComplementizerT4 = pW $ tok $ \t -> case t of Complementizer c@(CT4 _) -> Just c; _ -> Nothing
+pComplementizerT5 = pW $ tok $ \t -> case t of Complementizer c@(CT5 _) -> Just c; _ -> Nothing
 
-pOiv :: Tone -> Parser (W Text)
-pOiv tone = pW $ tok $ \t -> case t of Oiv (te,to) | to == tone -> Just te; _ -> Nothing
+pOiv :: Parser (W Text)
+pOiv = pW $ tok $ \t -> case t of Oiv te -> Just te; _ -> Nothing
 
-pNameVerb :: Tone -> Parser (W NameVerb)
-pNameVerb tone = pW $ tok $ \t -> case t of NameVerb nv to | to == tone -> Just nv; _ -> Nothing
+pPronoun :: Parser (W Text)
+pPronoun = pW $ tok $ \t -> case t of Pronoun te -> Just te; _ -> Nothing
 
-pShu, pMo, pLu :: Tone -> Parser (W ())
-pShu tone = pW $ tok $ \t -> case t of Shu to | to == tone -> Just (); _ -> Nothing
-pMo tone = pW $ tok $ \t -> case t of Mo to | to == tone -> Just (); _ -> Nothing
-pLu tone = pW $ tok $ \t -> case t of Lu to | to == tone -> Just (); _ -> Nothing
+pNameVerb :: Parser (W NameVerb)
+pNameVerb = pW $ tok $ \t -> case t of NameVerb nv -> Just nv; _ -> Nothing
+
+pShu, pMo, pLu :: Parser (W ())
+pShu = pW $ tok $ \t -> case t of Shu -> Just (); _ -> Nothing
+pMo = pW $ tok $ \t -> case t of Mo -> Just (); _ -> Nothing
+pLu = pW $ tok $ \t -> case t of Lu -> Just (); _ -> Nothing
 
 pTerminator :: Token -> Parser Terminator
 pTerminator = optionMaybe . pW . tokEq_
+
+pT6token, pT7token :: Parser (Pos ())
+pT6token = tok $ \t -> case t of T6token -> Just (); _ -> Nothing
+pT7token = tok $ \t -> case t of T7token -> Just (); _ -> Nothing
 
 -- Helper for parsing connectable constructs.
 pConnable' :: Parser na -> Parser c -> Parser c -> Parser (Connable' na c)
@@ -174,32 +183,35 @@ pSentenceConnector = pW $ tok $ \t ->
         Connective c -> Just (T.toLower $ T.pack $ show c) -- hack
         _ -> Nothing
 
-pVerb :: Tone -> Parser (W Text)
-pVerb tone = pW $ tok $ \t -> case t of Verb (te,to) | to == tone -> Just te; _ -> Nothing
+pVerb :: Parser (W Text)
+pVerb = pW $ tok $ \t -> case t of Verb te -> Just te; _ -> Nothing
 
 pRawWord :: Parser (Pos Text)
 pRawWord = token show posPos (\(Pos p src _) -> Just (Pos p src src))
 
 pName :: Parser Name
-pName = (VerbName <$> pVp T4) <|> (TermName <$> pTerm)
+pName = (VerbName <$> pVp) <|> (TermName <$> pTerm)
 
-pVpN :: Tone -> Parser VpN
-pVpN t =
-    (Vname <$> pNameVerb t <*> pName <*> pGa)
-    <|> (Vshu <$> pShu t <*> pRawWord)
-    <|> (Voiv <$> pOiv t <*> pNp <*> pGa)
-    <|> (Vmo <$> pMo t <*> pDiscourse <*> pTeo)
-    <|> (Vlu <$> pLu t <*> pStatement T4 <*> pKy)
-    <|> (Vverb <$> pVerb t)
+pVpN :: Parser VpN
+pVpN =
+    (Vname <$> pNameVerb <*> pName <*> pGa)
+    <|> (Vshu <$> pShu <*> pRawWord)
+    <|> (Voiv <$> pOiv <*> pNp <*> pGa)
+    <|> (Vmo <$> pMo <*> pDiscourse <*> pTeo)
+    <|> (Vlu <$> pLu <*> pStatementT4 <*> pKy)
+    <|> (Vverb <$> pVerb)
 
-pVp :: Tone -> Parser Vp
-pVp tone = pConnable (pVpC tone) (pVpC T4)
+pVp :: Parser Vp
+pVp = pConnable pVpC pVpC
 
-pVpC :: Tone -> Parser VpC
-pVpC tone = do head <- pVpN tone; (Serial head <$> pVpC T4) <|> pure (Nonserial head)
+pVpC :: Parser VpC
+pVpC = do head <- pVpN; (Serial head <$> pVpC) <|> pure (Nonserial head)
 
 pDp :: Parser Dp
-pDp = Dp <$> pDeterminer <*> optionMaybe (pVp T4)
+pDp = do
+    d <- pDeterminer
+    vp <- if unW d == DT2 then Just <$> pVp else optionMaybe pVp
+    pure $ Dp d vp
 
 pNp :: Parser Np
 pNp = pConnableSame pNpC
@@ -211,19 +223,19 @@ pNpF :: Parser NpF
 pNpF = do head <- pNpR; try (ArgRel head <$> pRel) <|> pure (Unr head)
 
 pNpR :: Parser NpR
-pNpR = (Bound <$> pVp T2) <|> (Ndp <$> pDp) <|> (Ncc <$> pCc)
+pNpR = (Npro <$> pPronoun) <|> (Ndp <$> pDp) <|> (Ncc <$> pCc)
 
 pCc :: Parser Cc
-pCc = Cc <$> pStatement T5 <*> pCy
+pCc = Cc <$> pStatement (Just <$> pComplementizerT5) <*> pCy
 
 pRel :: Parser Rel
-pRel = pConnableSame (Rel <$> pStatement T3 <*> pCy)
+pRel = pConnableSame (Rel <$> pStatement (Just <$> pComplementizerT3) <*> pCy)
 
 pAdvp :: Parser Advp
-pAdvp = pConnableSame (Advp <$> pVp T7)
+pAdvp = pConnableSame (Advp <$> pT7token <*> pVp)
 
 pPrep :: Parser Prep
-pPrep = pConnableSame (Prep <$> pVp T6)
+pPrep = pConnableSame (Prep <$> pT6token <*> pVp)
 
 pPp :: Parser Pp
 pPp = pConnableSame (Pp <$> pPrep <*> pNp)
@@ -241,28 +253,26 @@ pTermset = do
 pTerm :: Parser Term
 pTerm = try pTermset <|> (Tnp <$> pNp) <|> (Tadvp <$> pAdvp) <|> (Tpp <$> pPp)
 
-pPredicate :: Tone -> Parser Predicate
-pPredicate tone = Predicate <$> pVp tone
+pPredicate :: Parser Predicate
+pPredicate = Predicate <$> pVp
 
-pPredicationC :: Tone -> Parser PredicationC
-pPredicationC tone = Predication <$> pPredicate tone <*> many pTerm
+pPredicationC :: Parser PredicationC
+pPredicationC = Predication <$> pPredicate <*> many pTerm
 
-pPredication :: Tone -> Parser Predication
-pPredication tone = pConnableNa (pPredicationC tone) (pPredicationC T4)
+pPredication :: Parser Predication
+pPredication = pConnableNa pPredicationC pPredicationC
 
-pStatement :: Tone -> Parser Statement
-pStatement tone = do
-    -- TODO: tokenize tones so we don't have to write messes like this... and can show them as C
-    (c, tone') <- try (do c <- pComplementizer tone; pure (Just c, T4)) <|> pure (Nothing, tone)
-    p <- if tone' == T4 then optionMaybe (try pPrenex) else pure Nothing
-    q <- pPredication tone'
-    pure $ Statement c p q
+pStatement :: Parser (Maybe (W Complementizer)) -> Parser Statement
+pStatement pc = Statement <$> pc <*> optionMaybe (try pPrenex) <*> pPredication
+
+pStatementT4 :: Parser Statement
+pStatementT4 = pStatement (optionMaybe pComplementizerT4)
 
 pPrenex :: Parser Prenex
 pPrenex = Prenex <$> manyNE pTerm <*> pBi
 
 pSentence :: Parser Sentence
-pSentence = Sentence <$> optionMaybe pSentenceConnector <*> pStatement T4 <*> optionMaybe pIllocution
+pSentence = Sentence <$> optionMaybe pSentenceConnector <*> pStatementT4 <*> optionMaybe pIllocution
 
 pFragment :: Parser Fragment
 pFragment = try (FrPrenex <$> pPrenex) <|> (FrTerms <$> manyNE pTerm)

@@ -258,11 +258,11 @@ instance (ToXbar t, ToXbarNa na, ConnName t) => ToXbar (Connable' na t) where
     toXbar (Single x) = toXbar x
 
 instance ToXbar AdvpC where
-    toXbar (Advp vp) = mkTag "AdvP" =<< toXbar vp
+    toXbar (Advp _ vp) = mkTag "AdvP" =<< toXbar vp
 instance ToXbar PpC where
     toXbar (Pp prep np) = do x <- toXbar prep; y<-toXbar np; mkPair "PP" x y
 instance ToXbar PrepC where
-    toXbar (Prep vp) = mkTag "P" =<< toXbar vp
+    toXbar (Prep _ vp) = mkTag "P" =<< toXbar vp
 instance ToXbar NpC where
     toXbar (Focused foc np) = do x<-toXbar foc; y<-toXbar np; mkPair "Foc" x y
     toXbar (Unf np) = toXbar np
@@ -270,7 +270,7 @@ instance ToXbar NpF where
     toXbar (ArgRel arg rel) = do x<-toXbar arg; y<-toXbar rel; mkPair "NPrel" x y
     toXbar (Unr np) = toXbar np
 instance ToXbar NpR where
-    toXbar (Bound vp) = mkRoof "DP" (toSrc vp) -- Pair "DP" (Tag "D" $ Leaf "•\x0301") $ Tag "VP" (Leaf $ toName vp)
+    toXbar (Npro txt) = mkTag "DP" =<< (mkTag "D" =<< mkLeaf (inT2 $ unW txt)) -- Pair "DP" (Tag "D" $ Leaf "•\x0301") $ Tag "VP" (Leaf $ toName vp)
     toXbar (Ndp dp) = toXbar dp
     toXbar (Ncc cc) = toXbar cc
 instance ToXbar Dp where
@@ -352,9 +352,10 @@ showXbarAnsi (Tag _ t sub) =
 showXbarAnsi (Pair _ t x y) = (t<>":") : map ("  "<>) (showXbarAnsi x) ++ map ("  "<>) (showXbarAnsi y)
 
 colorWord :: Text -> Text
+colorWord t | T.length t == 2 && T.last t >= '\x0300' = "{\\color[HTML]{ff88cc}" <> t <> "}"
 colorWord t =
-    case toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
-        Right (Verb _, _) -> "{\\color[HTML]{88eeff}" <> t <> "}"
+    case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
+        Right (Verb _) -> "{\\color[HTML]{99eeff}" <> t <> "}"
         _ -> "{\\color[HTML]{ffcc88}" <> t <> "}"
 
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
@@ -369,20 +370,20 @@ xbarToLatex annotate (xbar, movements) =
         node i label children =
             "[" <> label <> ",tikz={\\node [name=n" <> tshow i <> ",inner sep=0,fit to=tree]{};}"
                 <> children <> "]"
-        label = T.replace "𝑣" "$v$"
+        label = T.replace "i" "ı" . T.replace "𝑣" "$v$" . T.replace "◌" "o"
         go (Leaf i src) = node i (goSrc i (label src)) ""
         go (Roof i t src) = node i (label t) ("[" <> goSrc i src <> ",roof]")
         go (Tag i t sub) = node i (label t) (go sub)
         go (Pair i t x y) = node i (label t) (go x <> " " <> go y)
-        strikeIfTrace i s = if i `elem` traceIndices then "\\sout{" <> s <> "}" else s
-        goSrc i src = "\\textsf{" <> strikeIfTrace i (if src == "" then "$\\varnothing$" else colorWord src) <> "}" <> note annotate src
-        note Nothing _ = ""
-        note _ "$v$" = ""
-        note (Just f) src =
-            let
-                noteText = f src
-                (cmd, transform) = if T.all isUpper noteText then ("\\textsc", T.toLower) else ("\\textit", id)
+        goSrc i src =
+            let src' = if src == "" then "$\\varnothing$"
+                       else if i `elem` traceIndices then "\\sout{" <> src <> "}"
+                       else colorWord src
+            in "\\textsf{" <> src' <> "}" <> note annotate src
+        note (Just f) src | noteText <- f src, noteText /= "" =
+            let (cmd, transform) = if T.all isUpper noteText then ("\\textsc", T.toLower) else ("\\textit", id)
             in "\\\\" <> cmd <> "{\\color[HTML]{dcddde}" <> transform noteText <> "}"
+        note _ _ = ""
         goMove (Movement i j) = "\\draw[->] (n" <> tshow i <> ") to[out=south,in=south] (n" <> tshow j <> ");"
 
 -- Convert an Xbar tree to HTML.

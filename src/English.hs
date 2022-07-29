@@ -75,11 +75,11 @@ instance (ToEnglish t) => ToEnglish (Connable' na t) where
     toEnglish d (Single x) = toEnglish d x
 
 instance ToEnglish AdvpC where
-    toEnglish d (Advp vp) = toEnglish d vp <> "ly"
+    toEnglish d (Advp _ vp) = toEnglish d vp <> "ly"
 instance ToEnglish PpC where
     toEnglish d (Pp prep np) = toEnglish d prep <> " " <> toEnglish d np
 instance ToEnglish PrepC where
-    toEnglish d (Prep vp) = toEnglish d vp
+    toEnglish d (Prep _ vp) = toEnglish d vp
 instance ToEnglish NpC where
     toEnglish d (Focused foc np) = (toEnglish d foc) <> " " <> (toEnglish d np)
     toEnglish d (Unf np) = toEnglish d np
@@ -87,7 +87,7 @@ instance ToEnglish NpF where
     toEnglish d (ArgRel arg rel) = toEnglish d arg <> " which [" <> toEnglish d rel <> "]"
     toEnglish d (Unr np) = toEnglish d np
 instance ToEnglish NpR where
-    toEnglish d (Bound vp) = toEnglish d vp
+    toEnglish d (Npro vp) = toEnglish d vp
     toEnglish d (Ndp dp) = toEnglish d dp
     toEnglish d (Ncc cc) = toEnglish d cc
 instance ToEnglish Dp where
@@ -122,7 +122,7 @@ instance ToEnglish t => ToEnglish (W t) where
 instance ToEnglish (Text, Tone) where
     toEnglish d (t, _) = toEnglish d t
 instance ToEnglish Text where
-    toEnglish d t = case fixUp $ glossWith d t of "???" -> t; e -> e
+    toEnglish d t = case fixUp $ glossWith d t of "" -> t; e -> e
 instance ToEnglish Determiner where
     toEnglish _ Sa = "some"
     toEnglish _ Tu = "every"
@@ -152,7 +152,14 @@ forethoughtToEnglish Ru = "both"
 forethoughtToEnglish Ro = "either"
 forethoughtToEnglish Roi = "jointly"
 
-instance ToEnglish Complementizer where
+instance ToEnglish CWord where
     toEnglish d La = "that"
     toEnglish d Ma = "whether"
     toEnglish d Tio = "how much"
+
+instance ToEnglish Complementizer where
+    toEnglish d (CT3 Nothing) = ""
+    toEnglish d (CT3 (Just c)) = toEnglish d c
+    toEnglish d (CT4 c) = toEnglish d c
+    toEnglish d (CT5 Nothing) = ""
+    toEnglish d (CT5 (Just c)) = toEnglish d c

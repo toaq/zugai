@@ -23,16 +23,8 @@ pastel hue = uncurryRGB sRGB24 $ fmap (truncate . (* 255)) $ hsl hue 1.0 0.8
 wordColor :: Text -> Colour Double
 wordColor "" = bao
 wordColor t =
-    case toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
-        -- Left _ -> bao
-        -- Right (_, T2) -> pastel 27
-        -- Right (_, T3) -> pastel 55
-        -- Right (_, T4) -> pastel 120
-        -- Right (_, T5) -> pastel 170
-        -- Right (_, T6) -> pastel 220
-        -- Right (_, T7) -> pastel 280
-        -- Right (_, T8) -> pastel 0
-        Right (Verb _, _) -> pastel 200
+    case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
+        Right (Verb _) -> pastel 200
         _ -> pastel 30
 
 discordBg :: Colour Double

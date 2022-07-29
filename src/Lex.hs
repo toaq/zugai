@@ -19,30 +19,38 @@ defaultLexOptions =
     { allowSparseToneMarking = True
     }
 
-data Tone
-    = T2 | T3 | T4 | T5 | T6 | T7 | T8
-    deriving (Eq, Ord, Show)
+data Tone = T2 | T3 | T4 | T5 | T6 | T7 | T8 deriving (Eq, Ord, Show)
+
+cword :: Complementizer -> Maybe CWord
+cword (CT3 c) = c
+cword (CT4 c) = Just c
+cword (CT5 c) = c
 
 type Toned = (Text, Tone)
-data Determiner = Sa | Tu | Tuq | Sia | Ke | Hoi | Baq | Hi | Ja | Co | Kaga | Puy | XShi Determiner deriving (Eq, Ord, Show)
-data Complementizer = La | Ma | Tio deriving (Eq, Ord, Show)
+data Determiner = DT2 | Sa | Tu | Tuq | Sia | Ke | Hoi | Baq | Hi | Ja | Co | Kaga | Puy | XShi Determiner deriving (Eq, Ord, Show)
+data CWord = La | Ma | Tio deriving (Eq, Ord, Show)
+data Complementizer = CT3 (Maybe CWord) | CT4 CWord | CT5 (Maybe CWord) deriving (Eq, Ord, Show)
 data Connective = Ra | Ri | Ru | Ro | Roi deriving (Eq, Ord, Show)
 data NameVerb = Mi | Miru deriving (Eq, Ord, Show)
 data Token
     = Focuser Text -- left as text so these can be turned into text<>"jeo".
     | Determiner Determiner
     | Connective Connective
-    | Complementizer Complementizer Tone
-    | Oiv Toned -- left as text so these can be turned into text<>"ga".
-    | NameVerb NameVerb Tone
-    | Shu Tone
-    | Mo Tone
-    | Lu Tone
+    | Complementizer Complementizer
+    | Oiv Text -- left as text so these can be turned into text<>"ga".
+    | NameVerb NameVerb
+    | Shu
+    | Mo
+    | Lu
     | Bi | Cy | Ga | Hu | Ju | Ki | Kio | Ky | Na | Teo | To
     | Illocution Toned -- not interpreted
     | SentenceConnector Text -- not interpreted
     | Interjection Toned -- not interpreted
-    | Verb Toned
+    | Verb Text
+    | Pronoun Text -- implies natural t2
+    | T4jei -- e.g. süq is tokenized as [Complementizer (CT3 Nothing), T4jei, Pronoun "suq"]
+    | T6token
+    | T7token
     deriving (Eq, Ord, Show)
 
 -- A token (or other inner type) tagged with source position and source text.
@@ -68,6 +76,12 @@ toneFromChar '\x0302' = Just T5
 toneFromChar '\x0300' = Just T6
 toneFromChar '\x0303' = Just T7
 toneFromChar _ = Nothing
+
+isPronoun :: Text -> Bool
+isPronoun = (`elem` T.words "ji suq nhao suo muy miy may kou ray ho maq hoq ta rou kuy ze fuy bou aq cheq")
+
+isOiv :: Text -> Bool
+isOiv = (`elem` T.words "po jei mea")
 
 isFocuser :: Text -> Bool
 isFocuser = (`elem` T.words "ku bei juaq mao tou")
@@ -119,38 +133,66 @@ toToneless x | isFocuser x = Just (Focuser x)
 toToneless x | isSentenceConnector x = Just (SentenceConnector x)
 toToneless _ = Nothing
 
-toToken :: LexOptions -> String -> Either String (Token, Tone)
+toCWord :: Text -> Maybe CWord
+toCWord "la" = Just La
+toCWord "ma" = Just Ma
+toCWord "tio" = Just Tio
+toCWord _ = Nothing
+
+toneTokens :: Tone -> [Token]
+toneTokens T2 = [Determiner DT2]
+toneTokens T3 = [Complementizer $ CT3 Nothing]
+toneTokens T4 = []
+toneTokens T5 = [Complementizer $ CT5 Nothing]
+toneTokens T6 = [T6token]
+toneTokens T7 = [T7token]
+toneTokens T8 = []
+
+toToken :: LexOptions -> String -> Either String [Token]
 toToken opt word =
     let base = T.pack (filter isLetter word)
         tone' = msum (map toneFromChar word)
         defaultTone = if allowSparseToneMarking opt then T4 else T8
         tone = maybe defaultTone id tone'
-    in case base of
+    in case () of
         _ | Just token <- toToneless base ->
             if tone' == Just T8 || tone' == Nothing
-                then Right (token, T8)
+                then Right [token]
                 else Left (T.unpack base <> " must have neutral tone")
-        "la" -> Right (Complementizer La tone, tone)
-        "ma" -> Right (Complementizer Ma tone, tone)
-        "tio" -> Right (Complementizer Tio tone, tone)
-        "po" -> Right (Oiv ("po", tone), tone)
-        "jei" -> Right (Oiv ("jei", tone), tone)
-        "mea" -> Right (Oiv ("mea", tone), tone)
-        "mo" -> Right (Mo tone, tone)
-        "lu" -> Right (Lu tone, tone)
-        "shu" -> Right (Shu tone, tone)
-        "mi" -> Right (NameVerb Mi tone, tone)
-        "miru" -> Right (NameVerb Miru tone, tone)
-        _ | isIllocution base -> Right (Illocution (base, tone), tone)
-        _ | isInterjection base -> Right (Interjection (base, tone), tone)
-        _ -> Right (Verb (base, tone), tone)
+        _ | Just cword <- toCWord base, tone == T3 -> Right [Complementizer $ CT3 (Just cword)] -- lä mä tïo
+        _ | Just cword <- toCWord base, tone == T4 -> Right [Complementizer $ CT4 cword       ] -- la ma tio
+        _ | Just cword <- toCWord base, tone == T5 -> Right [Complementizer $ CT5 (Just cword)] -- lâ mâ tîo
+        _ | isIllocution base -> Right [Illocution (base, tone)]
+        _ | isInterjection base -> Right [Interjection (base, tone)]
+        _ | isPronoun base, tone == T2 -> Right [Pronoun base]
+        _ | isPronoun base -> Right $ toneTokens tone ++ [T4jei, Pronoun base]
+        _ | otherwise -> Right $ (toneTokens tone ++) . pure $ case base of
+            _ | isOiv base -> Oiv base
+            "mo" -> Mo
+            "lu" -> Lu
+            "shu" -> Shu
+            "mi" -> NameVerb Mi
+            "miru" -> NameVerb Miru
+            _ -> Verb base
 
-tokenParser :: LexOptions -> Parsec Text () (Pos Token)
+makeSuprasegmental :: SourcePos -> Token -> Pos Token
+makeSuprasegmental pos t@(Determiner DT2) = Pos pos "◌́" t
+makeSuprasegmental pos t@(Complementizer (CT3 Nothing)) = Pos pos "◌̈" t
+makeSuprasegmental pos t@(T4jei) = Pos pos "◌̉" t
+makeSuprasegmental pos t@(Complementizer (CT5 Nothing)) = Pos pos "◌̂" t
+makeSuprasegmental pos t@(T6token) = Pos pos "◌̀" t
+makeSuprasegmental pos t@(T7token) = Pos pos "◌̃" t
+
+tokenParser :: LexOptions -> Parsec Text () [Pos Token]
 tokenParser opt = do
     pos <- getPosition
     text <- T.pack <$> many1 (satisfy isToaqChar)
     case toToken opt $ T.unpack $ normalizeToaq text of
-        Right (token, _) -> pure (Pos pos text token)
+        Right [] -> error "wtf"
+        Right [token] -> pure [Pos pos text token]
+        Right tokens -> pure $
+            map (makeSuprasegmental pos) (init tokens)
+            ++ [Pos pos (bareToaq text) $ last tokens]
         Left err -> fail err
 
 trivia :: Parsec Text () ()
@@ -158,7 +200,7 @@ trivia = skipMany (satisfy $ not . isToaqChar)
 
 lexToaqOpt :: LexOptions -> Text -> Either ParseError [Pos Token]
 lexToaqOpt opt text =
-    parse (many1 (trivia *> tokenParser opt <* trivia)) "" text
+    parse (concat <$> many1 (trivia *> tokenParser opt <* trivia)) "" text
 
 lexToaq :: Text -> Either ParseError [Pos Token]
 lexToaq = lexToaqOpt defaultLexOptions
