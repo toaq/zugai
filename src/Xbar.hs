@@ -258,11 +258,20 @@ instance (ToXbar t, ToXbarNa na, ConnName t) => ToXbar (Connable' na t) where
     toXbar (Single x) = toXbar x
 
 instance ToXbar AdvpC where
-    toXbar (Advp _ vp) = mkTag "AdvP" =<< toXbar vp
+    toXbar (Advp t7 verb) = do
+        xAdv <- mkTag "Adv" =<< mkLeaf (posSrc t7)
+        xV <- toXbar verb
+        xVP <- mkTag "VP" xV
+        mkPair "AdvP" xAdv xVP
+
 instance ToXbar PpC where
-    toXbar (Pp prep np) = do x <- toXbar prep; y<-toXbar np; mkPair "PP" x y
-instance ToXbar PrepC where
-    toXbar (Prep _ vp) = mkTag "P" =<< toXbar vp
+    toXbar (Pp (Single (Prep t6 verb)) np) = do
+        xP <- mkTag "P" =<< mkLeaf (posSrc t6)
+        xV <- toXbar verb
+        xNP <- toXbar np
+        xVP <- mkPair "VP" xV xNP
+        mkPair "PP" xP xVP
+
 instance ToXbar NpC where
     toXbar (Focused foc np) = do x<-toXbar foc; y<-toXbar np; mkPair "Foc" x y
     toXbar (Unf np) = toXbar np
