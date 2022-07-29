@@ -271,8 +271,7 @@ instance ToXbar AdvpC where
     toXbar (Advp t7 verb) = do
         xAdv <- mkTag "Adv" =<< mkLeaf (posSrc t7)
         xV <- toXbar verb
-        xVP <- mkTag "VP" xV
-        mkPair "AdvP" xAdv xVP
+        mkPair "AdvP" xAdv xV
 
 instance ToXbar PpC where
     toXbar (Pp (Single (Prep t6 verb)) np) = do
