@@ -289,7 +289,7 @@ instance ToXbar NpF where
     toXbar (ArgRel arg rel) = do x<-toXbar arg; y<-toXbar rel; mkPair "NPrel" x y
     toXbar (Unr np) = toXbar np
 instance ToXbar NpR where
-    toXbar (Npro txt) = mkTag "DP" =<< (mkTag "D" =<< mkLeaf (inT2 $ unW txt)) -- Pair "DP" (Tag "D" $ Leaf "•\x0301") $ Tag "VP" (Leaf $ toName vp)
+    toXbar (Npro txt) = mkTag "DP" =<< mkLeaf (inT2 $ unW txt)
     toXbar (Ndp dp) = toXbar dp
     toXbar (Ncc cc) = toXbar cc
 instance ToXbar Dp where
