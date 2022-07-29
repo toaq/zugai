@@ -168,8 +168,18 @@ instance ToXbar Statement where
                               Nothing -> pure xFP
         mkPair "CP" xC xTopicP
 instance ToXbar PredicationC where
-    toXbar (Predication predicate []) = mkTag "VP" =<< toXbar predicate
-    -- toXbar (Predication predicate terms) = Pair "Pred" (toXbar predicate) (termsToXbar terms)
+    toXbar (Predication predicate []) = do
+        xV <- retag "F+V" <$> toXbar predicate
+        xVTrace <- mapSrc T.toLower <$> toXbar predicate
+        move xVTrace xV
+        mkPair "FP" xV xVTrace
+    toXbar (Predication predicate [tS]) = do
+        xV <- retag "F+V" <$> toXbar predicate
+        xDPS <- toXbar tS
+        xVTrace <- mapSrc T.toLower <$> toXbar predicate
+        xVP <- mkPair "VP" xDPS xVTrace
+        move xVTrace xV
+        mkPair "FP" xV xVP
     toXbar (Predication predicate [tS,tO]) = do
         xV <- retag "F+V" <$> toXbar predicate
         xDPS <- toXbar tS
