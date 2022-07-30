@@ -59,7 +59,7 @@ async def on_message(message):
                 file = discord.File(f, filename="image.png")
                 await message.channel.send(file=file)
         elif cmd in ("english", "logic"):
-            txt = subprocess.run("parsing", ["zugai-exe", "--to-" + cmd], input=sentence.encode())
+            txt = run("parsing", ["zugai-exe", "--to-" + cmd], input=sentence.encode())
             await message.channel.send(txt.decode())
     except RunException as e:
         await message.channel.send(str(e))
