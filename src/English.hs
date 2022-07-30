@@ -50,22 +50,25 @@ instance ToEnglish Sentence where
     toEnglish d (Sentence sc stmt ill) = maybe "" ((<>" ").toEnglish d) sc <> toEnglish d stmt <> maybe "" ((""<>).toEnglish d) ill
 instance ToEnglish Fragment where
     toEnglish d (FrPrenex x) = toEnglish d x
-    toEnglish d (FrTerms ts) = T.intercalate ", " (toEnglish d <$> toList ts)
+    toEnglish d (FrTopic t) = toEnglish d t
 instance ToEnglish Prenex where
     toEnglish d (Prenex ts bi) = T.intercalate ", " (toEnglish d <$> toList ts) <> ": "
 instance ToEnglish Statement where
     toEnglish d (Statement mc mp pred) = T.unwords $ catMaybes [toEnglish d <$> mc, toEnglish d <$> mp, Just $ toEnglish d pred]
 instance ToEnglish PredicationC where
-    toEnglish d (Predication predicate []) = toEnglish d predicate
-    toEnglish d (Predication predicate (t:ts)) = T.unwords (toEnglish d t : toEnglish d predicate : (toEnglish d <$> ts))
+    toEnglish d (Predication predicate aa [] bb) = T.unwords (map (toEnglish d) (aa ++ bb))
+    toEnglish d (Predication predicate aa (n:ns) bb) =
+        T.unwords (map (toEnglish d) aa
+            ++ toEnglish d n : toEnglish d predicate : (toEnglish d <$> ns)
+            ++ map (toEnglish d) bb)
 instance ToEnglish Predicate where
     toEnglish d (Predicate vp) = toEnglish d vp
-instance ToEnglish Term where
-    toEnglish d (Tnp t) = toEnglish d t
+instance ToEnglish Adverbial where
     toEnglish d (Tadvp t) = toEnglish d t
     toEnglish d (Tpp t) = toEnglish d t
-    toEnglish d (Termset to (W (Pos _ _ ru) _) t1 to' t2) =
-        T.unwords [forethoughtToEnglish ru, (T.intercalate ", " $ toEnglish d <$> t1), toEnglish d ru, (T.intercalate ", " $ toEnglish d <$> t2)]
+instance ToEnglish Topic where
+    toEnglish d (Topica t) = toEnglish d t
+    toEnglish d (Topicn t) = toEnglish d t
 
 instance (ToEnglish t) => ToEnglish (Connable' na t) where
     toEnglish d (Conn x na ru y) =

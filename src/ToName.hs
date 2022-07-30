@@ -25,21 +25,21 @@ instance ToName Sentence where
     toName (Sentence sc stmt ill) = maybe "" ((<>" ").toName) sc <> toName stmt <> maybe "" ((" "<>).toName) ill
 instance ToName Fragment where
     toName (FrPrenex x) = toName x
-    toName (FrTerms ts) = T.unwords (toName <$> toList ts)
+    toName (FrTopic t) = toName t
 instance ToName Prenex where
     toName (Prenex ts bi) = T.unwords (toName <$> toList ts) <> " bi"
 instance ToName Statement where
     toName (Statement mc mp preds) = T.unwords $ catMaybes [toName <$> mc, toName <$> mp, Just $ toName preds]
 instance ToName PredicationC where
-    toName (Predication predicate ts) = T.unwords (toName predicate : (toName <$> ts))
+    toName (Predication predicate aa nn bb) = T.unwords (toName predicate : (toName <$> aa) ++ (toName <$> nn) ++ (toName <$> bb))
 instance ToName Predicate where
     toName (Predicate vp) = toName vp
-instance ToName Term where
-    toName (Tnp t) = toName t
+instance ToName Adverbial where
     toName (Tadvp t) = toName t
     toName (Tpp t) = toName t
-    toName (Termset to (W (Pos _ _ ru) _) t1 to' t2) =
-        T.unwords ["to", toName ru, (T.unwords $ toName <$> t1), "to", (T.unwords $ toName <$> t2)]
+instance ToName Topic where
+    toName (Topica t) = toName t
+    toName (Topicn t) = toName t
 
 instance (ToName t) => ToName (Connable' na t) where
     toName (Conn x na ru y) =
@@ -116,21 +116,21 @@ instance ToSrc Sentence where
     toSrc (Sentence sc stmt ill) = maybe "" ((<>" ").toSrc) sc <> toSrc stmt <> maybe "" ((""<>).toSrc) ill
 instance ToSrc Fragment where
     toSrc (FrPrenex x) = toSrc x
-    toSrc (FrTerms ts) = T.unwords (toSrc <$> toList ts)
+    toSrc (FrTopic t) = toSrc t
 instance ToSrc Prenex where
     toSrc (Prenex ts bi) = T.unwords $ (toSrc <$> toList ts) <> [toSrc bi]
 instance ToSrc Statement where
     toSrc (Statement mc mp preds) = T.unwords $ catMaybes [toSrc <$> mc, toSrc <$> mp, Just $ toSrc preds]
 instance ToSrc PredicationC where
-    toSrc (Predication predicate ts) = T.unwords (toSrc predicate : (toSrc <$> ts))
+    toSrc (Predication predicate aa nn bb) = T.unwords (toSrc predicate : (toSrc <$> aa) ++ (toSrc <$> nn) ++ (toSrc <$> bb))
 instance ToSrc Predicate where
     toSrc (Predicate vp) = toSrc vp
-instance ToSrc Term where
-    toSrc (Tnp t) = toSrc t
+instance ToSrc Adverbial where
     toSrc (Tadvp t) = toSrc t
     toSrc (Tpp t) = toSrc t
-    toSrc (Termset to (W (Pos _ _ ru) _) t1 to' t2) =
-        T.unwords [toSrc to, toSrc ru, (T.unwords $ toSrc <$> t1), toSrc to', (T.unwords $ toSrc <$> t2)]
+instance ToSrc Topic where
+    toSrc (Topica t) = toSrc t
+    toSrc (Topicn t) = toSrc t
 
 instance (ToSrc t) => ToSrc (Connable' na t) where
     toSrc (Conn x na ru y) =

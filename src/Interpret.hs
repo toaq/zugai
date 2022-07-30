@@ -151,8 +151,12 @@ interpretStatement (Statement c Nothing p) = resetT (interpretPredication p)
 interpretStatement (Statement c (Just (Prenex ts bi)) p) =
     resetT $ do
         incrementArgsSeen -- hack: treat topics as >0
-        mapM interpretTerm $ toList ts -- is it ok to ignore topics?
+        mapM_ interpretTopic $ toList ts
         interpretPredication p
+
+interpretTopic :: Topic -> Interpret ()
+interpretTopic (Topicn np) = interpretNp np >> pure ()
+interpretTopic (Topica adv) = interpretAdverbial adv
 
 interpretRel :: Rel -> Interpret Formula
 interpretRel (Single c) = interpretRelC c
@@ -168,22 +172,27 @@ interpretPredication (Conn x na conn y) = Con (unW conn) <$> interpretPredicatio
 interpretPredication (ConnTo to conn x to' y) = Con (unW conn) <$> interpretPredication x <*> interpretPredication y
 
 interpretPredicationC :: PredicationC -> Interpret Formula
-interpretPredicationC (Predication (Predicate vp) terms) =
+interpretPredicationC (Predication (Predicate vp) advsL nps advsR) =
     resetT $ do
         f <- interpretVp vp
         resetArgsSeen
-        xs <- mapM interpretTerm terms
-        f $/ concat xs
+        mapM interpretAdverbial advsL
+        xs <- mapM interpretNpArg nps
+        mapM interpretAdverbial advsR
+        f $/ xs
 
-interpretTerm :: Term -> Interpret [Tm]
-interpretTerm (Tnp np) = do t <- interpretNp np; incrementArgsSeen; pure [t]
-interpretTerm (Tadvp advp) = interpretConn interpretAdvpC advp
-interpretTerm (Tpp pp) = interpretConn interpretPpC pp
-interpretTerm (Termset to ru ts1 to' ts2) = do
-    shiftT $ \k -> do
-        xs1 <- concat <$> mapM interpretTerm ts1
-        xs2 <- concat <$> mapM interpretTerm ts2
-        lift $ Con (unW ru) <$> k xs1 <*> k xs2
+interpretNpArg :: Np -> Interpret Tm
+interpretNpArg np = do t <- interpretNp np; incrementArgsSeen; pure t
+
+interpretAdverbial :: Adverbial -> Interpret ()
+interpretAdverbial (Tadvp advp) = interpretConn interpretAdvpC advp
+interpretAdverbial (Tpp pp) = interpretConn interpretPpC pp
+
+-- interpretTerm (Termset to ru ts1 to' ts2) = do
+--     shiftT $ \k -> do
+--         xs1 <- concat <$> mapM interpretTerm ts1
+--         xs2 <- concat <$> mapM interpretTerm ts2
+--         lift $ Con (unW ru) <$> k xs1 <*> k xs2
 
 interpretNp :: Np -> Interpret Tm
 interpretNp = interpretConn interpretNpC
@@ -217,23 +226,23 @@ interpretNpF (ArgRel (Ndp (Dp det vp)) rel) =
 isHighVerb :: Vp -> Bool
 isHighVerb vp = head (T.words (vpToName vp)) `elem` T.words "bu nai pu jia chufaq lui za hoai hai he hiq she ao dai ea le di duai"
 
-interpretAdvpC :: AdvpC -> Interpret [Tm]
+interpretAdvpC :: AdvpC -> Interpret ()
 interpretAdvpC (Advp _ vp) = do
     if isHighVerb vp then
         shiftT $ \k -> do
             f <- interpretVp vp
-            formula <- lift (k [])
+            formula <- lift (k ())
             f $/ [Ccl $ formula]
     else
         shiftT $ \k -> do
             f <- interpretVp vp
-            formula <- lift (k [])
+            formula <- lift (k ())
             var <- makeFreeVar Nothing
             adverbial <- f $/ [Var var]
             pure (Let var formula (Con Ru (Prd "faq" [Var var]) adverbial))
 
-interpretPpC :: PpC -> Interpret [Tm]
-interpretPpC (Pp prep np) = pure []
+interpretPpC :: PpC -> Interpret ()
+interpretPpC (Pp prep np) = pure ()
 
 bindVpWithTransform :: (Maybe VerbFun -> Maybe VerbFun) -> Determiner -> Maybe Vp -> Interpret Tm
 bindVpWithTransform verbTransform det Nothing =

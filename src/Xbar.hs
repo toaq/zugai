@@ -111,8 +111,8 @@ move src tgt =
     in modify (\s -> s { xbarMovements = m : xbarMovements s })
 
 -- Turn n≥1 terms into a parse tree with a "term" or "terms" head.
-termsToXbar :: Foldable t => t Term -> Mx Xbar
-termsToXbar = foldl1 (\ma mb -> do a <- ma; b <- mb; mkPair "Terms" a b) . map toXbar . toList
+-- termsToXbar :: Foldable t => t Term -> Mx Xbar
+-- termsToXbar = foldl1 (\ma mb -> do a <- ma; b <- mb; mkPair "Terms" a b) . map toXbar . toList
 
 -- When rendering an elided VP after "sa", this "∅" VP is rendered as a fallback.
 nullVp :: SourcePos -> Vp
@@ -126,7 +126,7 @@ terminated tag t (Just word) = mkPair tag t =<< (mkTag "End" =<< toXbar word)
 covert :: Mx Xbar
 covert = mkLeaf ""
 
-prenexToXbar :: NonEmpty Term -> W () -> Xbar -> Mx Xbar
+prenexToXbar :: NonEmpty Topic -> W () -> Xbar -> Mx Xbar
 prenexToXbar (t:|[]) bi c = do
     t1 <- toXbar bi
     t2 <- mkTag "Topic" t1
@@ -158,7 +158,7 @@ instance ToXbar Sentence where
             Nothing -> pure t
 instance ToXbar Fragment where
     toXbar (FrPrenex (Prenex ts bi)) = prenexToXbar ts bi =<< covert
-    toXbar (FrTerms ts) = termsToXbar ts
+    toXbar (FrTopic t) = toXbar t
 instance ToXbar Statement where
     toXbar (Statement mc mp pred) = do
         xC <- case mc of Just c -> toXbar c
@@ -168,61 +168,72 @@ instance ToXbar Statement where
                               Nothing -> pure xFP
         mkPair "CP" xC xTopicP
 instance ToXbar PredicationC where
-    toXbar (Predication predicate []) = do
-        xV <- retag "F+V" <$> toXbar predicate
-        xVTrace <- mapSrc T.toLower <$> toXbar predicate
-        move xVTrace xV
-        mkPair "FP" xV xVTrace
-    toXbar (Predication predicate [tS]) = do
-        xV <- retag "F+V" <$> toXbar predicate
-        xDPS <- toXbar tS
-        xVTrace <- mapSrc T.toLower <$> toXbar predicate
-        xVP <- mkPair "VP" xDPS xVTrace
-        move xVTrace xV
-        mkPair "FP" xV xVP
-    toXbar (Predication predicate [tS,tO]) = do
-        xV <- retag "F+V" <$> toXbar predicate
-        xDPS <- toXbar tS
-        xVTrace <- mapSrc T.toLower <$> toXbar predicate
-        xDPO <- toXbar tO
-        xV' <- mkPair "V'" xVTrace xDPO
-        xVP <- mkPair "VP" xDPS xV'
-        move xVTrace xV
-        mkPair "FP" xV xVP
-    toXbar (Predication predicate [tA,tS,tO]) = do
-        xV <- retag "F+𝑣+V" <$> toXbar predicate
-        xDPA <- toXbar tA
-        xv <- mkLeaf "𝑣"
-        xDPS <- toXbar tS
-        xVTrace <- mapSrc T.toLower <$> toXbar predicate
-        xDPO <- toXbar tO
-        xV' <- mkPair "V'" xVTrace xDPO
-        xVP <- mkPair "VP" xDPS xV'
-        xv' <- mkPair "𝑣'" xv xVP
-        xvP <- mkPair "𝑣P" xDPA xv'
-        move xVTrace xv
-        move xv xV
-        mkPair "FP" xV xvP
-    toXbar (Predication predicate terms) = do
-        tp <- toXbar predicate
-        tt <- foldr1 (\ma mb -> do a<-ma;b<-mb; mkPair "Terms" a b) (toXbar <$> terms)
-        mkPair "VP" tp tt
+    toXbar (Predication predicate advsL nps advsR) = do
+        xsAdvL <- mapM toXbar advsL
+        xFP <- case nps of
+            [] -> do
+                xV <- retag "F+V" <$> toXbar predicate
+                xVTrace <- mapSrc T.toLower <$> toXbar predicate
+                move xVTrace xV
+                mkPair "FP" xV xVTrace
+            [tS] -> do
+                xV <- retag "F+V" <$> toXbar predicate
+                xDPS <- toXbar tS
+                xVTrace <- mapSrc T.toLower <$> toXbar predicate
+                xVP <- mkPair "VP" xDPS xVTrace
+                move xVTrace xV
+                mkPair "FP" xV xVP
+            [tS,tO] -> do
+                xV <- retag "F+V" <$> toXbar predicate
+                xDPS <- toXbar tS
+                xVTrace <- mapSrc T.toLower <$> toXbar predicate
+                xDPO <- toXbar tO
+                xV' <- mkPair "V'" xVTrace xDPO
+                xVP <- mkPair "VP" xDPS xV'
+                move xVTrace xV
+                mkPair "FP" xV xVP
+            [tA,tS,tO] -> do
+                xV <- retag "F+𝑣+V" <$> toXbar predicate
+                xDPA <- toXbar tA
+                xv <- mkLeaf "𝑣"
+                xDPS <- toXbar tS
+                xVTrace <- mapSrc T.toLower <$> toXbar predicate
+                xDPO <- toXbar tO
+                xV' <- mkPair "V'" xVTrace xDPO
+                xVP <- mkPair "VP" xDPS xV'
+                xv' <- mkPair "𝑣'" xv xVP
+                xvP <- mkPair "𝑣P" xDPA xv'
+                move xVTrace xv
+                move xv xV
+                mkPair "FP" xV xvP
+        xsAdvR <- mapM toXbar advsR
+        xFP1 <- foldlM (mkPair "FP") xFP  xsAdvR
+        xFP2 <- foldrM (mkPair "FP") xFP1 xsAdvL
+        pure xFP2
+
 instance ToXbar Predicate where
     toXbar (Predicate vp) = {- mkTag "Verb" =<< -} toXbar vp
-instance ToXbar Term where
-    toXbar (Tnp t) = toXbar t
+instance ToXbar Adverbial where
     toXbar (Tadvp t) = toXbar t
     toXbar (Tpp t) = toXbar t
-    toXbar (Termset to ru t1 to' t2) = do
-        tto <- mkTag "Co" =<< toXbar to
-        tru <- toXbar ru
-        ttoru <- mkPair "Co'" tto tru
-        tt1 <- termsToXbar t1
-        tto' <- mkTag "Co" =<< toXbar to'
-        tt2 <- termsToXbar t2
-        ti <- mkPair "Co'" tto' tt2
-        tj <- mkPair "CoP(Termset)" tt1 ti
-        mkPair "Termset" ttoru tj
+instance ToXbar Topic where
+    toXbar (Topicn t) = toXbar t
+    toXbar (Topica t) = toXbar t
+
+-- instance ToXbar Term where
+--     toXbar (Tnp t) = toXbar t
+--     toXbar (Tadvp t) = toXbar t
+--     toXbar (Tpp t) = toXbar t
+--     toXbar (Termset to ru t1 to' t2) = do
+--         tto <- mkTag "Co" =<< toXbar to
+--         tru <- toXbar ru
+--         ttoru <- mkPair "Co'" tto tru
+--         tt1 <- termsToXbar t1
+--         tto' <- mkTag "Co" =<< toXbar to'
+--         tt2 <- termsToXbar t2
+--         ti <- mkPair "Co'" tto' tt2
+--         tj <- mkPair "CoP(Termset)" tt1 ti
+--         mkPair "Termset" ttoru tj
 
 -- Typeclass for associating a "connectand name" with a type
 -- so that we can generate strings like Co(NP), Co(VP), etc. in the generic Connable' instance.

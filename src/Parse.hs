@@ -37,15 +37,14 @@ type ConnableNa = Connable' (W ())
 data Discourse = Discourse [DiscourseItem] deriving (Eq, Show)
 data DiscourseItem = DiSentence Sentence | DiFragment Fragment | DiFree FreeMod deriving (Eq, Show)
 data Sentence = Sentence (Maybe (W Text {-je-})) Statement (Maybe (W Toned {-da-})) deriving (Eq, Show)
-data Fragment = FrPrenex Prenex | FrTerms (NonEmpty Term) deriving (Eq, Show)
-data Prenex = Prenex (NonEmpty Term) (W () {-bi-}) deriving (Eq, Show)
+data Fragment = FrPrenex Prenex | FrTopic Topic deriving (Eq, Show)
+data Topic = Topica Adverbial | Topicn Np deriving (Eq, Show)
+data Prenex = Prenex (NonEmpty Topic) (W () {-bi-}) deriving (Eq, Show)
 data Statement = Statement (Maybe (W Complementizer)) (Maybe Prenex) Predication deriving (Eq, Show)
 type Predication = ConnableNa PredicationC
-data PredicationC = Predication Predicate [Term] deriving (Eq, Show)
+data PredicationC = Predication Predicate [Adverbial] [Np] [Adverbial] deriving (Eq, Show)
 data Predicate = Predicate Vp deriving (Eq, Show)
-data Term
-    = Tnp Np | Tadvp Advp | Tpp Pp
-    | Termset (W () {-to-}) (W Connective) [Term] (W () {-to-}) [Term] deriving (Eq, Show)
+data Adverbial = Tadvp Advp | Tpp Pp deriving (Eq, Show)
 type Terminator = Maybe (W ())
 type Advp = Connable AdvpC
 data AdvpC = Advp (Pos () {-t7-}) Vp deriving (Eq, Show)
@@ -71,7 +70,7 @@ data VpN -- nonserial verb phrase
     | Vlu (W ()) Statement Terminator
     | Vverb (W Text)
     deriving (Eq, Show)
-data Name = VerbName Vp | TermName Term deriving (Eq, Show)
+data Name = VerbName Vp | TermName Topic deriving (Eq, Show)
 
 -- Parsers
 type Parser t = Parsec [Pos Token] () t
@@ -190,7 +189,7 @@ pRawWord :: Parser (Pos Text)
 pRawWord = token show posPos (\(Pos p src _) -> Just (Pos p src src))
 
 pName :: Parser Name
-pName = (VerbName <$> pVp) <|> (TermName <$> pTerm)
+pName = (VerbName <$> pVp) <|> (TermName <$> pTopic)
 
 pVpN :: Parser VpN
 pVpN =
@@ -240,24 +239,17 @@ pPrep = pConnableSame (Prep <$> pT6token <*> pVp)
 pPp :: Parser Pp
 pPp = pConnableSame (Pp <$> pPrep <*> pNp)
 
-pTermset :: Parser Term
-pTermset = do
-    to <- pTo
-    ru <- pConnective
-    termsL <- many1 pTerm
-    guard (length termsL > 1)
-    to' <- pTo
-    termsR <- replicateM (length termsL) pTerm
-    pure $ Termset to ru termsL to' termsR
+pTopic :: Parser Topic
+pTopic = (Topicn <$> pNp) <|> (Topica <$> pAdverbial)
 
-pTerm :: Parser Term
-pTerm = try pTermset <|> (Tnp <$> pNp) <|> (Tadvp <$> pAdvp) <|> (Tpp <$> pPp)
+pAdverbial :: Parser Adverbial
+pAdverbial = (Tadvp <$> pAdvp) <|> (Tpp <$> pPp)
 
 pPredicate :: Parser Predicate
 pPredicate = Predicate <$> pVp
 
 pPredicationC :: Parser PredicationC
-pPredicationC = Predication <$> pPredicate <*> many pTerm
+pPredicationC = Predication <$> pPredicate <*> many pAdverbial <*> many pNp <*> many pAdverbial
 
 pPredication :: Parser Predication
 pPredication = pConnableNa pPredicationC pPredicationC
@@ -269,13 +261,13 @@ pStatementT4 :: Parser Statement
 pStatementT4 = pStatement (optionMaybe pComplementizerT4)
 
 pPrenex :: Parser Prenex
-pPrenex = Prenex <$> manyNE pTerm <*> pBi
+pPrenex = Prenex <$> manyNE pTopic <*> pBi
 
 pSentence :: Parser Sentence
 pSentence = Sentence <$> optionMaybe pSentenceConnector <*> pStatementT4 <*> optionMaybe pIllocution
 
 pFragment :: Parser Fragment
-pFragment = try (FrPrenex <$> pPrenex) <|> (FrTerms <$> manyNE pTerm)
+pFragment = try (FrPrenex <$> pPrenex) <|> (FrTopic <$> pTopic)
 
 pDiscourseItem :: Parser DiscourseItem
 pDiscourseItem = (DiFree <$> pFreeMod) <|> try (DiSentence <$> pSentence) <|> (DiFragment <$> pFragment)
