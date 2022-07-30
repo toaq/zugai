@@ -47,7 +47,8 @@ indices (Roof i _ _) = [i]
 indicesBelow :: [Int] -> Xbar -> [Int]
 indicesBelow is (Tag i _ x) = if i `elem` is then indices x else indicesBelow is x
 indicesBelow is (Pair i _ x y) = if i `elem` is then indices x ++ indices y else indicesBelow is x ++ indicesBelow is y
-indicesBelow is _ = []
+indicesBelow is (Leaf i _) = [i | i `elem` is] -- not really "below" but... it's useful for little v movement
+indicesBelow is (Roof i _ _) = [i | i `elem` is]
 
 retag :: Text -> Xbar -> Xbar
 retag t (Tag i _ x) = Tag i t x
@@ -170,30 +171,38 @@ instance ToXbar Statement where
 instance ToXbar PredicationC where
     toXbar (Predication predicate advsL nps advsR) = do
         xsAdvL <- mapM toXbar advsL
+        xsAdvR <- mapM toXbar advsR
+        let attachAdverbials nodeName x = do
+                x' <- foldlM (mkPair nodeName) x xsAdvR
+                foldrM (mkPair nodeName) x' xsAdvL
+
         xFP <- case nps of
             [] -> do
-                xV <- retag "F+V" <$> toXbar predicate
+                xFV <- retag "F+V" <$> toXbar predicate
                 xVTrace <- mapSrc T.toLower <$> toXbar predicate
-                move xVTrace xV
-                mkPair "FP" xV xVTrace
+                move xVTrace xFV
+                xVPa <- attachAdverbials "VP" xVTrace
+                mkPair "FP" xFV xVPa
             [tS] -> do
-                xV <- retag "F+V" <$> toXbar predicate
+                xFV <- retag "F+V" <$> toXbar predicate
                 xDPS <- toXbar tS
                 xVTrace <- mapSrc T.toLower <$> toXbar predicate
                 xVP <- mkPair "VP" xDPS xVTrace
-                move xVTrace xV
-                mkPair "FP" xV xVP
+                xVPa <- attachAdverbials "VP" xVP
+                move xVTrace xFV
+                mkPair "FP" xFV xVPa
             [tS,tO] -> do
-                xV <- retag "F+V" <$> toXbar predicate
+                xFV <- retag "F+V" <$> toXbar predicate
                 xDPS <- toXbar tS
                 xVTrace <- mapSrc T.toLower <$> toXbar predicate
                 xDPO <- toXbar tO
                 xV' <- mkPair "V'" xVTrace xDPO
                 xVP <- mkPair "VP" xDPS xV'
-                move xVTrace xV
-                mkPair "FP" xV xVP
+                xVPa <- attachAdverbials "VP" xVP
+                move xVTrace xFV
+                mkPair "FP" xFV xVPa
             [tA,tS,tO] -> do
-                xV <- retag "F+𝑣+V" <$> toXbar predicate
+                xFvV <- retag "F+𝑣+V" <$> toXbar predicate
                 xDPA <- toXbar tA
                 xv <- mkLeaf "𝑣"
                 xDPS <- toXbar tS
@@ -203,13 +212,11 @@ instance ToXbar PredicationC where
                 xVP <- mkPair "VP" xDPS xV'
                 xv' <- mkPair "𝑣'" xv xVP
                 xvP <- mkPair "𝑣P" xDPA xv'
+                xvPa <- attachAdverbials "𝑣P" xvP
                 move xVTrace xv
-                move xv xV
-                mkPair "FP" xV xvP
-        xsAdvR <- mapM toXbar advsR
-        xFP1 <- foldlM (mkPair "FP") xFP  xsAdvR
-        xFP2 <- foldrM (mkPair "FP") xFP1 xsAdvL
-        pure xFP2
+                move xv xFvV
+                mkPair "FP" xFvV xvPa
+        pure xFP
 
 instance ToXbar Predicate where
     toXbar (Predicate vp) = {- mkTag "Verb" =<< -} toXbar vp
@@ -312,7 +319,7 @@ instance ToXbar RelC where
 instance ToXbar Cc where
     toXbar (Cc pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
 instance ToXbar VpC where
-    toXbar (Serial x y) = do xx <- toXbar x; yy<-toXbar y; mkPair "Serial" xx yy
+    toXbar (Serial x y) = mkRoof "V" (toSrc x <> " " <> toSrc y)
     toXbar (Nonserial x) = toXbar x
 instance ToXbar VpN where
     toXbar (Vname nv name tmr) = do
