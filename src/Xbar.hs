@@ -62,6 +62,14 @@ mapSrc f (Pair i t x y) = Pair i t (mapSrc f x) (mapSrc f y)
 mapSrc f (Leaf i s) = Leaf i (f s)
 mapSrc f (Roof i t s) = Roof i t (f s)
 
+aggregateSrc :: Xbar -> Text
+aggregateSrc (Tag _ _ x) = aggregateSrc x
+aggregateSrc (Pair _ _ x y) =
+    let (sx, sy) = (aggregateSrc x, aggregateSrc y)
+    in if isToneSrc sx then copyTone sx sy else sx <> " " <> sy
+aggregateSrc (Leaf _ s) = s
+aggregateSrc (Roof _ _ s) = s
+
 data Movement = Movement { movementSource :: Int, movementTarget :: Int } deriving (Eq, Ord, Show)
 
 data XbarState =
@@ -219,7 +227,7 @@ instance ToXbar PredicationC where
         pure xFP
 
 instance ToXbar Predicate where
-    toXbar (Predicate vp) = {- mkTag "Verb" =<< -} toXbar vp
+    toXbar (Predicate vp) = toXbar vp
 instance ToXbar Adverbial where
     toXbar (Tadvp t) = toXbar t
     toXbar (Tpp t) = toXbar t
@@ -298,6 +306,7 @@ instance ToXbar PpC where
         xNP <- toXbar np
         xVP <- mkPair "VP" xV xNP
         mkPair "PP" xP xVP
+    toXbar (Pp _ np) = error "X-bar: coordination of prepositions is unimplemented"
 
 instance ToXbar NpC where
     toXbar (Focused foc np) = do x<-toXbar foc; y<-toXbar np; mkPair "Foc" x y
@@ -315,11 +324,15 @@ instance ToXbar Dp where
         tv <- toXbar $ maybe (nullVp $ posPos pos) id vp
         mkPair "DP" td tv
 instance ToXbar RelC where
-    toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "RelP" x tmr
+    toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
 instance ToXbar Cc where
     toXbar (Cc pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
 instance ToXbar VpC where
-    toXbar (Serial x y) = mkRoof "V" (toSrc x <> " " <> toSrc y)
+    toXbar (Serial x y) = do
+        x <- toXbar x
+        y <- toXbar y
+        serial <- mkPair "Serial" x y
+        mkRoof "V" (aggregateSrc serial)
     toXbar (Nonserial x) = toXbar x
 instance ToXbar VpN where
     toXbar (Vname nv name tmr) = do
@@ -391,7 +404,7 @@ colorWord :: Text -> Text
 colorWord t = "{\\color[HTML]{" <> color <> "}" <> t <> "}"
     where
         color =
-            if T.length t == 2 && isCombiningDiacritic (T.last t)
+            if isToneSrc t
                 then "ff88cc"
                 else case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
                     Right (Verb _) -> "99eeff"
@@ -413,11 +426,14 @@ xbarToLatex annotate (xbar, movements) =
         go (Leaf i src) = node i (goSrc i (label src)) ""
         go (Roof i t src) = node i (label t) ("[" <> goSrc i src <> ",roof]")
         go (Tag i t sub) = node i (label t) (go sub)
-        go (Pair i t x y) = node i (label t) (go x <> " " <> go y)
+        go p@(Pair i t x y) =
+            if False && isMoved i -- this causes problems: goMove outputs node names that didn't get generated, so tikz errors
+                then go (Roof i t (aggregateSrc p))
+                else node i (label t) (go x <> " " <> go y)
         goSrc i src =
             let srci = T.replace "i" "ı" src
                 src' = if src == "" then "$\\varnothing$"
-                       else if i `elem` traceIndices then "\\sout{" <> srci <> "}"
+                       else if isMoved i || i `elem` traceIndices then "\\sout{" <> srci <> "}"
                        else colorWord srci
             in "\\textsf{" <> src' <> "}" <> note annotate src
         note (Just f) src | noteText <- f src, noteText /= "" =
