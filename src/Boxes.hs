@@ -40,7 +40,7 @@ instance ToBoxes Fragment where
     toBoxes (FrTopic x) = toBoxes x
 instance ToBoxes Prenex where
     toBoxes (Prenex ts bi) =
-        div "prenex" $ (toBoxes <$> toList ts) <> [leaf bi]
+        div "topic" $ (toBoxes <$> toList ts) <> [leaf bi]
 instance ToBoxes Statement where
     toBoxes (Statement mc mp preds) =
         div "clause" $ catMaybes [leaf <$> mc, toBoxes <$> mp, Just $ toBoxes preds]
