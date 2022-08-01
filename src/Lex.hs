@@ -214,6 +214,3 @@ lexToaqOpt opt text =
 
 lexToaq :: Text -> Either ParseError [Pos Token]
 lexToaq = lexToaqOpt defaultLexOptions
-
-unr :: Either a b -> b
-unr (Right b) = b

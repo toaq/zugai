@@ -13,18 +13,16 @@ import qualified Data.Text as T
 import Lex
 import Parse
 import Text.Parsec (SourcePos)
+import TextUtils
 
 class ToEnglish a where
     toEnglish :: Dictionary -> a -> Text
-
-capitalize :: Text -> Text
-capitalize t = T.toUpper (T.take 1 t) <> T.drop 1 t
 
 sentencify :: Text -> Text
 sentencify t =
     case T.unwords (T.words t) of
         "" -> "(Empty sentence)."
-        t -> capitalize t <> (if T.last t `T.elem` ".?!" then "" else ".")
+        t -> capitalizeFirst t <> (if T.last t `T.elem` ".?!" then "" else ".")
 
 fixUp :: Text -> Text
 fixUp "ASS" = "."
@@ -104,7 +102,7 @@ instance ToEnglish VpC where
     toEnglish d (Serial x y) = toEnglish d x <> "–" <> toEnglish d y
     toEnglish d (Nonserial x) = toEnglish d x
 instance ToEnglish VpN where
-    toEnglish d (Vname nv name tmr) = capitalize (T.strip $ toEnglish d name)
+    toEnglish d (Vname nv name tmr) = capitalizeFirst (T.strip $ toEnglish d name)
     toEnglish d (Vshu shu text) = "\"" <> posSrc text <> "\""
     toEnglish d (Voiv oiv np tmr) = toEnglish d oiv <> " " <> toEnglish d np
     toEnglish d (Vmo mo disc teo) = "«" <> toEnglish d disc <> "»"

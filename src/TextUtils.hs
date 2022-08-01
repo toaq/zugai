@@ -44,3 +44,6 @@ combineWords x y = if isToneSrc x then copyTone x y else x <> " " <> y
 
 prettifyToaq :: Text -> Text
 prettifyToaq = tr "i" "ı" . T.normalize T.NFKC
+
+capitalizeFirst :: Text -> Text
+capitalizeFirst t = T.toUpper (T.take 1 t) <> T.drop 1 t
