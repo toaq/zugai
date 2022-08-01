@@ -219,7 +219,7 @@ pNpC :: Parser NpC
 pNpC = (Focused <$> pFocuser <*> pNpF) <|> (Unf <$> pNpF)
 
 pNpF :: Parser NpF
-pNpF = do head <- pNpR; try (ArgRel head <$> pRel) <|> pure (Unr head)
+pNpF = do head <- pNpR; (ArgRel head <$> pRel) <|> pure (Unr head)
 
 pNpR :: Parser NpR
 pNpR = (Npro <$> pPronoun) <|> (Ndp <$> pDp) <|> (Ncc <$> pCc)
@@ -255,7 +255,7 @@ pPredication :: Parser Predication
 pPredication = pConnableNa pPredicationC pPredicationC
 
 pStatement :: Parser (Maybe (W Complementizer)) -> Parser Statement
-pStatement pc = Statement <$> pc <*> optionMaybe (try pPrenex) <*> pPredication
+pStatement pc = Statement <$> pc <*> optionMaybe pPrenex <*> pPredication
 
 pStatementT4 :: Parser Statement
 pStatementT4 = pStatement (optionMaybe pComplementizerT4)
