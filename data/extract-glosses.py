@@ -21,7 +21,7 @@ def gloss(body, head):
         return m.group(1).split("/")[0].strip()
     return None
 
-for entry in json.load(open("toadua-basic.json")):
+for entry in sorted(json.load(open("toadua-basic.json")), key=lambda x: x['head']):
     head = entry['head']
     body = entry['body']
     g = gloss(body, head)
