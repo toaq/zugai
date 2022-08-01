@@ -139,12 +139,23 @@ pT6token, pT7token :: Parser (Pos ())
 pT6token = tok $ \t -> case t of T6token -> Just (); _ -> Nothing
 pT7token = tok $ \t -> case t of T7token -> Just (); _ -> Nothing
 
--- Helper for parsing connectable constructs.
+-- | Helper for parsing connectable constructs.
+-- @'pConnable'' pNa pFirst pRest@ parses a @pFirst@ followed by many @pRest@s,
+-- joined by TO RUs / RUs as expected by Toaq grammar.
+-- If afterthought constructs require a __na__ before the RU, the @pNa@ argument
+-- should be a parser for the __na__ token; if not, it should be @pure ()@ to
+-- parse nothing
 pConnable' :: Parser na -> Parser c -> Parser c -> Parser (Connable' na c)
-pConnable' pNa p1 p2 =
-    try (Conn <$> p1 <*> pNa <*> pConnective <*> pConnable' pNa p2 p2)
-    <|> try (ConnTo <$> pTo <*> pConnective <*> pConnable' pNa p1 p2 <*> pTo <*> pConnable' pNa p2 p2)
-    <|> (Single <$> p1)
+pConnable' pNa pFirst pRest =
+    (ConnTo <$> pTo <*> pConnective <*> pConnable' pNa pFirst pRest <*> pTo <*> pConnable' pNa pRest pRest)
+    <|> pAfterthought
+  where
+    pAfterthought = do
+        left <- pFirst
+        right <- optionMaybe $ (,,) <$> pNa <*> pConnective <*> pConnable' pNa pRest pRest
+        pure $ case right of
+            Nothing -> Single left
+            Just (na, ru, rest) -> Conn left na ru rest
 
 -- Connectable constructs not requiring "na" in afterthought.
 pConnable :: Parser c -> Parser c -> Parser (Connable' () c)
