@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 module Main where
 
 import Control.Exception
@@ -17,7 +19,9 @@ import Diagrams.Prelude (mkHeight)
 import Diagrams.Backend.SVG
 import Diagrams.Core.Compile (renderDia)
 import Graphics.Svg.Core (renderBS)
+import Text.RawString.QQ
 
+import Boxes
 import Dictionary
 import English
 import Interpret
@@ -38,6 +42,7 @@ data OutputMode
     = ToParseTree
     | ToSrc
     | ToStructure
+    | ToBoxes
     | ToXbarLatex
     | ToXbarHtml
     | ToXbarJson
@@ -50,6 +55,7 @@ parseOutputMode =
     flag' ToParseTree (long "to-parse-tree" <> help "Output mode: dump zugai's internal parse tree")
     <|> flag' ToSrc (long "to-src" <> help "Output mode: debug zugai's toSrc")
     <|> flag' ToStructure (long "to-structure" <> help "Output mode: indicate a sentence's structure with punctuation")
+    <|> flag' ToBoxes (long "to-boxes" <> help "Output mode: refgram-style HTML boxes")
     <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
     <|> flag' ToXbarHtml (long "to-xbar-html" <> help "Output mode: HTML X-bar tree")
     <|> flag' ToXbarJson (long "to-xbar-json" <> help "Output mode: JSON X-bar tree")
@@ -87,6 +93,7 @@ processInput om dict unstrippedInput = do
     let output = case om of
             ToParseTree -> enc $ T.pack $ show parsed
             ToSrc -> enc $ prettifyToaq $ toSrc parsed
+            ToBoxes -> enc $ toBoxes parsed
             ToStructure -> enc $ prettifyToaq $ toSrcPunctuated parsed
             ToXbarLatex -> enc $ xbarToLatex (Just (glossWith dict)) (runXbarWithMovements parsed)
             ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (runXbar parsed)
@@ -111,12 +118,48 @@ latexPreamble =
         , "\\color[HTML]{DCDDDE}"
         ]
 
+boxesPreamble :: Text
+boxesPreamble = [r|
+<html>
+<head>
+<title>zugai boxes output</title>
+<style>
+.box {
+    font-size: 18px;
+    font-family: sans-serif;
+    display: flex;
+    border-width: 2px;
+    margin: 20px 5px 5px 5px;
+    align-items: flex-end;
+    border-style: solid;
+    min-width: 20px;
+}
+.discourse { border-style: none; flex-direction: column; align-items: flex-start; }
+.box.leaf { border-style: none; }
+.box { position: relative; }
+.box:before { width: 0px; height: 0px; position: absolute; top: 5px; left: 5px; opacity: 0.5; font-size: 12px; }
+.sentence          { border-color: #72c91b; background-color: #dafa94; color: black; } .sentence:before { content: "sentence"; }
+.clause            { border-color: #b85450; background-color: #f8cecc; color: black; } .clause:before { content: "clause"; }
+.complementizer    { border-color: #b20000; background-color: #e51400; color: white; } .complementizer:before { content: "C"; }
+.topic             { border-color: #a50040; background-color: #d80073; color: white; } .topic:before { content: "topic"; }
+.verbal-complex    { border-color: #2d7600; background-color: #72c91b; color: black; } .verbal-complex:before { content: "verb"; }
+.post-field        { border-color: #d79b00; background-color: #ffc41f; color: black; } .post-field:before { content: ""; }
+.adverbial         { border-color: #432d57; background-color: #76608a; color: white; } .adverbial:before { content: "adv"; }
+.argument          { border-color: #c73500; background-color: #fa6800; color: black; } .argument:before { content: "noun"; }
+.sentence-boundary { border-color: #666666; background-color: #eeeeee; color: black; } .sentence-boundary:before { content: "start"; }
+.illocution        { border-color: #6c8ebf; background-color: #8bafe4; color: black; } .illocution:before { content: "illoc"; }
+</style>
+</head>
+<body>
+|]
+
 main :: IO ()
 main = do
     CliOptions im om lineByLine <- execParser cliInfo
     input <- case im of FromStdin -> T.getContents; FromFile s -> T.readFile s
     dict <- readDictionary
     when (om == ToXbarLatex) $ T.putStr latexPreamble
+    when (om == ToBoxes) $ T.putStr boxesPreamble
     if lineByLine
         then mapM_ (processInput om dict) (T.lines input)
         else processInput om dict input

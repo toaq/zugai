@@ -61,6 +61,10 @@ async def on_message(message):
         elif cmd in ("english", "logic", "structure"):
             txt = run("parsing", ["zugai-exe", "--to-" + cmd], input=sentence.encode())
             await message.channel.send(txt.decode())
+        elif cmd == "boxes":
+            txt = run("parsing", ["zugai-exe", "--to-" + cmd], input=sentence.encode())
+            file = discord.File(io.BytesIO(txt), filename="result.html")
+            await message.channel.send(file=file)
     except RunException as e:
         await message.channel.send(str(e))
 

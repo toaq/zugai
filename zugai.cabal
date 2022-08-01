@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.7.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Boxes
       ContinuationLab
       Dictionary
       English
@@ -59,6 +60,7 @@ library
     , optparse-applicative >=0.16
     , parsec >=3.1.14.0
     , pretty-simple
+    , raw-strings-qq
     , split >=0.2.3.4
     , svg-builder
     , text
@@ -89,6 +91,7 @@ executable zugai-exe
     , optparse-applicative >=0.16
     , parsec >=3.1.14.0
     , pretty-simple
+    , raw-strings-qq
     , split >=0.2.3.4
     , svg-builder
     , text
@@ -124,6 +127,7 @@ test-suite zugai-test
     , optparse-applicative >=0.16
     , parsec >=3.1.14.0
     , pretty-simple
+    , raw-strings-qq
     , split >=0.2.3.4
     , svg-builder
     , text
