@@ -147,12 +147,13 @@ pT7token = tok $ \t -> case t of T7token -> Just (); _ -> Nothing
 -- parse nothing
 pConnable' :: Parser na -> Parser c -> Parser c -> Parser (Connable' na c)
 pConnable' pNa pFirst pRest =
-    (ConnTo <$> pTo <*> pConnective <*> pConnable' pNa pFirst pRest <*> pTo <*> pConnable' pNa pRest pRest)
+    try (ConnTo <$> pTo <*> pConnective <*> pConnable' pNa pFirst pRest <*> pTo <*> pConnable' pNa pRest pRest)
     <|> pAfterthought
   where
     pAfterthought = do
         left <- pFirst
-        right <- optionMaybe $ (,,) <$> pNa <*> pConnective <*> pConnable' pNa pRest pRest
+        right <- optionMaybe $ try $
+            (,,) <$> pNa <*> pConnective <*> pConnable' pNa pRest pRest
         pure $ case right of
             Nothing -> Single left
             Just (na, ru, rest) -> Conn left na ru rest
