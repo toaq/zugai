@@ -34,7 +34,7 @@ type Connable = Connable' ()
 type ConnableNa = Connable' (W ())
 
 -- Parse tree types
-data Discourse = Discourse [DiscourseItem] deriving (Eq, Show)
+newtype Discourse = Discourse [DiscourseItem] deriving (Eq, Show)
 data DiscourseItem = DiSentence Sentence | DiFragment Fragment | DiFree FreeMod deriving (Eq, Show)
 data Sentence = Sentence (Maybe (W Text {-je-})) Statement (Maybe (W Toned {-da-})) deriving (Eq, Show)
 data Fragment = FrPrenex Prenex | FrTopic Topic deriving (Eq, Show)
@@ -43,7 +43,7 @@ data Prenex = Prenex (NonEmpty Topic) (W () {-bi-}) deriving (Eq, Show)
 data Statement = Statement (Maybe (W Complementizer)) (Maybe Prenex) Predication deriving (Eq, Show)
 type Predication = ConnableNa PredicationC
 data PredicationC = Predication Predicate [Adverbial] [Np] [Adverbial] deriving (Eq, Show)
-data Predicate = Predicate Vp deriving (Eq, Show)
+newtype Predicate = Predicate Vp deriving (Eq, Show)
 data Adverbial = Tadvp Advp | Tpp Pp deriving (Eq, Show)
 type Terminator = Maybe (W ())
 type Advp = Connable AdvpC
