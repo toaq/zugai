@@ -4,6 +4,7 @@ import Control.Monad
 import Data.Char
 import Data.List.Split (wordsBy)
 import Data.Text qualified as T
+import Data.Text.Normalize qualified as T
 import Data.Text (Text)
 import Text.Parsec as P
 import TextUtils
@@ -61,14 +62,22 @@ instance Show t => Show (Pos t) where
     show x = show (posSrc x)
     -- show x = show (posVal x) ++ "\x1b[96m~" ++ T.unpack (posSrc x) ++ "\x1b[0m" -- "\x1b[32m" ++ T.unpack (posSrc x) ++ "\x1b[0m"
 
+convertDigits :: Text -> Text
+convertDigits t =
+    case T.unsnoc t of
+        Just (t', c) | isDigit c && t' /= "" && T.all isToaqLetter t' ->
+            case c of
+                '2' -> setTone "\x0301" t'
+                '3' -> setTone "\x0308" t'
+                '4' -> setTone "\x0309" t'
+                '5' -> setTone "\x0302" t'
+                '6' -> setTone "\x0300" t'
+                '7' -> setTone "\x0303" t'
+                '8' -> setTone "" t'
+                _ -> error ("Invalid tone digit: " <> show c)
+        _ -> t
+
 toneFromChar :: Char -> Maybe Tone
-toneFromChar '2' = Just T2
-toneFromChar '3' = Just T3
-toneFromChar '4' = Just T4
-toneFromChar '5' = Just T5
-toneFromChar '6' = Just T6
-toneFromChar '7' = Just T7
-toneFromChar '8' = Just T8
 toneFromChar '\x0301' = Just T2
 toneFromChar '\x0308' = Just T3
 toneFromChar '\x0309' = Just T4
@@ -187,12 +196,13 @@ tokenParser :: LexOptions -> Parsec Text () [Pos Token]
 tokenParser opt = do
     pos <- getPosition
     text <- T.pack <$> many1 (satisfy isToaqChar)
-    case toToken opt $ T.unpack $ normalizeToaq text of
+    let src = T.normalize T.NFKC $ convertDigits text
+    case toToken opt $ T.unpack $ normalizeToaq src of
         Right [] -> error "wtf"
-        Right [token] -> pure [Pos pos text token]
+        Right [token] -> pure [Pos pos src token]
         Right tokens -> pure $
             map (makeSuprasegmental pos) (init tokens)
-            ++ [Pos pos (bareToaq text) $ last tokens]
+            ++ [Pos pos (bareToaq src) $ last tokens]
         Left err -> fail err
 
 trivia :: Parsec Text () ()

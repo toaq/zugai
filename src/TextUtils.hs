@@ -12,29 +12,35 @@ tr froms tos = T.map (\c -> maybe c id $ lookup c $ T.zip froms tos)
 isCombiningDiacritic :: Char -> Bool
 isCombiningDiacritic c = c >= '\x0300' && c <= '\x0309'
 
+isToaqLetter :: Char -> Bool
+isToaqLetter c = isLetter c || c `T.elem` "'‘’"
+
 isToaqChar :: Char -> Bool
-isToaqChar c =
-    isLetter c
-    || c == 'ı'
-    || c `T.elem` "'‘’"
-    || c >= '2' && c <= '8'
-    || isCombiningDiacritic c
+isToaqChar c = isToaqLetter c || isDigit c || isCombiningDiacritic c
 
 normalizeToaq :: Text -> Text
 normalizeToaq = tr "ı‘’" "i''" . T.normalize T.NFKD . T.toLower
 
 bareToaq :: Text -> Text
-bareToaq = T.filter isLetter . normalizeToaq
+bareToaq = T.filter isToaqLetter . normalizeToaq
 
 isToneSrc :: Text -> Bool
 isToneSrc t = T.length t == 2 && isCombiningDiacritic (T.last t)
 
-copyTone :: Text -> Text -> Text
-copyTone o t =
-    let dia = T.take 1 $ T.filter isCombiningDiacritic o
-    in case T.break (`T.elem` "aeiou") (normalizeToaq t) of
-        (c, vvq) | Just (v, vq) <- T.uncons vvq -> T.normalize T.NFKC $ c <> T.cons v dia <> vq
+setTone :: Text -> Text -> Text
+setTone dia t =
+    case T.break (`T.elem` "aeiou") (normalizeToaq t) of
+        (c, vvq) | Just (v, vq) <- T.uncons vvq -> c <> T.cons v dia <> vq
         _ -> t
 
+copyTone :: Text -> Text -> Text
+copyTone o t = setTone (T.take 1 $ T.filter isCombiningDiacritic o) t
+
 inT2 :: Text -> Text
-inT2 = copyTone "ó"
+inT2 = setTone "\x0301"
+
+combineWords :: Text -> Text -> Text
+combineWords x y = if isToneSrc x then copyTone x y else x <> " " <> y
+
+prettifyToaq :: Text -> Text
+prettifyToaq = tr "i" "ı" . T.normalize T.NFKC

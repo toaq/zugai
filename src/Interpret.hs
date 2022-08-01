@@ -16,7 +16,7 @@ import Debug.Trace
 
 import Dictionary
 import TextUtils
-import ToName
+import ToSrc
 import Lex
 import Parse
 import Scope

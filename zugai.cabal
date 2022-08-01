@@ -34,7 +34,7 @@ library
       Parse
       Scope
       TextUtils
-      ToName
+      ToSrc
       Xbar
       XbarDiagram
   other-modules:

@@ -24,6 +24,7 @@ import Interpret
 import Lex
 import Lib
 import Parse hiding (Parser)
+import ToSrc
 import Xbar
 import XbarDiagram
 
@@ -33,16 +34,19 @@ parseInputMode :: Parser InputMode
 parseInputMode = (FromFile <$> strOption (long "input" <> short 'i' <> metavar "FILENAME" <> help "File to read input from")) <|> pure FromStdin
 
 data OutputMode
-    = ToZugaiParseTree
+    = ToParseTree
+    | ToSrc
     | ToXbarLatex
     | ToXbarHtml
     | ToXbarJson
     | ToXbarSvg
     | ToEnglish
     | ToLogic deriving Eq
+
 parseOutputMode :: Parser OutputMode
 parseOutputMode =
-    flag' ToZugaiParseTree (long "to-zugai-tree" <> help "Output mode: dump zugai's internal parse tree")
+    flag' ToParseTree (long "to-parse-tree" <> help "Output mode: dump zugai's internal parse tree")
+    <|> flag' ToSrc (long "to-src" <> help "Output mode: debug zugai's toSrc")
     <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
     <|> flag' ToXbarHtml (long "to-xbar-html" <> help "Output mode: HTML X-bar tree")
     <|> flag' ToXbarJson (long "to-xbar-json" <> help "Output mode: JSON X-bar tree")
@@ -78,7 +82,8 @@ processInput om dict unstrippedInput = do
     parsed <- unwrap (parseDiscourse lexed)
     let enc = BSL.fromStrict . encodeUtf8
     let output = case om of
-            ToZugaiParseTree -> enc $ T.pack $ show parsed
+            ToParseTree -> enc $ T.pack $ show parsed
+            ToSrc -> enc $ prettifyToaq $ toSrc parsed
             ToXbarLatex -> enc $ xbarToLatex (Just (glossWith dict)) (runXbarWithMovements parsed)
             ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (runXbar parsed)
             ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (runXbar parsed)

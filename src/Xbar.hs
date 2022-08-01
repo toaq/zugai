@@ -22,7 +22,7 @@ import Text.Parsec (SourcePos)
 import Lex
 import Parse
 import Scope
-import ToName
+import ToSrc
 import TextUtils
 
 data Xbar
@@ -64,9 +64,7 @@ mapSrc f (Roof i t s) = Roof i t (f s)
 
 aggregateSrc :: Xbar -> Text
 aggregateSrc (Tag _ _ x) = aggregateSrc x
-aggregateSrc (Pair _ _ x y) =
-    let (sx, sy) = (aggregateSrc x, aggregateSrc y)
-    in if isToneSrc sx then copyTone sx sy else sx <> " " <> sy
+aggregateSrc (Pair _ _ x y) = combineWords (aggregateSrc x) (aggregateSrc y)
 aggregateSrc (Leaf _ s) = s
 aggregateSrc (Roof _ _ s) = s
 
@@ -431,7 +429,7 @@ xbarToLatex annotate (xbar, movements) =
                 then go (Roof i t (aggregateSrc p))
                 else node i (label t) (go x <> " " <> go y)
         goSrc i src =
-            let srci = T.replace "i" "ı" src
+            let srci = prettifyToaq src
                 src' = if src == "" then "$\\varnothing$"
                        else if isMoved i || i `elem` traceIndices then "\\sout{" <> srci <> "}"
                        else colorWord srci

@@ -288,4 +288,4 @@ pDiscourse :: Parser Discourse
 pDiscourse = Discourse <$> many pDiscourseItem
 
 parseDiscourse :: [Pos Token] -> Either ParseError Discourse
-parseDiscourse = parse (pDiscourse <* eof) "" . traceShowId
+parseDiscourse = parse (pDiscourse <* eof) ""
