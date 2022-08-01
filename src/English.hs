@@ -54,11 +54,11 @@ instance ToEnglish Prenex where
 instance ToEnglish Statement where
     toEnglish d (Statement mc mp pred) = T.unwords $ catMaybes [toEnglish d <$> mc, toEnglish d <$> mp, Just $ toEnglish d pred]
 instance ToEnglish PredicationC where
-    toEnglish d (Predication predicate aa [] bb) = T.unwords (map (toEnglish d) (aa ++ bb))
-    toEnglish d (Predication predicate aa (n:ns) bb) =
-        T.unwords (map (toEnglish d) aa
-            ++ toEnglish d n : toEnglish d predicate : (toEnglish d <$> ns)
-            ++ map (toEnglish d) bb)
+    toEnglish d (Predication predicate aa ns bb) =
+        T.unwords (map t aa ++ middle ++ map t bb)
+        where t x = toEnglish d x
+              middle = case ns of [] -> [t predicate]
+                                  (s:o) -> t s : t predicate : (t <$> o)
 instance ToEnglish Predicate where
     toEnglish d (Predicate vp) = toEnglish d vp
 instance ToEnglish Adverbial where
@@ -125,6 +125,7 @@ instance ToEnglish (Text, Tone) where
 instance ToEnglish Text where
     toEnglish d t = case fixUp $ glossWith d t of "" -> t; e -> e
 instance ToEnglish Determiner where
+    toEnglish _ DT2 = "the"
     toEnglish _ Sa = "some"
     toEnglish _ Tu = "every"
     toEnglish _ Tuq = "all"
