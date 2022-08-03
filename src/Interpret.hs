@@ -78,7 +78,7 @@ showQua :: Determiner -> Text
 showQua Sa = "∃"
 showQua Tuq = "Λ"
 showQua Tu = "∀"
-showQua Ke = "ι"
+showQua Ke = "℩"
 showQua Ja = "λ"
 showQua (XShi q) = showQua q <> "¹"
 showQua q = T.toLower (T.pack $ show q) <> " "
