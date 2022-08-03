@@ -25,16 +25,16 @@ sentencify t =
         t -> capitalizeFirst t <> (if T.last t `T.elem` ".?!" then "" else ".")
 
 fixUp :: Text -> Text
-fixUp "ASS" = "."
-fixUp "PST" = "did"
-fixUp "PRE" = "now"
-fixUp "FUT" = "will"
+fixUp "[assertive]" = "."
+fixUp "[past]" = "did"
+fixUp "[present]" = "now"
+fixUp "[future]" = "will"
 fixUp "something" = "thing" -- rai
-fixUp "hereby" = "!"
-fixUp "optative" = "!"
-fixUp "promissive" = "."
+fixUp "[performative]" = "!"
+fixUp "[optative]" = "!"
+fixUp "[promissive]" = "."
 fixUp "it.I" = "they"
-fixUp "new.topic" = "so,"
+fixUp "[new.topic]" = "so,"
 fixUp t | "it." `T.isPrefixOf` t = "it"
 fixUp t = t
 
