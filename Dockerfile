@@ -24,8 +24,10 @@ COPY data/ /pkg/data/
 
 
 FROM base AS bot
-RUN apt install -y inkscape fonts-linuxlibertine
+RUN apt install -y inkscape fonts-linuxlibertine texlive-xetex
+# fix imagemagick's restrictive PostScript policy - this is fine since we're running in a container with semi-controlled inputs
 RUN pip3 install discord
+RUN sed -i '/PS\|PDF/s/none/read|write/' /etc/ImageMagick-*/policy.xml
 COPY discord_bot.py /pkg/
 COPY --from=compile /pkg/zugai-exe /pkg/
 ENTRYPOINT cd /pkg/ \
