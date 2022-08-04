@@ -3,7 +3,7 @@ import "./App.css";
 
 function App() {
   const [outputMode, setOutputMode] = useState<string>("english");
-  const [inputText, setInputText] = useState<string>("Kảı súq sa ba.");
+  const [inputText, setInputText] = useState<string>("Kảı súq sa shou.");
   const [latestOutput, setLatestOutput] = useState<string>(
     "Output will appear here."
   );
