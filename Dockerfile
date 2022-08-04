@@ -1,4 +1,4 @@
-FROM debian AS compile
+FROM debian AS exe-build
 RUN apt update
 RUN apt install -y curl zlib1g-dev
 RUN curl -sSL https://get.haskellstack.org/ | sh
@@ -15,11 +15,11 @@ COPY app/ /pkg/app/
 COPY test/ /pkg/test/
 RUN cd /pkg/ \
   && stack install \
-  && cp /root/.local/bin/zugai-exe /pkg/zugai-exe
+  && cp /root/.local/bin/zugai-exe /usr/bin/zugai-exe
 
 
 FROM debian AS base
-RUN apt update; apt install -y python3 python3-pip
+RUN apt update; apt install -y curl python3 python3-pip
 COPY data/ /pkg/data/
 
 
@@ -29,15 +29,28 @@ RUN apt install -y inkscape fonts-linuxlibertine texlive-xetex
 RUN pip3 install discord
 RUN sed -i '/PS\|PDF/s/none/read|write/' /etc/ImageMagick-*/policy.xml
 COPY discord_bot.py /pkg/
-COPY --from=compile /pkg/zugai-exe /pkg/
+COPY --from=exe-build /usr/bin/zugai-exe /usr/bin/zugai-exe
 ENTRYPOINT cd /pkg/ \
-  && PATH=/pkg/:"$PATH" python3 ./discord_bot.py
+  && python3 ./discord_bot.py
+
+
+FROM base as web-build
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+  && apt install -y nodejs
+COPY web-client/package-lock.json /pkg/web-client/package-lock.json
+COPY web-client/package.json /pkg/web-client/package.json
+RUN cd /pkg/web-client/ \
+  && npm install
+COPY web-client /pkg/web-client/
+RUN cd /pkg/web-client/ \
+  && npm run build
 
 
 FROM base AS web
 EXPOSE 80
-RUN pip3 install flask
+RUN pip3 install flask gunicorn
 COPY web_server.py /pkg/
-COPY --from=compile /pkg/zugai-exe /pkg/
+COPY --from=exe-build /usr/bin/zugai-exe /usr/bin/zugai-exe
+COPY --from=web-build /pkg/web-client/build/ /pkg/web-client/build/
 ENTRYPOINT cd /pkg/ \
-  && PATH=/pkg/:"$PATH" FLASK_APP=web_server python3 -m flask run -h 0.0.0.0 -p 80
+  && gunicorn -w `nproc` -b '0.0.0.0:80' 'web_server:app'

@@ -10,9 +10,8 @@ function App() {
   function get(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLatestOutput("...");
-    fetch(
-      "https://zugai.toaq.me/zugai?" +
-        new URLSearchParams({ to: outputMode, text: inputText })
+    fetch("zugai?" +
+      new URLSearchParams({ to: outputMode, text: inputText })
     ).then(async (result) => {
       console.log(result);
     });

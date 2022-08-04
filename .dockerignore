@@ -14,3 +14,8 @@
 !package.yaml
 !stack.yaml
 !stack.yaml.lock
+!web-client/public
+!web-client/src
+!web-client/package.json
+!web-client/package-lock.json
+!web-client/tsconfig.json
