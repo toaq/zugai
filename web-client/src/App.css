@@ -1,38 +1,60 @@
-.App {
-  text-align: center;
+* {
+  box-sizing: border-box;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+body {
+  font-family: "Inter", sans-serif;
+  font-size: 18px;
+  margin: 20px;
+  background-color: #fbf4f7;
+  color: #333;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+h1 {
+  margin: 0;
+}
+
+.zugai {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.card {
+  padding: 8px;
+  border: 2px solid hsl(330deg, 50%, 80%);
+  border-radius: 4px;
+  background-color: white;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
 }
 
-.App-link {
-  color: #61dafb;
+.settings,
+.output {
+  margin-top: 8px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.settings form {
+  min-width: 30vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.settings textarea {
+  font-family: inherit;
+  color: #222;
+}
+
+.settings form > * + * {
+  margin-top: 8px;
+}
+
+.settings form label {
+  display: flex;
+  justify-content: center;
 }

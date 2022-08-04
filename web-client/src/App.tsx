@@ -18,11 +18,12 @@ function App() {
     });
   }
   return (
-    <div className="App">
-      <div className="settings">
+    <div className="zugai">
+      <h1>mí Zugaı</h1>
+      <div className="card settings">
         <form onSubmit={get}>
           <label>
-            Output mode:
+            Output mode:&nbsp;
             <select
               value={outputMode}
               onChange={(e) => setOutputMode(e.target.value)}
@@ -32,16 +33,15 @@ function App() {
               <option value="logic">Logic</option>
             </select>
           </label>
-          <br />
           <textarea
+            rows={3}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
           />
-          <br />
           <button type="submit">Submit</button>
         </form>
       </div>
-      <div className="output">{latestOutput}</div>
+      <div className="card output">{latestOutput}</div>
     </div>
   );
 }
