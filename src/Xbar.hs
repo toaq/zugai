@@ -203,7 +203,7 @@ makeVP xV xsNp =
 
 data Pro = Pro deriving (Eq, Ord, Show)
 instance ToXbar Pro where
-    toXbar Pro = mkLeaf "PRO"
+    toXbar Pro = mkTag "DP" =<< mkLeaf "PRO"
 instance (ToXbar a, ToXbar b) => ToXbar (Either a b) where
     toXbar (Left a) = toXbar a
     toXbar (Right b) = toXbar b
