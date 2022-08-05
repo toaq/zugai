@@ -2,7 +2,7 @@ import React, { FormEvent, useEffect, useState } from "react";
 import "./App.css";
 
 function App() {
-  const [outputMode, setOutputMode] = useState<string>("english");
+  const [outputMode, setOutputMode] = useState<string>("boxes");
   const [inputText, setInputText] = useState<string>("Kảı súq sa shou.");
   const [latestOutput, setLatestOutput] = useState<string>(
     "Output will appear here."
@@ -10,10 +10,12 @@ function App() {
   function get(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLatestOutput("...");
-    fetch("zugai?" +
-      new URLSearchParams({ to: outputMode, text: inputText })
+    fetch(
+      "https://zugai.toaq.me/zugai?" +
+        new URLSearchParams({ to: outputMode, text: inputText })
     ).then(async (result) => {
-      console.log(result);
+      const body = await result.text();
+      setLatestOutput(body);
     });
   }
   return (
@@ -30,6 +32,7 @@ function App() {
               <option value="boxes">Boxes</option>
               <option value="english">English</option>
               <option value="logic">Logic</option>
+              <option value="structure">Structure</option>
             </select>
           </label>
           <textarea
@@ -40,7 +43,17 @@ function App() {
           <button type="submit">Submit</button>
         </form>
       </div>
-      <div className="card output">{latestOutput}</div>
+      <div className="card output">
+        {latestOutput.includes("<html>") ? (
+          <iframe
+            style={{ width: "90vw", height: "50vh" }}
+            srcDoc={latestOutput}
+            title={"html output"}
+          />
+        ) : (
+          latestOutput
+        )}
+      </div>
     </div>
   );
 }
