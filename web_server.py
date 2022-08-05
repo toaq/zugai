@@ -1,5 +1,5 @@
 from flask import Flask, request, Response, send_from_directory
-import subprocess
+from zugai import RunException, run, latex_png
 
 app = Flask(__name__, static_folder='web-client/build/static')
 formats = {
@@ -11,6 +11,7 @@ formats = {
    'xbar-html':  'text/html',
    'xbar-json':  'application/json',
    'xbar-svg':   'image/svg+xml',
+   'xbar-png':   'image/png',
 }
 usage = 'Usage:\n' + ''.join(f'GET /zugai?text=jadi&to={f}\n' for f in sorted(formats))
 
@@ -29,8 +30,15 @@ def zugai():
     to = args.get('to')
     if to not in formats:
         return cors(Response(usage, status=400, mimetype='text/plain'))
+    mimetype = formats[to]
     text = args.get('text', default='')
-    run = subprocess.run(['zugai-exe', f'--to-{to}'], input=text.encode(), capture_output=True)
-    if run.returncode != 0:
-        return cors(Response(run.stderr, status=500, mimetype='text/plain'))
-    return cors(Response(run.stdout, mimetype=formats[to]))
+    try:
+        out = None
+        if to == 'xbar-png':
+            with latex_png(text) as f: out = f.read()
+        else:
+            out = run("parsing", ['zugai-exe', f'--to-{to}'], input=text.encode())
+        return cors(Response(out, mimetype=mimetype))
+    except RunException as e:
+        return cors(Response(str(e), status=500, mimetype='text/plain'))
+

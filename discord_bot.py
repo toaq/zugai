@@ -1,23 +1,8 @@
 import discord
-import os, sys, io
-import subprocess
+import os, io
+from zugai import RunException, run, latex_png
 
 client = discord.Client()
-
-class RunException(Exception):
-    pass
-
-def run(verbing, cmd_args, **kwargs):
-    try:
-        result = subprocess.run(cmd_args, **kwargs, check=True, timeout=7, capture_output=True)
-        return result.stdout
-    except subprocess.CalledProcessError as e:
-        if e.stderr:
-            raise RunException(f"Error while {verbing}:\n```\n{e.stderr.decode().strip()}\n```")
-        else:
-            raise RunException(f"Error while {verbing}.")
-    except subprocess.TimeoutExpired as e:
-        raise RunException(f"Timed out while {verbing}.")
 
 @client.event
 async def on_ready():
@@ -43,19 +28,7 @@ async def on_message(message):
             file = discord.File(io.BytesIO(png), filename="image.png")
             await message.channel.send(file=file)
         elif cmd == "tree":
-            tex = run("parsing", ["zugai-exe", "--to-xbar-latex"], input=sentence.encode())
-            with open("a.tex", "wb") as f: f.write(tex)
-            run("converting to pdf", ["xelatex", "a.tex"])
-            run("converting to png", ["convert",
-                "-define", "png:color-type=6",
-                "-density", "500", "-quality", "100",
-                "-background", "#36393E",
-                "-alpha", "remove", "-alpha", "off",
-                "-trim",
-                "-resize", "x1000>",
-                "-bordercolor", "#36393E", "-border", "40x20",
-                "a.pdf", "a.png"])
-            with open("a.png", "rb") as f:
+            with latex_png(sentence.encode()) as f:
                 file = discord.File(f, filename="image.png")
                 await message.channel.send(file=file)
         elif cmd in ("english", "logic", "structure"):
