@@ -17,8 +17,11 @@ import Data.Foldable
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text)
 import Data.Text qualified as T
+import Debug.Trace
 import Text.Parsec (SourcePos)
+import Text.Parsec.Pos (initialPos)
 
+import Dictionary
 import Lex
 import Parse
 import Scope
@@ -75,17 +78,18 @@ data XbarState =
         { xbarNodeCounter :: Int
         , xbarScopes :: [Scope Int]
         , xbarMovements :: [Movement]
+        , xbarDictionary :: Dictionary
         } deriving (Eq, Show)
 
 newtype Mx a = Mx { unMx :: State XbarState a } deriving (Functor, Applicative, Monad, MonadState XbarState)
 
-runXbarWithMovements :: Discourse -> (Xbar, [Movement])
-runXbarWithMovements d =
-    case runState (unMx (toXbar d)) (XbarState 0 [] []) of
+runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, [Movement])
+runXbarWithMovements dict d =
+    case runState (unMx (toXbar d)) (XbarState 0 [] [] dict) of
         (x, s) -> (x, xbarMovements s)
 
-runXbar :: Discourse -> Xbar
-runXbar = fst . runXbarWithMovements
+runXbar :: Dictionary -> Discourse -> Xbar
+runXbar dict d = fst (runXbarWithMovements dict d)
 
 instance HasScopes Int Mx where
     getScopes = gets xbarScopes
@@ -197,14 +201,25 @@ makeVP xV xsNp =
             pure (xV, xvP)
         _ -> error "verb has too many arguments"
 
+data Pro = Pro deriving (Eq, Ord, Show)
+instance ToXbar Pro where
+    toXbar Pro = mkLeaf "PRO"
+instance (ToXbar a, ToXbar b) => ToXbar (Either a b) where
+    toXbar (Left a) = toXbar a
+    toXbar (Right b) = toXbar b
+
 -- make a VP for a serial and return (top arity, V to trace into F, VP)
-makeVPSerial :: VpC -> [Np] -> Mx (Int, Xbar, Xbar)
+makeVPSerial :: VpC -> [Either Pro Np] -> Mx (Int, Xbar, Xbar)
 makeVPSerial vp nps = do
-    let (vNow, npsNow, serialTail) =
-            case vp of Nonserial v -> (v, nps, Nothing)
-                       -- todo: replace 1 with the amount of cs in the frame
-                       -- then prepend n PROs to `drop c nps`
-                       Serial v w -> (v, take 1 nps, Just (w, drop 1 nps))
+    (vNow, npsNow, serialTail) <- case vp of
+        Nonserial v -> pure (v, nps, Nothing)
+        Serial v w -> do
+            dict <- gets xbarDictionary
+            let frame = maybe "c 0" id (lookupFrame dict (toSrc v))
+            traceShowM frame
+            let proCount = read [last $ T.unpack frame]
+            let cCount = sum [1 | 'c' <- T.unpack frame]
+            pure (v, take cCount nps, Just (w, replicate proCount (Left Pro) ++ drop cCount nps))
     xVnow <- mapSrc T.toLower <$> toXbar vNow
     xsNpsNow <- mapM toXbar npsNow
     xsNpsSerial <- case serialTail of
@@ -226,7 +241,7 @@ instance ToXbar PredicationC where
                 foldrM (mkPair nodeName) x' xsAdvL
 
         let Predicate (Single v) = predicate
-        (arity, xVTrace, xVPish) <- makeVPSerial v nps
+        (arity, xVTrace, xVPish) <- makeVPSerial v (map Right nps)
         let fvtag = if arity >= 3 then "F+𝑣+V" else "F+V"
         let attachP = if arity >= 3 then "𝑣P" else "VP"
         xFV <- retag fvtag <$> toXbar predicate

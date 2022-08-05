@@ -48,7 +48,7 @@ instance FromJSON Entry where
 
 type Dictionary = Map Text Entry
 
--- lookupFrame d "poq" == Just "ho"
+-- lookupFrame d "poq" == Just "c"
 lookupFrame :: Dictionary -> Text -> Maybe Text
 lookupFrame d t = verbFrame <$> (entryVerbInfo =<< d M.!? bareToaq t)
 

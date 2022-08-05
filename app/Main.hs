@@ -95,10 +95,10 @@ processInput om dict unstrippedInput = do
             ToSrc -> enc $ prettifyToaq $ toSrc parsed
             ToBoxes -> enc $ toBoxes parsed
             ToStructure -> enc $ prettifyToaq $ toSrcPunctuated parsed
-            ToXbarLatex -> enc $ xbarToLatex (Just (glossWith dict)) (runXbarWithMovements parsed)
-            ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (runXbar parsed)
-            ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (runXbar parsed)
-            ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (runXbarWithMovements parsed))
+            ToXbarLatex -> enc $ xbarToLatex (Just (glossWith dict)) (runXbarWithMovements dict parsed)
+            ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (runXbar dict parsed)
+            ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (runXbar dict parsed)
+            ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (runXbarWithMovements dict parsed))
             ToEnglish -> enc $ toEnglish dict parsed
             ToLogic -> enc $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
     BSL.putStr (output <> "\n")
