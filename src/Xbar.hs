@@ -174,6 +174,49 @@ instance ToXbar Statement where
         xTopicP <- case mp of Just (Prenex ts bi) -> prenexToXbar ts bi xFP
                               Nothing -> pure xFP
         mkPair "CP" xC xTopicP
+
+-- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
+makeVP :: Xbar -> [Xbar] -> Mx (Xbar, Xbar)
+makeVP xV xsNp =
+    case xsNp of
+        [] -> do
+            pure (xV, xV)
+        [xDPS] -> do
+            xVP <- mkPair "VP" xDPS xV
+            pure (xV, xVP)
+        [xDPS,xDPO] -> do
+            xV' <- mkPair "V'" xV xDPO
+            xVP <- mkPair "VP" xDPS xV'
+            pure (xV, xVP)
+        [xDPA,xDPS,xDPO] -> do
+            xv <- mkLeaf "𝑣"
+            xV' <- mkPair "V'" xV xDPO
+            xVP <- mkPair "VP" xDPS xV'
+            xv' <- mkPair "𝑣'" xv xVP
+            xvP <- mkPair "𝑣P" xDPA xv'
+            pure (xV, xvP)
+        _ -> error "verb has too many arguments"
+
+-- make a VP for a serial and return (top arity, V to trace into F, VP)
+makeVPSerial :: VpC -> [Np] -> Mx (Int, Xbar, Xbar)
+makeVPSerial vp nps = do
+    let (vNow, npsNow, serialTail) =
+            case vp of Nonserial v -> (v, nps, Nothing)
+                       -- todo: replace 1 with the amount of cs in the frame
+                       -- then prepend n PROs to `drop c nps`
+                       Serial v w -> (v, take 1 nps, Just (w, drop 1 nps))
+    xVnow <- mapSrc T.toLower <$> toXbar vNow
+    xsNpsNow <- mapM toXbar npsNow
+    xsNpsSerial <- case serialTail of
+        Nothing -> pure []
+        Just (w, nps) -> do
+            (_, xVs, xVPs) <- makeVPSerial w nps
+            move xVs xVnow
+            pure [xVPs]
+    let xsArgs = xsNpsNow ++ xsNpsSerial
+    (xVTrace, xVPish) <- makeVP xVnow xsArgs
+    pure (length xsArgs, xVTrace, xVPish)
+
 instance ToXbar PredicationC where
     toXbar (Predication predicate advsL nps advsR) = do
         xsAdvL <- mapM toXbar advsL
@@ -182,47 +225,14 @@ instance ToXbar PredicationC where
                 x' <- foldlM (mkPair nodeName) x xsAdvR
                 foldrM (mkPair nodeName) x' xsAdvL
 
-        xFP <- case nps of
-            [] -> do
-                xFV <- retag "F+V" <$> toXbar predicate
-                xVTrace <- mapSrc T.toLower <$> toXbar predicate
-                move xVTrace xFV
-                xVPa <- attachAdverbials "VP" xVTrace
-                mkPair "FP" xFV xVPa
-            [tS] -> do
-                xFV <- retag "F+V" <$> toXbar predicate
-                xDPS <- toXbar tS
-                xVTrace <- mapSrc T.toLower <$> toXbar predicate
-                xVP <- mkPair "VP" xDPS xVTrace
-                xVPa <- attachAdverbials "VP" xVP
-                move xVTrace xFV
-                mkPair "FP" xFV xVPa
-            [tS,tO] -> do
-                xFV <- retag "F+V" <$> toXbar predicate
-                xDPS <- toXbar tS
-                xVTrace <- mapSrc T.toLower <$> toXbar predicate
-                xDPO <- toXbar tO
-                xV' <- mkPair "V'" xVTrace xDPO
-                xVP <- mkPair "VP" xDPS xV'
-                xVPa <- attachAdverbials "VP" xVP
-                move xVTrace xFV
-                mkPair "FP" xFV xVPa
-            [tA,tS,tO] -> do
-                xFvV <- retag "F+𝑣+V" <$> toXbar predicate
-                xDPA <- toXbar tA
-                xv <- mkLeaf "𝑣"
-                xDPS <- toXbar tS
-                xVTrace <- mapSrc T.toLower <$> toXbar predicate
-                xDPO <- toXbar tO
-                xV' <- mkPair "V'" xVTrace xDPO
-                xVP <- mkPair "VP" xDPS xV'
-                xv' <- mkPair "𝑣'" xv xVP
-                xvP <- mkPair "𝑣P" xDPA xv'
-                xvPa <- attachAdverbials "𝑣P" xvP
-                move xVTrace xv
-                move xv xFvV
-                mkPair "FP" xFvV xvPa
-        pure xFP
+        let Predicate (Single v) = predicate
+        (arity, xVTrace, xVPish) <- makeVPSerial v nps
+        let fvtag = if arity >= 3 then "F+𝑣+V" else "F+V"
+        let attachP = if arity >= 3 then "𝑣P" else "VP"
+        xFV <- retag fvtag <$> toXbar predicate
+        move xVTrace xFV
+        xVPa <- attachAdverbials attachP xVPish
+        mkPair "FP" xFV xVPa
 
 instance ToXbar Predicate where
     toXbar (Predicate vp) = toXbar vp
@@ -326,10 +336,10 @@ instance ToXbar RelC where
 instance ToXbar Cc where
     toXbar (Cc pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
 instance ToXbar VpC where
-    toXbar (Serial x y) = do
-        x <- toXbar x
-        y <- toXbar y
-        serial <- mkPair "Serial" x y
+    toXbar (Serial v w) = do
+        xV <- toXbar v
+        xW <- toXbar w
+        serial <- mkPair "Serial" xV xW
         mkRoof "V" (aggregateSrc serial)
     toXbar (Nonserial x) = toXbar x
 instance ToXbar VpN where
