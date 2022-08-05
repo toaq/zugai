@@ -31,7 +31,8 @@ import Parse hiding (Parser)
 import ToSrc
 import TextUtils
 import Xbar
-import XbarDiagram
+import XbarToLatex
+import XbarToSvg
 
 data InputMode = FromStdin | FromFile String
 
@@ -44,7 +45,6 @@ data OutputMode
     | ToStructure
     | ToBoxes
     | ToXbarLatex
-    | ToXbarHtml
     | ToXbarJson
     | ToXbarSvg
     | ToEnglish
@@ -57,7 +57,6 @@ parseOutputMode =
     <|> flag' ToStructure (long "to-structure" <> help "Output mode: indicate a sentence's structure with punctuation")
     <|> flag' ToBoxes (long "to-boxes" <> help "Output mode: refgram-style HTML boxes")
     <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
-    <|> flag' ToXbarHtml (long "to-xbar-html" <> help "Output mode: HTML X-bar tree")
     <|> flag' ToXbarJson (long "to-xbar-json" <> help "Output mode: JSON X-bar tree")
     <|> flag' ToXbarSvg (long "to-xbar-svg" <> help "Output mode: SVG X-bar tree")
     <|> flag' ToEnglish (long "to-english" <> help "Output mode: badly machine-translated English")
@@ -96,7 +95,6 @@ processInput om dict unstrippedInput = do
             ToBoxes -> enc $ toBoxes parsed
             ToStructure -> enc $ prettifyToaq $ toSrcPunctuated parsed
             ToXbarLatex -> enc $ xbarToLatex (Just (glossWith dict)) (runXbarWithMovements dict parsed)
-            ToXbarHtml -> enc $ xbarToHtml (Just (glossWith dict)) (runXbar dict parsed)
             ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (runXbar dict parsed)
             ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (runXbarWithMovements dict parsed))
             ToEnglish -> enc $ toEnglish dict parsed

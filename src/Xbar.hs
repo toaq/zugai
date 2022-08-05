@@ -72,7 +72,10 @@ aggregateSrc (Pair _ _ x y) = combineWords (aggregateSrc x) (aggregateSrc y)
 aggregateSrc (Leaf _ s) = s
 aggregateSrc (Roof _ _ s) = s
 
-data Movement = Movement { movementSource :: Int, movementTarget :: Int } deriving (Eq, Ord, Show)
+data Movement
+    = Movement { movementSource :: Int, movementTarget :: Int }
+    | Coindexation Int Int
+    deriving (Eq, Ord, Show)
 
 data XbarState =
     XbarState
@@ -121,6 +124,9 @@ move :: Xbar -> Xbar -> Mx ()
 move src tgt =
     let m = Movement (index src) (index tgt)
     in modify (\s -> s { xbarMovements = m : xbarMovements s })
+
+coindex :: Int -> Int -> Mx ()
+coindex i j = modify (\s -> s { xbarMovements = Coindexation i j : xbarMovements s })
 
 -- Turn n≥1 terms into a parse tree with a "term" or "terms" head.
 -- termsToXbar :: Foldable t => t Term -> Mx Xbar
@@ -173,11 +179,13 @@ instance ToXbar Fragment where
     toXbar (FrTopic t) = toXbar t
 instance ToXbar Statement where
     toXbar (Statement mc mp pred) = do
+        pushScope
         xC <- case mc of Just c -> toXbar c
                          Nothing -> mkTag "C" =<< covert
         xFP <- toXbar pred
         xTopicP <- case mp of Just (Prenex ts bi) -> prenexToXbar ts bi xFP
                               Nothing -> pure xFP
+        popScope
         mkPair "CP" xC xTopicP
 
 -- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
@@ -283,21 +291,6 @@ instance ToXbar Topic where
     toXbar (Topicn t) = toXbar t
     toXbar (Topica t) = toXbar t
 
--- instance ToXbar Term where
---     toXbar (Tnp t) = toXbar t
---     toXbar (Tadvp t) = toXbar t
---     toXbar (Tpp t) = toXbar t
---     toXbar (Termset to ru t1 to' t2) = do
---         tto <- mkTag "Co" =<< toXbar to
---         tru <- toXbar ru
---         ttoru <- mkPair "Co'" tto tru
---         tt1 <- termsToXbar t1
---         tto' <- mkTag "Co" =<< toXbar to'
---         tt2 <- termsToXbar t2
---         ti <- mkPair "Co'" tto' tt2
---         tj <- mkPair "CoP(Termset)" tt1 ti
---         mkPair "Termset" ttoru tj
-
 -- Typeclass for associating a "connectand name" with a type
 -- so that we can generate strings like Co(NP), Co(VP), etc. in the generic Connable' instance.
 class ConnName t where connName :: Text
@@ -367,10 +360,20 @@ instance ToXbar NpR where
     toXbar (Ndp dp) = toXbar dp
     toXbar (Ncc cc) = toXbar cc
 instance ToXbar Dp where
-    toXbar (Dp det@(W pos _) vp) = do
-        td <- mkTag "D" =<< mkLeaf (posSrc pos)
-        tv <- toXbar $ maybe (nullVp $ posPos pos) id vp
-        mkPair "DP" td tv
+    toXbar (Dp det@(W pos _) maybeVp) = do
+        xD <- mkTag "D" =<< mkLeaf (posSrc pos)
+        xVP <- case maybeVp of
+            Just vp -> do
+                case unW det of
+                    DT2 -> do
+                        mi <- scopeLookup (toName vp)
+                        case mi of
+                            Nothing -> bind (toName vp) (index xD)
+                            Just i -> coindex (index xD) i
+                    _ -> bind (toName vp) (index xD)
+                toXbar vp
+            Nothing -> toXbar (nullVp (posPos pos))
+        mkPair "DP" xD xVP
 instance ToXbar RelC where
     toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
 instance ToXbar Cc where
@@ -447,60 +450,6 @@ showXbarAnsi (Tag _ t sub) =
         [one] -> [t <> ": " <> one]
         many -> (t<>":") : map ("  "<>) many
 showXbarAnsi (Pair _ t x y) = (t<>":") : map ("  "<>) (showXbarAnsi x) ++ map ("  "<>) (showXbarAnsi y)
-
-colorWord :: Text -> Text
-colorWord t = "{\\color[HTML]{" <> color <> "}" <> t <> "}"
-    where
-        color =
-            if isToneSrc t
-                then "ff88cc"
-                else case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
-                    Right (Verb _) -> "99eeff"
-                    _ -> "ffcc88"
-
--- Convert an Xbar tree to LaTeX \usepackage{forest} format.
-xbarToLatex :: Maybe (Text -> Text) -> (Xbar, [Movement]) -> Text
-xbarToLatex annotate (xbar, movements) =
-    "\\begin{forest}\n[,phantom" <> go xbar <> "[,phantom,tikz={" <> T.unwords (map goMove movements) <> "}]]\\end{forest}"
-    where
-        isMoved i = any ((i==) . movementSource) movements
-        movedIndices = filter isMoved (indices xbar)
-        traceIndices = indicesBelow movedIndices xbar
-        tshow = T.pack . show
-        node i label children =
-            "[" <> label <> ",tikz={\\node [name=n" <> tshow i <> ",inner sep=0,fit to=tree]{};}"
-                <> children <> "]"
-        label = T.replace "𝑣" "$v$" . T.replace "◌" "o"
-        go (Leaf i src) = node i (goSrc i (label src)) ""
-        go (Roof i t src) = node i (label t) ("[" <> goSrc i src <> ",roof]")
-        go (Tag i t sub) = node i (label t) (go sub)
-        go p@(Pair i t x y) =
-            if False && isMoved i -- this causes problems: goMove outputs node names that didn't get generated, so tikz errors
-                then go (Roof i t (aggregateSrc p))
-                else node i (label t) (go x <> " " <> go y)
-        goSrc i src =
-            let srci = prettifyToaq src
-                src' = if src == "" then "$\\varnothing$"
-                       else if isMoved i || i `elem` traceIndices then "\\sout{" <> srci <> "}"
-                       else colorWord srci
-            in "\\textsf{" <> src' <> "}" <> note annotate src
-        note (Just f) src | noteText <- f src, noteText /= "" =
-            let (cmd, transform) = if T.all isUpper noteText then ("\\textsc", T.toLower) else ("\\textit", id)
-            in "\\\\" <> cmd <> "{\\color[HTML]{dcddde}" <> transform noteText <> "}"
-        note _ _ = ""
-        goMove (Movement i j) = "\\draw[->] (n" <> tshow i <> ") to[out=south,in=south] (n" <> tshow j <> ");"
-
--- Convert an Xbar tree to HTML.
-xbarToHtml :: Maybe (Text -> Text) -> Xbar -> Text
-xbarToHtml annotate xbar = div "zugai-tree" (go xbar)
-    where
-        div className content = "<div class=\"" <> className <> "\">" <> content <> "</div>"
-        go (Leaf _ src) = div "leaf" (div "src" src <> note annotate src)
-        go (Roof _ t src) = div "roof" (div "tag" t <> div "src" src)
-        go (Tag _ t sub) = div "node" (div "tag" t <> div "children" (go sub))
-        go (Pair _ t x y) = div "node" (div "tag" t <> div "children" (go x <> go y))
-        note Nothing _ = ""
-        note (Just f) src = div "gloss" (f src)
 
 -- Convert an Xbar tree to JSON.
 xbarToJson :: Maybe (Text -> Text) -> Xbar -> J.Value

@@ -5,6 +5,7 @@
 
 module Scope where
 
+import Control.Monad (msum)
 import Data.Text (Text)
 import Data.Map (Map)
 import Data.Map qualified as M
@@ -47,3 +48,8 @@ incrementArgsSeen = modifyTop (\(Scope i s) -> Scope (i+1) s)
 
 resetArgsSeen :: HasScopes t m => m ()
 resetArgsSeen = modifyTop (\(Scope i s) -> Scope 0 s)
+
+scopeLookup :: HasScopes t m => VarRef -> m (Maybe t)
+scopeLookup name = do
+    ss <- getScopes
+    pure $ msum $ map (M.lookup name . bindings) ss

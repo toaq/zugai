@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module XbarDiagram where
+module XbarToSvg where
 
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -55,7 +55,7 @@ xbarToDiagram gloss (xbar,movements) =
         {- # showEnvelope # showOrigin -}
         # (\d -> foldr goMove d movements)
         # frame 0.25
-        # bg (sRGB24 0x36 0x39 0x3E)
+        # bg discordBg
         where
     conn     i j = connectPerim' (with & arrowHead .~ noHead & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (90@@deg)
     moveShaft = arc xDir (-1/3 @@ turn)
