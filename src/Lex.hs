@@ -87,7 +87,7 @@ toneFromChar '\x0303' = Just T7
 toneFromChar _ = Nothing
 
 isPronoun :: Text -> Bool
-isPronoun = (`elem` T.words "ji suq nhao suo muy miy may kou ray ho maq hoq ta rou kuy ze fuy bou aq cheq")
+isPronoun = (`elem` T.words "ji suq nhao suo muy miy may ha kou ray ho maq hoq ta rou kuy ze fuy bou aq cheq")
 
 isOiv :: Text -> Bool
 isOiv = (`elem` T.words "po jei mea")
