@@ -28,7 +28,7 @@ RUN apt install -y inkscape fonts-linuxlibertine texlive-xetex
 # fix imagemagick's restrictive PostScript policy - this is fine since we're running in a container with semi-controlled inputs
 RUN pip3 install discord
 RUN sed -i '/PS\|PDF/s/none/read|write/' /etc/ImageMagick-*/policy.xml
-COPY discord_bot.py /pkg/
+COPY discord_bot.py zugai.py /pkg/
 COPY --from=exe-build /usr/bin/zugai-exe /usr/bin/zugai-exe
 ENTRYPOINT cd /pkg/ \
   && python3 ./discord_bot.py
@@ -49,7 +49,7 @@ RUN cd /pkg/web-client/ \
 FROM base AS web
 EXPOSE 80
 RUN pip3 install flask gunicorn
-COPY web_server.py /pkg/
+COPY web_server.py zugai.py /pkg/
 COPY --from=exe-build /usr/bin/zugai-exe /usr/bin/zugai-exe
 COPY --from=web-build /pkg/web-client/build/ /pkg/web-client/build/
 ENTRYPOINT cd /pkg/ \
