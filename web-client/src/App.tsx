@@ -1,21 +1,35 @@
-import React, { FormEvent, useEffect, useState } from "react";
+import React, { ReactElement, FormEvent, useEffect, useState } from "react";
 import "./App.css";
 
 function App() {
   const [outputMode, setOutputMode] = useState<string>("boxes");
   const [inputText, setInputText] = useState<string>("Kảı súq sa shou.");
-  const [latestOutput, setLatestOutput] = useState<string>(
-    "Output will appear here."
-  );
+  const [latestOutput, setLatestOutput] = useState<ReactElement>(<>
+    Output will appear here.
+  </>);
   function get(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLatestOutput("...");
+    setLatestOutput(<>...</>);
     fetch(
       "https://zugai.toaq.me/zugai?" +
         new URLSearchParams({ to: outputMode, text: inputText })
     ).then(async (result) => {
-      const body = await result.text();
-      setLatestOutput(body);
+      const contentType = result.headers.get("Content-Type")!;
+      if(contentType.startsWith("image/png")) {
+        const body = await result.blob();
+        setLatestOutput(<img src={URL.createObjectURL(body)} />);
+      } else if(contentType.startsWith("text/")) {
+        const body = await result.text();
+        if(contentType.startsWith("text/html")) {
+          setLatestOutput(<iframe
+            style={{ width: "90vw", height: "50vh" }}
+            srcDoc={body}
+            title={"html output"}
+          />);
+        } else {
+          setLatestOutput(<>{body}</>);
+        }
+      }
     });
   }
   return (
@@ -33,6 +47,7 @@ function App() {
               <option value="english">English</option>
               <option value="logic">Logic</option>
               <option value="structure">Structure</option>
+              <option value="xbar-png">X-bar tree</option>
             </select>
           </label>
           <textarea
@@ -44,15 +59,7 @@ function App() {
         </form>
       </div>
       <div className="card output">
-        {latestOutput.includes("<html>") ? (
-          <iframe
-            style={{ width: "90vw", height: "50vh" }}
-            srcDoc={latestOutput}
-            title={"html output"}
-          />
-        ) : (
-          latestOutput
-        )}
+        {latestOutput}
       </div>
     </div>
   );
