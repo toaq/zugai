@@ -37,7 +37,8 @@ library
       TextUtils
       ToSrc
       Xbar
-      XbarDiagram
+      XbarToLatex
+      XbarToSvg
   other-modules:
       Paths_zugai
   hs-source-dirs:

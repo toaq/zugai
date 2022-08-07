@@ -74,19 +74,21 @@ aggregateSrc (Roof _ _ s) = s
 
 data Movement = Movement { movementSource :: Int, movementTarget :: Int } deriving (Eq, Ord, Show)
 
+data Movements = Movements { movements :: [Movement], coindexations :: [(Int, Int)] } deriving (Eq, Show)
+
 data XbarState =
     XbarState
         { xbarNodeCounter :: Int
         , xbarScopes :: [Scope Int]
-        , xbarMovements :: [Movement]
+        , xbarMovements :: Movements
         , xbarDictionary :: Dictionary
         } deriving (Eq, Show)
 
 newtype Mx a = Mx { unMx :: State XbarState a } deriving (Functor, Applicative, Monad, MonadState XbarState)
 
-runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, [Movement])
+runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, Movements)
 runXbarWithMovements dict d =
-    case runState (unMx (toXbar d)) (XbarState 0 [] [] dict) of
+    case runState (unMx (toXbar d)) (XbarState 0 [] (Movements [] []) dict) of
         (x, s) -> (x, xbarMovements s)
 
 runXbar :: Dictionary -> Discourse -> Xbar
@@ -120,7 +122,12 @@ mkRoof t s = do i <- nextNodeNumber; pure $ Roof i t s
 move :: Xbar -> Xbar -> Mx ()
 move src tgt =
     let m = Movement (index src) (index tgt)
-    in modify (\s -> s { xbarMovements = m : xbarMovements s })
+    in modify (\s -> let ms = xbarMovements s in
+        s { xbarMovements = ms { movements = m : movements ms } })
+
+coindex :: Int -> Int -> Mx ()
+coindex i j = modify (\s -> let ms = xbarMovements s in
+        s { xbarMovements = ms { coindexations = (i,j) : coindexations ms } })
 
 -- Turn n≥1 terms into a parse tree with a "term" or "terms" head.
 -- termsToXbar :: Foldable t => t Term -> Mx Xbar
@@ -138,19 +145,17 @@ terminated tag t (Just word) = mkPair tag t =<< (mkTag "End" =<< toXbar word)
 covert :: Mx Xbar
 covert = mkLeaf ""
 
-prenexToXbar :: NonEmpty Topic -> W () -> Xbar -> Mx Xbar
-prenexToXbar (t:|[]) bi c = do
-    t1 <- toXbar bi
-    t2 <- mkTag "Topic" t1
-    t3 <- toXbar t
-    t4 <- mkPair "Topic'" t2 c
-    mkPair "TopicP" t3 t4
-prenexToXbar (t:|(t':ts)) bi c = do
-    t1 <- mkTag "Topic" =<< covert
-    t2 <- prenexToXbar (t':|ts) bi c
-    t3 <- toXbar t
-    t4 <- mkPair "Topic'" t1 t2
-    mkPair "TopicP" t3 t4
+prenexToXbar :: NonEmpty Xbar -> W () -> Xbar -> Mx Xbar
+prenexToXbar (x:|[]) bi c = do
+    xBi <- toXbar bi
+    xTopic <- mkTag "Topic" xBi
+    xTopic' <- mkPair "Topic'" xTopic c
+    mkPair "TopicP" x xTopic'
+prenexToXbar (x:|(x':xs)) bi c = do
+    xBi <- mkTag "Topic" =<< covert
+    xRest <- prenexToXbar (x':|xs) bi c
+    xTopic' <- mkPair "Topic'" xBi xRest
+    mkPair "TopicP" x xTopic'
 
 instance ToXbar Discourse where
     toXbar (Discourse ds) = foldl1 (\ma mb -> do a <- ma; b <- mb; mkPair "Discourse" a b) (toXbar <$> ds)
@@ -169,15 +174,25 @@ instance ToXbar Sentence where
             Just sc -> do xSConn <- mkTag "SConn" =<< toXbar sc; mkPair "SAP" xSConn t
             Nothing -> pure t
 instance ToXbar Fragment where
-    toXbar (FrPrenex (Prenex ts bi)) = prenexToXbar ts bi =<< covert
+    toXbar (FrPrenex (Prenex ts bi)) = do
+        xsTopics <- mapM toXbar ts
+        prenexToXbar xsTopics bi =<< covert
     toXbar (FrTopic t) = toXbar t
 instance ToXbar Statement where
     toXbar (Statement mc mp pred) = do
+        pushScope
         xC <- case mc of Just c -> toXbar c
                          Nothing -> mkTag "C" =<< covert
+        maybeXsTopicsBi <- case mp of
+            Nothing -> pure Nothing
+            Just (Prenex ts bi) -> do
+                xs <- mapM toXbar ts
+                pure (Just (xs, bi))
         xFP <- toXbar pred
-        xTopicP <- case mp of Just (Prenex ts bi) -> prenexToXbar ts bi xFP
-                              Nothing -> pure xFP
+        xTopicP <- case maybeXsTopicsBi of
+            Just (xs,bi) -> prenexToXbar xs bi xFP
+            Nothing -> pure xFP
+        popScope
         mkPair "CP" xC xTopicP
 
 -- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
@@ -283,21 +298,6 @@ instance ToXbar Topic where
     toXbar (Topicn t) = toXbar t
     toXbar (Topica t) = toXbar t
 
--- instance ToXbar Term where
---     toXbar (Tnp t) = toXbar t
---     toXbar (Tadvp t) = toXbar t
---     toXbar (Tpp t) = toXbar t
---     toXbar (Termset to ru t1 to' t2) = do
---         tto <- mkTag "Co" =<< toXbar to
---         tru <- toXbar ru
---         ttoru <- mkPair "Co'" tto tru
---         tt1 <- termsToXbar t1
---         tto' <- mkTag "Co" =<< toXbar to'
---         tt2 <- termsToXbar t2
---         ti <- mkPair "Co'" tto' tt2
---         tj <- mkPair "CoP(Termset)" tt1 ti
---         mkPair "Termset" ttoru tj
-
 -- Typeclass for associating a "connectand name" with a type
 -- so that we can generate strings like Co(NP), Co(VP), etc. in the generic Connable' instance.
 class ConnName t where connName :: Text
@@ -363,14 +363,42 @@ instance ToXbar NpF where
     toXbar (ArgRel arg rel) = do x<-toXbar arg; y<-toXbar rel; mkPair "DP" x y
     toXbar (Unr np) = toXbar np
 instance ToXbar NpR where
-    toXbar (Npro txt) = mkTag "DP" =<< mkLeaf (inT2 $ unW txt)
+    toXbar (Npro txt) = do
+        xDP <- mkTag "DP" =<< mkLeaf (inT2 $ unW txt)
+        ss <- getScopes
+        mi <- scopeLookup (toName txt)
+        mapM_ (coindex (index xDP)) mi
+        pure xDP
     toXbar (Ndp dp) = toXbar dp
     toXbar (Ncc cc) = toXbar cc
+
+bindVp :: Text -> Int -> Mx ()
+bindVp name idx = do
+    bind name idx
+    dictionary <- gets xbarDictionary
+    let anaphora = lookupPronoun dictionary name
+    case anaphora of
+        Just prn -> bind prn idx
+        Nothing -> pure ()
+
 instance ToXbar Dp where
-    toXbar (Dp det@(W pos _) vp) = do
-        td <- mkTag "D" =<< mkLeaf (posSrc pos)
-        tv <- toXbar $ maybe (nullVp $ posPos pos) id vp
-        mkPair "DP" td tv
+    toXbar (Dp det@(W pos _) maybeVp) = do
+        xD <- mkTag "D" =<< mkLeaf (posSrc pos)
+        iDP <- nextNodeNumber
+        xVP <- case maybeVp of
+            Nothing -> toXbar (nullVp (posPos pos))
+            Just vp -> do
+                case unW det of
+                    DT2 -> do
+                        mi <- scopeLookup (toName vp)
+                        case mi of
+                            Nothing -> bindVp (toName vp) iDP
+                            Just i -> coindex iDP i
+                    _ -> do
+                        bindVp (toName vp) iDP
+                ss <- getScopes
+                toXbar vp
+        pure $ Pair iDP "DP" xD xVP
 instance ToXbar RelC where
     toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
 instance ToXbar Cc where
@@ -447,60 +475,6 @@ showXbarAnsi (Tag _ t sub) =
         [one] -> [t <> ": " <> one]
         many -> (t<>":") : map ("  "<>) many
 showXbarAnsi (Pair _ t x y) = (t<>":") : map ("  "<>) (showXbarAnsi x) ++ map ("  "<>) (showXbarAnsi y)
-
-colorWord :: Text -> Text
-colorWord t = "{\\color[HTML]{" <> color <> "}" <> t <> "}"
-    where
-        color =
-            if isToneSrc t
-                then "ff88cc"
-                else case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
-                    Right (Verb _) -> "99eeff"
-                    _ -> "ffcc88"
-
--- Convert an Xbar tree to LaTeX \usepackage{forest} format.
-xbarToLatex :: Maybe (Text -> Text) -> (Xbar, [Movement]) -> Text
-xbarToLatex annotate (xbar, movements) =
-    "\\begin{forest}\n[,phantom" <> go xbar <> "[,phantom,tikz={" <> T.unwords (map goMove movements) <> "}]]\\end{forest}"
-    where
-        isMoved i = any ((i==) . movementSource) movements
-        movedIndices = filter isMoved (indices xbar)
-        traceIndices = indicesBelow movedIndices xbar
-        tshow = T.pack . show
-        node i label children =
-            "[" <> label <> ",tikz={\\node [name=n" <> tshow i <> ",inner sep=0,fit to=tree]{};}"
-                <> children <> "]"
-        label = T.replace "𝑣" "$v$" . T.replace "◌" "o"
-        go (Leaf i src) = node i (goSrc i (label src)) ""
-        go (Roof i t src) = node i (label t) ("[" <> goSrc i src <> ",roof]")
-        go (Tag i t sub) = node i (label t) (go sub)
-        go p@(Pair i t x y) =
-            if False && isMoved i -- this causes problems: goMove outputs node names that didn't get generated, so tikz errors
-                then go (Roof i t (aggregateSrc p))
-                else node i (label t) (go x <> " " <> go y)
-        goSrc i src =
-            let srci = prettifyToaq src
-                src' = if src == "" then "$\\varnothing$"
-                       else if isMoved i || i `elem` traceIndices then "\\sout{" <> srci <> "}"
-                       else colorWord srci
-            in "\\textsf{" <> src' <> "}" <> note annotate src
-        note (Just f) src | noteText <- f src, noteText /= "" =
-            let (cmd, transform) = if T.all isUpper noteText then ("\\textsc", T.toLower) else ("\\textit", id)
-            in "\\\\" <> cmd <> "{\\color[HTML]{dcddde}" <> transform noteText <> "}"
-        note _ _ = ""
-        goMove (Movement i j) = "\\draw[->] (n" <> tshow i <> ") to[out=south,in=south] (n" <> tshow j <> ");"
-
--- Convert an Xbar tree to HTML.
-xbarToHtml :: Maybe (Text -> Text) -> Xbar -> Text
-xbarToHtml annotate xbar = div "zugai-tree" (go xbar)
-    where
-        div className content = "<div class=\"" <> className <> "\">" <> content <> "</div>"
-        go (Leaf _ src) = div "leaf" (div "src" src <> note annotate src)
-        go (Roof _ t src) = div "roof" (div "tag" t <> div "src" src)
-        go (Tag _ t sub) = div "node" (div "tag" t <> div "children" (go sub))
-        go (Pair _ t x y) = div "node" (div "tag" t <> div "children" (go x <> go y))
-        note Nothing _ = ""
-        note (Just f) src = div "gloss" (f src)
 
 -- Convert an Xbar tree to JSON.
 xbarToJson :: Maybe (Text -> Text) -> Xbar -> J.Value

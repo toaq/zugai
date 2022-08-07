@@ -31,7 +31,7 @@ class ToSrc a where
     toSrcPunctuated = toSrcWith (ToSrcOptions { punctuate = True })
 
     toName :: a -> Text
-    toName = normalizeToaq . toSrc
+    toName = T.filter (not . isCombiningDiacritic) . normalizeToaq . toSrc
 
 bracket :: ToSrcOptions -> Text -> Text
 bracket o t = if punctuate o then "[" <> t <> "]" else t

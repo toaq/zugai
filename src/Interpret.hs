@@ -277,9 +277,8 @@ bindVp = bindVpWithTransform id
 
 interpretT2 :: Vp -> Interpret Tm
 interpretT2 vp = do
-    let name = vpToName vp
-    ss <- gets scopes
-    case msum $ map (M.lookup name . bindings) ss of
+    mtm <- scopeLookup (vpToName vp)
+    case mtm of
         Just tm -> pure tm
         Nothing -> bindVp Ke (Just vp)
 
