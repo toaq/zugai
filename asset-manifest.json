@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/zugai/static/css/main.d2c11440.css",
+    "main.js": "/zugai/static/js/main.b9e6194a.js",
+    "static/js/787.76f54053.chunk.js": "/zugai/static/js/787.76f54053.chunk.js",
+    "index.html": "/zugai/index.html",
+    "main.d2c11440.css.map": "/zugai/static/css/main.d2c11440.css.map",
+    "main.b9e6194a.js.map": "/zugai/static/js/main.b9e6194a.js.map",
+    "787.76f54053.chunk.js.map": "/zugai/static/js/787.76f54053.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.d2c11440.css",
+    "static/js/main.b9e6194a.js"
+  ]
+}
