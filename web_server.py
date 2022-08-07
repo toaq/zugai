@@ -1,4 +1,4 @@
-from flask import Flask, request, Response, send_from_directory
+from flask import Flask, request, Response
 from zugai import RunException, run, latex_png
 
 app = Flask(__name__, static_folder='web-client/build/static')
@@ -14,11 +14,6 @@ formats = {
    'xbar-png':   'image/png',
 }
 usage = 'Usage:\n' + ''.join(f'GET /zugai?text=jadi&to={f}\n' for f in sorted(formats))
-
-@app.route('/', defaults={'path': 'index.html'})
-@app.route('/<path:path>')
-def web_client(path):
-    return send_from_directory('web-client/build', path)
 
 def cors(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
