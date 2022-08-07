@@ -18,16 +18,23 @@ import Debug.Trace
 import Lex (isIllocution)
 import TextUtils
 
-data Distribution = Distributive | NonDistributive deriving (Eq, Ord, Show)
+data VerbClass = Tense | Aspect | Modality | Negation deriving (Eq, Ord, Show)
 
-parseDistribution :: Text -> [Distribution]
-parseDistribution = concatMap (\case 'd' -> [Distributive]; 'n' -> [NonDistributive]; _ -> []) . T.unpack
+instance FromJSON VerbClass where
+    parseJSON = withText "verb_class" $ \t ->
+        case t of
+            "tense" -> pure Tense
+            "aspect" -> pure Aspect
+            "modality" -> pure Modality
+            "negation" -> pure Negation
+            _ -> fail "invalid verb_class"
 
 data VerbInfo =
     VerbInfo
         { verbFrame :: Text
         , verbDistribution :: Text
-        , verbPronominalClass :: Text }
+        , verbPronominalClass :: Text
+        , verbClass :: Maybe VerbClass }
     deriving (Eq, Show)
 
 data Entry =
@@ -35,22 +42,38 @@ data Entry =
         { entryToaq :: Text
         , entryType :: Text
         , entryGloss :: Text
+        , entryGlossAbbreviation :: Maybe Text
         , entryVerbInfo :: Maybe VerbInfo }
     deriving (Eq, Show)
 
 instance FromJSON VerbInfo where
     parseJSON = withObject "entry" $ \o ->
-        VerbInfo <$> o .: "frame" <*> o .: "distribution" <*> o .: "pronominal_class"
+        VerbInfo <$> o .: "frame"
+                 <*> o .: "distribution"
+                 <*> o .: "pronominal_class"
+                 <*> o .:? "verb_class"
 
 instance FromJSON Entry where
     parseJSON entry = ($entry) $ withObject "entry" $ \o ->
-        Entry <$> o .: "toaq" <*> o .: "type" <*> o .: "gloss" <*> pure (parseMaybe parseJSON entry)
+        Entry <$> o .: "toaq"
+              <*> o .: "type"
+              <*> o .: "gloss"
+              <*> o .:? "gloss_abbreviation"
+              <*> pure (parseMaybe parseJSON entry)
 
 type Dictionary = Map Text Entry
 
 -- lookupFrame d "poq" == Just "c"
 lookupFrame :: Dictionary -> Text -> Maybe Text
-lookupFrame d t = verbFrame <$> (entryVerbInfo =<< d M.!? bareToaq t)
+lookupFrame d t = do
+    entry <- d M.!? bareToaq t
+    vi <- entryVerbInfo entry
+    Just $ if isJust (verbClass vi) then "0" else verbFrame vi
+
+-- lookupVerbClass d "leo" == Nothing
+-- lookupVerbClass d "pu" == Just Tense
+lookupVerbClass :: Dictionary -> Text -> Maybe VerbClass
+lookupVerbClass d t = d M.!? bareToaq t >>= entryVerbInfo >>= verbClass
 
 -- lookupPronoun d "poq" == Just "ho"
 lookupPronoun :: Dictionary -> Text -> Maybe Text
@@ -70,7 +93,7 @@ readDictionary :: IO Dictionary
 readDictionary = do
     dict <- B.readFile "data/dictionary/dictionary.json"
     extra <- T.readFile "data/toadua-glosses.txt"
-    let unofficial = [(glossNormalize head, Entry head "verb" (T.strip gloss) Nothing) | line <- T.lines extra, let (head,gloss) = T.breakOn " " line]
+    let unofficial = [(glossNormalize head, Entry head "verb" (T.strip gloss) Nothing Nothing) | line <- T.lines extra, let (head,gloss) = T.breakOn " " line]
     let Just entries = decodeStrict dict :: Maybe [Entry]
     let official = [(glossNormalize $ entryToaq e, e) | e <- entries]
     pure $ M.fromList $ unofficial ++ official

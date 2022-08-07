@@ -180,13 +180,18 @@ instance ToXbar Statement where
         mkPair "CP" xC xTopicP
 
 -- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
-makeVP :: Xbar -> [Xbar] -> Mx (Xbar, Xbar)
-makeVP xV xsNp =
-    case xsNp of
+makeVP :: Maybe VerbClass -> Xbar -> [Xbar] -> Mx (Xbar, Xbar)
+makeVP mvc xV xsNp =
+    let tamnv = case mvc of Nothing -> "V"
+                            Just Tense -> "T"
+                            Just Aspect -> "Asp"
+                            Just Modality -> "Mod"
+                            Just Negation -> "Neg"
+    in case xsNp of
         [] -> do
             pure (xV, xV)
         [xDPS] -> do
-            xVP <- mkPair "VP" xDPS xV
+            xVP <- mkPair (tamnv <> "P") (retag tamnv xV) xDPS
             pure (xV, xVP)
         [xDPS,xDPO] -> do
             xV' <- mkPair "V'" xV xDPO
@@ -211,15 +216,16 @@ instance (ToXbar a, ToXbar b) => ToXbar (Either a b) where
 -- make a VP for a serial and return (top arity, V to trace into F, VP)
 makeVPSerial :: VpC -> [Either Pro Np] -> Mx (Int, Xbar, Xbar)
 makeVPSerial vp nps = do
-    (vNow, npsNow, serialTail) <- case vp of
-        Nonserial v -> pure (v, nps, Nothing)
-        Serial v w -> do
+    (vNow, npsNow, serialTail, serialVerbClass) <- case vp of
+        Nonserial v -> pure (v, nps, Nothing, Nothing)
+        Serial v vs -> do
             dict <- gets xbarDictionary
             let frame = maybe "c 0" id (lookupFrame dict (toSrc v))
-            traceShowM frame
-            let proCount = read [last $ T.unpack frame]
+            let vc = lookupVerbClass dict (toSrc v)
+            let proCount = frameDigit frame
             let cCount = sum [1 | 'c' <- T.unpack frame]
-            pure (v, take cCount nps, Just (w, replicate proCount (Left Pro) ++ drop cCount nps))
+            let npsLater = replicate proCount (Left Pro) ++ drop cCount nps
+            pure (v, take cCount nps, Just (vs, npsLater), vc)
     xVnow <- mapSrc T.toLower <$> toXbar vNow
     xsNpsNow <- mapM toXbar npsNow
     xsNpsSerial <- case serialTail of
@@ -229,7 +235,7 @@ makeVPSerial vp nps = do
             move xVs xVnow
             pure [xVPs]
     let xsArgs = xsNpsNow ++ xsNpsSerial
-    (xVTrace, xVPish) <- makeVP xVnow xsArgs
+    (xVTrace, xVPish) <- makeVP serialVerbClass xVnow xsArgs
     pure (length xsArgs, xVTrace, xVPish)
 
 instance ToXbar PredicationC where

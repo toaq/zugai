@@ -47,3 +47,6 @@ prettifyToaq = tr "i" "ı" . T.normalize T.NFKC
 
 capitalizeFirst :: Text -> Text
 capitalizeFirst t = T.toUpper (T.take 1 t) <> T.drop 1 t
+
+frameDigit :: Text -> Int
+frameDigit frame = maybe 0 digitToInt $ T.find isDigit frame
