@@ -58,3 +58,7 @@ h1 {
   display: flex;
   justify-content: center;
 }
+
+.output img {
+  max-height: calc(100vh - 260px);
+}
