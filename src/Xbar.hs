@@ -72,24 +72,23 @@ aggregateSrc (Pair _ _ x y) = combineWords (aggregateSrc x) (aggregateSrc y)
 aggregateSrc (Leaf _ s) = s
 aggregateSrc (Roof _ _ s) = s
 
-data Movement
-    = Movement { movementSource :: Int, movementTarget :: Int }
-    | Coindexation Int Int
-    deriving (Eq, Ord, Show)
+data Movement = Movement { movementSource :: Int, movementTarget :: Int } deriving (Eq, Ord, Show)
+
+data Movements = Movements { movements :: [Movement], coindexations :: [(Int, Int)] } deriving (Eq, Show)
 
 data XbarState =
     XbarState
         { xbarNodeCounter :: Int
         , xbarScopes :: [Scope Int]
-        , xbarMovements :: [Movement]
+        , xbarMovements :: Movements
         , xbarDictionary :: Dictionary
         } deriving (Eq, Show)
 
 newtype Mx a = Mx { unMx :: State XbarState a } deriving (Functor, Applicative, Monad, MonadState XbarState)
 
-runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, [Movement])
+runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, Movements)
 runXbarWithMovements dict d =
-    case runState (unMx (toXbar d)) (XbarState 0 [] [] dict) of
+    case runState (unMx (toXbar d)) (XbarState 0 [] (Movements [] []) dict) of
         (x, s) -> (x, xbarMovements s)
 
 runXbar :: Dictionary -> Discourse -> Xbar
@@ -123,10 +122,12 @@ mkRoof t s = do i <- nextNodeNumber; pure $ Roof i t s
 move :: Xbar -> Xbar -> Mx ()
 move src tgt =
     let m = Movement (index src) (index tgt)
-    in modify (\s -> s { xbarMovements = m : xbarMovements s })
+    in modify (\s -> let ms = xbarMovements s in
+        s { xbarMovements = ms { movements = m : movements ms } })
 
 coindex :: Int -> Int -> Mx ()
-coindex i j = modify (\s -> s { xbarMovements = Coindexation i j : xbarMovements s })
+coindex i j = modify (\s -> let ms = xbarMovements s in
+        s { xbarMovements = ms { coindexations = (i,j) : coindexations ms } })
 
 -- Turn n≥1 terms into a parse tree with a "term" or "terms" head.
 -- termsToXbar :: Foldable t => t Term -> Mx Xbar
@@ -144,19 +145,17 @@ terminated tag t (Just word) = mkPair tag t =<< (mkTag "End" =<< toXbar word)
 covert :: Mx Xbar
 covert = mkLeaf ""
 
-prenexToXbar :: NonEmpty Topic -> W () -> Xbar -> Mx Xbar
-prenexToXbar (t:|[]) bi c = do
-    t1 <- toXbar bi
-    t2 <- mkTag "Topic" t1
-    t3 <- toXbar t
-    t4 <- mkPair "Topic'" t2 c
-    mkPair "TopicP" t3 t4
-prenexToXbar (t:|(t':ts)) bi c = do
-    t1 <- mkTag "Topic" =<< covert
-    t2 <- prenexToXbar (t':|ts) bi c
-    t3 <- toXbar t
-    t4 <- mkPair "Topic'" t1 t2
-    mkPair "TopicP" t3 t4
+prenexToXbar :: NonEmpty Xbar -> W () -> Xbar -> Mx Xbar
+prenexToXbar (x:|[]) bi c = do
+    xBi <- toXbar bi
+    xTopic <- mkTag "Topic" xBi
+    xTopic' <- mkPair "Topic'" xTopic c
+    mkPair "TopicP" x xTopic'
+prenexToXbar (x:|(x':xs)) bi c = do
+    xBi <- mkTag "Topic" =<< covert
+    xRest <- prenexToXbar (x':|xs) bi c
+    xTopic' <- mkPair "Topic'" xBi xRest
+    mkPair "TopicP" x xTopic'
 
 instance ToXbar Discourse where
     toXbar (Discourse ds) = foldl1 (\ma mb -> do a <- ma; b <- mb; mkPair "Discourse" a b) (toXbar <$> ds)
@@ -175,16 +174,24 @@ instance ToXbar Sentence where
             Just sc -> do xSConn <- mkTag "SConn" =<< toXbar sc; mkPair "SAP" xSConn t
             Nothing -> pure t
 instance ToXbar Fragment where
-    toXbar (FrPrenex (Prenex ts bi)) = prenexToXbar ts bi =<< covert
+    toXbar (FrPrenex (Prenex ts bi)) = do
+        xsTopics <- mapM toXbar ts
+        prenexToXbar xsTopics bi =<< covert
     toXbar (FrTopic t) = toXbar t
 instance ToXbar Statement where
     toXbar (Statement mc mp pred) = do
         pushScope
         xC <- case mc of Just c -> toXbar c
                          Nothing -> mkTag "C" =<< covert
+        maybeXsTopicsBi <- case mp of
+            Nothing -> pure Nothing
+            Just (Prenex ts bi) -> do
+                xs <- mapM toXbar ts
+                pure (Just (xs, bi))
         xFP <- toXbar pred
-        xTopicP <- case mp of Just (Prenex ts bi) -> prenexToXbar ts bi xFP
-                              Nothing -> pure xFP
+        xTopicP <- case maybeXsTopicsBi of
+            Just (xs,bi) -> prenexToXbar xs bi xFP
+            Nothing -> pure xFP
         popScope
         mkPair "CP" xC xTopicP
 
@@ -356,24 +363,45 @@ instance ToXbar NpF where
     toXbar (ArgRel arg rel) = do x<-toXbar arg; y<-toXbar rel; mkPair "DP" x y
     toXbar (Unr np) = toXbar np
 instance ToXbar NpR where
-    toXbar (Npro txt) = mkTag "DP" =<< mkLeaf (inT2 $ unW txt)
+    toXbar (Npro txt) = do
+        xDP <- mkTag "DP" =<< mkLeaf (inT2 $ unW txt)
+        ss <- getScopes
+        traceM $ show ss
+        traceM $ show $ toName txt
+        mi <- scopeLookup (toName txt)
+        traceM $ show $ mi
+        mapM_ (coindex (index xDP)) mi
+        pure xDP
     toXbar (Ndp dp) = toXbar dp
     toXbar (Ncc cc) = toXbar cc
+
+bindVp :: Text -> Int -> Mx ()
+bindVp name idx = do
+    bind name idx
+    dictionary <- gets xbarDictionary
+    let anaphora = lookupPronoun dictionary name
+    case anaphora of
+        Just prn -> bind prn idx
+        Nothing -> pure ()
+
 instance ToXbar Dp where
     toXbar (Dp det@(W pos _) maybeVp) = do
         xD <- mkTag "D" =<< mkLeaf (posSrc pos)
+        iDP <- nextNodeNumber
         xVP <- case maybeVp of
+            Nothing -> toXbar (nullVp (posPos pos))
             Just vp -> do
                 case unW det of
                     DT2 -> do
                         mi <- scopeLookup (toName vp)
                         case mi of
-                            Nothing -> bind (toName vp) (index xD)
-                            Just i -> coindex (index xD) i
-                    _ -> bind (toName vp) (index xD)
+                            Nothing -> bindVp (toName vp) iDP
+                            Just i -> coindex iDP i
+                    _ -> do
+                        bindVp (toName vp) iDP
+                ss <- getScopes
                 toXbar vp
-            Nothing -> toXbar (nullVp (posPos pos))
-        mkPair "DP" xD xVP
+        pure $ Pair iDP "DP" xD xVP
 instance ToXbar RelC where
     toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
 instance ToXbar Cc where

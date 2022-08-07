@@ -49,8 +49,8 @@ toa color height t =
     in
         d <> boundingRect (d `atop` strut' # frame 0.2) # lcA transparent
 
-xbarToDiagram :: (Text -> Text) -> (Xbar, [Movement]) -> Diagram B
-xbarToDiagram gloss (xbar,movements) =
+xbarToDiagram :: (Text -> Text) -> (Xbar, Movements) -> Diagram B
+xbarToDiagram gloss (xbar,Movements movements _) =
         go 1 xbar
         {- # showEnvelope # showOrigin -}
         # (\d -> foldr goMove d movements)
