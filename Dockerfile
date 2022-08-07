@@ -19,22 +19,22 @@ RUN cd /pkg/ \
 
 
 FROM debian AS base
-RUN apt update; apt install -y curl python3 python3-pip
+RUN apt update; apt install -y python3 python3-pip inkscape fonts-linuxlibertine texlive-xetex
+# relax imagemagick's restrictive PostScript policy
+RUN sed -i '/PS\|PDF/s/none/read|write/' /etc/ImageMagick-*/policy.xml
 COPY data/ /pkg/data/
 
 
 FROM base AS bot
-RUN apt install -y inkscape fonts-linuxlibertine texlive-xetex
-# fix imagemagick's restrictive PostScript policy - this is fine since we're running in a container with semi-controlled inputs
 RUN pip3 install discord
-RUN sed -i '/PS\|PDF/s/none/read|write/' /etc/ImageMagick-*/policy.xml
 COPY discord_bot.py zugai.py /pkg/
 COPY --from=exe-build /usr/bin/zugai-exe /usr/bin/zugai-exe
 ENTRYPOINT cd /pkg/ \
   && python3 ./discord_bot.py
 
 
-FROM base as web-build
+FROM debian as web-build
+RUN apt update; apt install -y curl
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
   && apt install -y nodejs
 COPY web-client/package-lock.json /pkg/web-client/package-lock.json
