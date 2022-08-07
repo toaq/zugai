@@ -366,10 +366,7 @@ instance ToXbar NpR where
     toXbar (Npro txt) = do
         xDP <- mkTag "DP" =<< mkLeaf (inT2 $ unW txt)
         ss <- getScopes
-        traceM $ show ss
-        traceM $ show $ toName txt
         mi <- scopeLookup (toName txt)
-        traceM $ show $ mi
         mapM_ (coindex (index xDP)) mi
         pure xDP
     toXbar (Ndp dp) = toXbar dp
