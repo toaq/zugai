@@ -37,7 +37,8 @@ def latex_png(sentence: str):
         print(len(png_file.read()))
     ```
     """
-    tex = run("parsing", ["zugai-exe", "--to-xbar-latex"], input=sentence)
+    tex = run("parsing", ["zugai-exe", "--to-xbar-latex"],
+              input=bytes(sentence, encoding="utf-8"))
     with open("a.tex", "wb") as f: f.write(tex)
     run("converting to pdf", ["xelatex", "a.tex"])
     run("converting to png", ["convert",
