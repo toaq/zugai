@@ -15,6 +15,7 @@ import Data.Aeson.Micro qualified as J
 import Data.Char
 import Data.Foldable
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
 import Debug.Trace
@@ -238,6 +239,21 @@ makeVPSerial vp nps = do
     (xVTrace, xVPish) <- makeVP serialVerbClass xVnow xsArgs
     pure (length xsArgs, xVTrace, xVPish)
 
+-- Split a verb complex into tagged TAMs and a non-TAM verb complex.
+extractTams :: VpC -> Mx ([(VerbClass, Xbar)], VpC)
+extractTams v@(Nonserial _) = pure ([], v)
+extractTams v@(Serial vh vt) = do
+    d <- gets xbarDictionary
+    case lookupVerbClass d (toSrc vh) of
+        Nothing -> pure ([], v)
+        Just c -> do xV <- toXbar vh; (ts,non) <- extractTams vt; pure ((c,xV):ts,non)
+
+-- Wrap an extracted TAM verb around FP.
+wrapTam :: (VerbClass, Xbar) -> Xbar -> Mx Xbar
+wrapTam (vc, xV) xFP = do
+    (_, xTamP) <- makeVP (Just vc) xV [xFP]
+    pure xTamP
+
 instance ToXbar PredicationC where
     toXbar (Predication predicate advsL nps advsR) = do
         xsAdvL <- mapM toXbar advsL
@@ -247,13 +263,16 @@ instance ToXbar PredicationC where
                 foldrM (mkPair nodeName) x' xsAdvL
 
         let Predicate (Single v) = predicate
-        (arity, xVTrace, xVPish) <- makeVPSerial v (map Right nps)
+        -- Extract TAMs so we can wrap them around FP later.
+        (xsTam, nonTam) <- extractTams v
+        (arity, xVTrace, xVPish) <- makeVPSerial nonTam (map Right nps)
         let fvtag = if arity >= 3 then "F+𝑣+V" else "F+V"
         let attachP = if arity >= 3 then "𝑣P" else "VP"
-        xFV <- retag fvtag <$> toXbar predicate
+        xFV <- retag fvtag <$> toXbar nonTam
         move xVTrace xFV
         xVPa <- attachAdverbials attachP xVPish
-        mkPair "FP" xFV xVPa
+        xFP <- mkPair "FP" xFV xVPa
+        foldrM wrapTam xFP xsTam
 
 instance ToXbar Predicate where
     toXbar (Predicate vp) = toXbar vp
