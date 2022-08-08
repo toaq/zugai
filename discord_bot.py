@@ -28,7 +28,7 @@ async def on_message(message):
             file = discord.File(io.BytesIO(png), filename="image.png")
             await message.channel.send(file=file)
         elif cmd == "tree":
-            with latex_png(sentence.encode()) as f:
+            with latex_png(sentence) as f:
                 file = discord.File(f, filename="image.png")
                 await message.channel.send(file=file)
         elif cmd in ("english", "logic", "structure"):
