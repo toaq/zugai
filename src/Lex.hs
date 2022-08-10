@@ -1,15 +1,17 @@
 module Lex where
 
-import Control.Monad
-import Data.Char
+import Control.Monad ( msum )
+import Data.Char ( isDigit, isLetter )
 import Data.List.Split (wordsBy)
+import Data.Maybe ( fromMaybe, isNothing )
 import Data.Text qualified as T
 import Data.Text.Normalize qualified as T
 import Data.Text (Text)
 import Text.Parsec as P
 import TextUtils
+    ( isToaqLetter, isToaqChar, normalizeToaq, bareToaq, setTone )
 
-data LexOptions =
+newtype LexOptions =
     LexOptions
     { allowSparseToneMarking :: Bool
     } deriving (Eq, Show)
@@ -162,10 +164,10 @@ toToken opt word =
     let base = T.pack (filter isLetter word)
         tone' = msum (map toneFromChar word)
         defaultTone = if allowSparseToneMarking opt then T4 else T8
-        tone = maybe defaultTone id tone'
+        tone = fromMaybe defaultTone tone'
     in case () of
         _ | Just token <- toToneless base ->
-            if tone' == Just T8 || tone' == Nothing
+            if tone' == Just T8 || isNothing tone'
                 then Right [token]
                 else Left (T.unpack base <> " must have neutral tone")
         _ | Just cword <- toCWord base, tone == T3 -> Right [Complementizer $ CT3 (Just cword)] -- lä mä tïo
@@ -187,10 +189,11 @@ toToken opt word =
 makeSuprasegmental :: SourcePos -> Token -> Pos Token
 makeSuprasegmental pos t@(Determiner DT2) = Pos pos "◌́" t
 makeSuprasegmental pos t@(Complementizer (CT3 Nothing)) = Pos pos "◌̈" t
-makeSuprasegmental pos t@(T4jei) = Pos pos "◌̉" t
+makeSuprasegmental pos t@T4jei = Pos pos "◌̉" t
 makeSuprasegmental pos t@(Complementizer (CT5 Nothing)) = Pos pos "◌̂" t
-makeSuprasegmental pos t@(T6token) = Pos pos "◌̀" t
-makeSuprasegmental pos t@(T7token) = Pos pos "◌̃" t
+makeSuprasegmental pos t@T6token = Pos pos "◌̀" t
+makeSuprasegmental pos t@T7token = Pos pos "◌̃" t
+makeSuprasegmental pos t = error "makeSuprasegmental called on unexpected token"
 
 tokenParser :: LexOptions -> Parsec Text () [Pos Token]
 tokenParser opt = do
@@ -209,8 +212,7 @@ trivia :: Parsec Text () ()
 trivia = skipMany (satisfy $ not . isToaqChar)
 
 lexToaqOpt :: LexOptions -> Text -> Either ParseError [Pos Token]
-lexToaqOpt opt text =
-    parse (concat <$> many1 (trivia *> tokenParser opt <* trivia)) "" text
+lexToaqOpt opt = parse (concat <$> many1 (trivia *> tokenParser opt <* trivia)) ""
 
 lexToaq :: Text -> Either ParseError [Pos Token]
 lexToaq = lexToaqOpt defaultLexOptions

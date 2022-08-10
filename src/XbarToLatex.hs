@@ -11,6 +11,7 @@ import Lex
 import Parse
 import TextUtils
 import Xbar
+import XbarUtils
 
 colorWord :: Text -> Text
 colorWord t = "{\\color[HTML]{" <> color <> "}" <> t <> "}"
@@ -51,14 +52,15 @@ xbarToLatex annotate (xbar, Movements movements coixs) =
         go (Roof i t src) = node i (label t) ("[" <> goSrc i src <> ",roof]")
         go (Tag i t sub) = node i (label t) (go sub)
         go p@(Pair i t x y) =
-            if False && isMoved i -- this causes problems: goMove outputs node names that didn't get generated, so tikz errors
-                then go (Roof i t (aggregateSrc p))
-                else node i (label t) (go x <> " " <> go y)
+             -- if isMoved i then go (Roof i t (aggregateSrc p)) else
+             -- ^ this causes problems: goMove outputs node names that didn't get generated, so tikz errors
+             node i (label t) (go x <> " " <> go y)
         goSrc i src =
             let srci = prettifyToaq src
-                src' = if src == "" then "$\\varnothing$"
-                       else if isMoved i || i `elem` traceIndices then "\\sout{" <> srci <> "}"
-                       else colorWord srci
+                src'
+                  | src == "" = "$\\varnothing$"
+                  | isMoved i || i `elem` traceIndices = "\\sout{" <> srci <> "}"
+                  | otherwise = colorWord srci
             in "\\textsf{" <> src' <> "}" <> note annotate src
         note (Just f) src | noteText <- f src, noteText /= "" =
             let (cmd, transform) = if T.all isUpper noteText then ("\\textsc", T.toLower) else ("\\textit", id)

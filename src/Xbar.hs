@@ -1,6 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -28,63 +27,7 @@ import Parse
 import Scope
 import ToSrc
 import TextUtils
-
-data Xbar
-    = Tag Int Text Xbar
-    | Pair Int Text Xbar Xbar
-    | Leaf Int Text -- Source word
-    | Roof Int Text Text -- Tag and source text
-    deriving (Eq, Show)
-
-index :: Xbar -> Int
-index (Tag i _ _) = i
-index (Pair i _ _ _) = i
-index (Leaf i _) = i
-index (Roof i _ _) = i
-
-indices :: Xbar -> [Int]
-indices (Tag i _ x) = i : indices x
-indices (Pair i _ x y) = i : indices x ++ indices y
-indices (Leaf i _) = [i]
-indices (Roof i _ _) = [i]
-
-indicesBelow :: [Int] -> Xbar -> [Int]
-indicesBelow is (Tag i _ x) = if i `elem` is then indices x else indicesBelow is x
-indicesBelow is (Pair i _ x y) = if i `elem` is then indices x ++ indices y else indicesBelow is x ++ indicesBelow is y
-indicesBelow is (Leaf i _) = [i | i `elem` is] -- not really "below" but... it's useful for little v movement
-indicesBelow is (Roof i _ _) = [i | i `elem` is]
-
-retag :: Text -> Xbar -> Xbar
-retag t (Tag i _ x) = Tag i t x
-retag t (Pair i _ x y) = Pair i t x y
-retag _ x@(Leaf _ _) = x
-retag t (Roof i _ s) = Roof i t s
-
-mapSrc :: (Text -> Text) -> Xbar -> Xbar
-mapSrc f (Tag i t x) = Tag i t (mapSrc f x)
-mapSrc f (Pair i t x y) = Pair i t (mapSrc f x) (mapSrc f y)
-mapSrc f (Leaf i s) = Leaf i (f s)
-mapSrc f (Roof i t s) = Roof i t (f s)
-
-aggregateSrc :: Xbar -> Text
-aggregateSrc (Tag _ _ x) = aggregateSrc x
-aggregateSrc (Pair _ _ x y) = combineWords (aggregateSrc x) (aggregateSrc y)
-aggregateSrc (Leaf _ s) = s
-aggregateSrc (Roof _ _ s) = s
-
-data Movement = Movement { movementSource :: Int, movementTarget :: Int } deriving (Eq, Ord, Show)
-
-data Movements = Movements { movements :: [Movement], coindexations :: [(Int, Int)] } deriving (Eq, Show)
-
-data XbarState =
-    XbarState
-        { xbarNodeCounter :: Int
-        , xbarScopes :: [Scope Int]
-        , xbarMovements :: Movements
-        , xbarDictionary :: Dictionary
-        } deriving (Eq, Show)
-
-newtype Mx a = Mx { unMx :: State XbarState a } deriving (Functor, Applicative, Monad, MonadState XbarState)
+import XbarUtils
 
 runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, Movements)
 runXbarWithMovements dict d =
@@ -93,41 +36,6 @@ runXbarWithMovements dict d =
 
 runXbar :: Dictionary -> Discourse -> Xbar
 runXbar dict d = fst (runXbarWithMovements dict d)
-
-instance HasScopes Int Mx where
-    getScopes = gets xbarScopes
-    setScopes ss = modify (\xs -> xs { xbarScopes = ss })
-
-nextNodeNumber :: Mx Int
-nextNodeNumber = do
-    i <- gets xbarNodeCounter
-    modify (\s -> s { xbarNodeCounter = i + 1 })
-    pure i
-
-class ToXbar a where
-    toXbar :: a -> Mx Xbar
-
-mkTag :: Text -> Xbar -> Mx Xbar
-mkTag t x = do i <- nextNodeNumber; pure $ Tag i t x
-
-mkPair :: Text -> Xbar -> Xbar -> Mx Xbar
-mkPair t x y = do i <- nextNodeNumber; pure $ Pair i t x y
-
-mkLeaf :: Text -> Mx Xbar
-mkLeaf t = do i <- nextNodeNumber; pure $ Leaf i t
-
-mkRoof :: Text -> Text -> Mx Xbar
-mkRoof t s = do i <- nextNodeNumber; pure $ Roof i t s
-
-move :: Xbar -> Xbar -> Mx ()
-move src tgt =
-    let m = Movement (index src) (index tgt)
-    in modify (\s -> let ms = xbarMovements s in
-        s { xbarMovements = ms { movements = m : movements ms } })
-
-coindex :: Int -> Int -> Mx ()
-coindex i j = modify (\s -> let ms = xbarMovements s in
-        s { xbarMovements = ms { coindexations = (i,j) : coindexations ms } })
 
 -- Turn n≥1 terms into a parse tree with a "term" or "terms" head.
 -- termsToXbar :: Foldable t => t Term -> Mx Xbar
@@ -166,7 +74,7 @@ instance ToXbar DiscourseItem where
 instance ToXbar Sentence where
     toXbar (Sentence msc stmt ill) = do
         t <- do
-            sa <- case ill of Just i -> toXbar i; Nothing -> covert
+            sa <- maybe covert toXbar ill
             x <- toXbar stmt
             y <- mkTag "SA" sa
             mkPair "SAP" x y
@@ -236,7 +144,7 @@ makeVPSerial vp nps = do
         Nonserial v -> pure (v, nps, Nothing, Nothing)
         Serial v vs -> do
             dict <- gets xbarDictionary
-            let frame = maybe "c 0" id (lookupFrame dict (toSrc v))
+            let frame = fromMaybe "c 0" (lookupFrame dict (toSrc v))
             let vc = lookupVerbClass dict (toSrc v)
             let proCount = frameDigit frame
             let cCount = sum [1 | 'c' <- T.unpack frame]
@@ -457,7 +365,7 @@ instance ToXbar t => ToXbar (Pos t) where
             x -> pure x
 instance ToXbar t => ToXbar (W t) where
     toXbar (W w fms) = foldl (\ma mb -> do a<-ma; b<-mb; mkPair "Free" a b) (toXbar w) (toXbar <$> fms)
-instance ToXbar Text where toXbar t = mkLeaf t
+instance ToXbar Text where toXbar = mkLeaf
 instance ToXbar (Text, Tone) where toXbar (t, _) = mkLeaf t
 instance ToXbar String where toXbar t = toXbar (T.pack t)
 

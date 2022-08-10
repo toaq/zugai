@@ -9,6 +9,7 @@ import Data.Foldable
 import Data.List
 import Data.Map qualified as M
 import Data.Map (Map)
+import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Text (Text)
@@ -103,7 +104,7 @@ makeFreeVar :: Maybe Text -> Interpret' r Text
 makeFreeVar verb = do
     let letters = case verb of
                     Just text | Just (c, _) <- T.uncons text -> [toUpper c]
-                    Nothing -> "ABCDEFGHJKLMNPQRSTUVWXYZ"
+                    _ -> "ABCDEFGHJKLMNPQRSTUVWXYZ"
     let candidates = T.pack <$> [h:t | t <- "" : map show [1..], h <- letters]
     used <- gets usedVars
     let free = head (candidates \\ used)
@@ -176,9 +177,9 @@ interpretPredicationC (Predication (Predicate vp) advsL nps advsR) =
     resetT $ do
         f <- interpretVp vp
         resetArgsSeen
-        mapM interpretAdverbial advsL
+        mapM_ interpretAdverbial advsL
         xs <- mapM interpretNpArg nps
-        mapM interpretAdverbial advsR
+        mapM_ interpretAdverbial advsR
         f $/ xs
 
 interpretNpArg :: Np -> Interpret Tm
@@ -227,19 +228,18 @@ isHighVerb :: Vp -> Bool
 isHighVerb vp = head (T.words (vpToName vp)) `elem` T.words "bu nai pu jia chufaq lui za hoai hai he hiq she ao dai ea le di duai"
 
 interpretAdvpC :: AdvpC -> Interpret ()
-interpretAdvpC (Advp _ vp) = do
-    if isHighVerb vp then
-        shiftT $ \k -> do
-            f <- interpretVp vp
-            formula <- lift (k ())
-            f $/ [Ccl $ formula]
-    else
-        shiftT $ \k -> do
-            f <- interpretVp vp
-            formula <- lift (k ())
-            var <- makeFreeVar Nothing
-            adverbial <- f $/ [Var var]
-            pure (Let var formula (Con Ru (Prd "faq" [Var var]) adverbial))
+interpretAdvpC (Advp _ vp) = if isHighVerb vp then
+                                 shiftT $ \k -> do
+                                     f <- interpretVp vp
+                                     formula <- lift (k ())
+                                     f $/ [Ccl formula]
+                             else
+                                 shiftT $ \k -> do
+                                     f <- interpretVp vp
+                                     formula <- lift (k ())
+                                     var <- makeFreeVar Nothing
+                                     adverbial <- f $/ [Var var]
+                                     pure (Let var formula (Con Ru (Prd "faq" [Var var]) adverbial))
 
 interpretPpC :: PpC -> Interpret ()
 interpretPpC (Pp prep np) = pure ()
@@ -259,7 +259,7 @@ bindVpWithTransform verbTransform det (Just vp) =
         v <- makeFreeVar (Just name)
         -- bind vars in the interpreter state:
         bind name (Var v)
-        Scope argsSeen _ <- head <$> gets scopes
+        Scope argsSeen _ <- gets (head . scopes)
         di <- gets stDictionary
         let anaphora = if argsSeen == 0 then Just "aq" else lookupPronoun di name
         case anaphora of
@@ -333,44 +333,38 @@ serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
         "0" ->
             TmFun l2 h2 frame2 $ \ts -> do
                 p2 <- v2 $/ ts
-                p1 <- v1 $/ [Ccl p2]
-                pure $ p1
+                v1 $/ [Ccl p2]
         "c 0" ->
             TmFun (max 1 l2) h2 frame2 $ \(t:ts) -> do
                 p2 <- v2 $/ ts
-                p1 <- v1 $/ [t, Ccl p2]
-                pure $ p1
+                v1 $/ [t, Ccl p2]
         "c c 0" ->
             TmFun (max 2 l2) h2 frame2 $ \(t:t':ts) -> do
                 p2 <- v2 $/ ts
-                p1 <- v1 $/ [t, t', Ccl p2]
-                pure $ p1
+                v1 $/ [t, t', Ccl p2]
         "c 1" ->
             TmFun (max 1 l2) h2 frame2 $ \(t:ts) -> do
                 v <- makeFreeVar Nothing
                 p2 <- v2 $/ (Var v:ts)
-                p1 <- v1 $/ [t, Ccl (Qua Ja v Tru p2)]
-                pure $ p1
+                v1 $/ [t, Ccl (Qua Ja v Tru p2)]
         "c c 1" ->
             TmFun (max 2 l2) h2 frame2 $ \(t:t':ts) -> do
                 v <- makeFreeVar Nothing
                 p2 <- v2 $/ (Var v:ts)
-                p1 <- v1 $/ [t, t', Ccl (Qua Ja v Tru p2)]
-                pure $ p1
+                v1 $/ [t, t', Ccl (Qua Ja v Tru p2)]
         "c 2" ->
             TmFun (max 1 l2) h2 frame2 $ \(t:ts) -> do
                 v <- makeFreeVar Nothing
                 v' <- makeFreeVar Nothing
                 p2 <- v2 $/ (Var v:Var v':ts)
-                p1 <- v1 $/ [t, Ccl (Qua Ja v Tru (Qua Ja v' Tru p2))]
-                pure $ p1
+                v1 $/ [t, Ccl (Qua Ja v Tru (Qua Ja v' Tru p2))]
         "c c 2" ->
             TmFun (max 2 l2) h2 frame2 $ \(t:t':ts) -> do
                 v <- makeFreeVar Nothing
                 v' <- makeFreeVar Nothing
                 p2 <- v2 $/ (Var v:Var v':ts)
-                p1 <- v1 $/ [t, t', Ccl (Qua Ja v Tru (Qua Ja v' Tru p2))]
-                pure $ p1
+                v1 $/ [t, t', Ccl (Qua Ja v Tru (Qua Ja v' Tru p2))]
+        f -> error $ "Serial frame not yet supported: " <> T.unpack f
 
 
 interpretVpC :: VpC -> Interpret VerbFun
@@ -387,16 +381,15 @@ interpretVpN (Vmo mo txt teo)         = pure $ TmFun 1 1 "a" $ \[t] -> pure $ Eq
 interpretVpN (Voiv oiv np ga) = do
     t <- interpretNp np
     pure $ TmFun 1 1 "a" $ \[u] -> pure $ Prd (bareSrc oiv <> "ga") [t,u]
-interpretVpN (Vlu lu stmt ky) = do
-    pure $ TmFun 1 1 "a" $ \[t] -> do
-        pushScope
-        bind "hoa" t
-        f <- interpretStatement stmt
-        popScope
-        pure f
+interpretVpN (Vlu lu stmt ky) = pure $ TmFun 1 1 "a" $ \[t] -> do
+    pushScope
+    bind "hoa" t
+    f <- interpretStatement stmt
+    popScope
+    pure f
 interpretVpN (Vverb v) = do
     dict <- gets stDictionary
-    let frame = maybe "a" id $ lookupFrame dict (bareSrc v)
+    let frame = fromMaybe "a" $ lookupFrame dict (bareSrc v)
     pure $ TmFun 0 999 frame $ \ts -> pure $ Prd (bareSrc v) ts
 
 interpret :: Dictionary -> Discourse -> [Formula]

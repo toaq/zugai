@@ -1,31 +1,31 @@
-{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module XbarToSvg where
 
-import Data.Text (Text)
-import qualified Data.Text as T
-import Diagrams.Prelude
-import qualified Diagrams.TwoD.Text as TD
-import Diagrams.Backend.SVG
 import Data.Colour.RGBSpace
 import Data.Colour.RGBSpace.HSL
+import Data.Text (Text)
+import Data.Text qualified as T
 import Debug.Trace
-
+import Diagrams.Backend.SVG
+import Diagrams.Prelude
+import Diagrams.TwoD.Text qualified as TD
 import Lex
 import TextUtils
 import Xbar
+import XbarUtils
 
 pastel :: Double -> Colour Double
-pastel hue = uncurryRGB sRGB24 $ fmap (truncate . (* 255)) $ hsl hue 1.0 0.8
+pastel hue = uncurryRGB sRGB24 $ truncate . (* 255) <$> hsl hue 1.0 0.8
 
 wordColor :: Text -> Colour Double
 wordColor "" = bao
 wordColor t =
-    case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
-        Right (Verb _) -> pastel 200
-        _ -> pastel 30
+  case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
+    Right (Verb _) -> pastel 200
+    _ -> pastel 30
 
 discordBg :: Colour Double
 discordBg = sRGB24 0x36 0x39 0x3E
@@ -41,34 +41,31 @@ kuao = sRGB24 0x80 0xD0 0xFF
 
 toa :: Colour Double -> Double -> Text -> Diagram B
 toa color height t =
-    let
-        str = if t == "" then "∅" else T.unpack t
-        color' = if color == rui && t == "" then discordBg else color
-        d = TD.text str # TD.font "Linux Libertine O" # TD.fontSizeL height # fc color' # lw none # centerX
-        strut' = strut $ flip V2 height $ 0.6 * height * (fromIntegral (length str))
-    in
-        d <> boundingRect (d `atop` strut' # frame 0.2) # lcA transparent
+  let str = if t == "" then "∅" else T.unpack t
+      color' = if color == rui && t == "" then discordBg else color
+      d = TD.text str # TD.font "Linux Libertine O" # TD.fontSizeL height # fc color' # lw none # centerX
+      strut' = strut $ flip V2 height $ 0.6 * height * fromIntegral (length str)
+   in d <> boundingRect (d `atop` strut' # frame 0.2) # lcA transparent
 
 xbarToDiagram :: (Text -> Text) -> (Xbar, Movements) -> Diagram B
-xbarToDiagram gloss (xbar,Movements movements _) =
-        go 1 xbar
-        {- # showEnvelope # showOrigin -}
-        # (\d -> foldr goMove d movements)
-        # frame 0.25
-        # bg discordBg
-        where
-    conn     i j = connectPerim' (with & arrowHead .~ noHead & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (90@@deg)
-    moveShaft = arc xDir (-1/3 @@ turn)
-    connMove i j = connectPerim' (with & headStyle %~ fc bao & arrowShaft .~ moveShaft & shaftStyle %~ (lw 1 <> lc bao)) i j (270@@deg) (270@@deg)
+xbarToDiagram gloss (xbar, Movements movements _) =
+  go 1 xbar
+    # (\d -> foldr goMove d movements)
+    # frame 0.25
+    # bg discordBg
+  where
+    conn i j = connectPerim' (with & arrowHead .~ noHead & shaftStyle %~ (lw 1 <> lc bao)) i j (270 @@ deg) (90 @@ deg)
+    moveShaft = arc xDir (-1 / 3 @@ turn)
+    connMove i j = connectPerim' (with & headStyle %~ fc bao & arrowShaft .~ moveShaft & shaftStyle %~ (lw 1 <> lc bao)) i j (270 @@ deg) (270 @@ deg)
     gloss' "v" = ""
     gloss' x = T.unwords $ map gloss (T.words x)
-    named' i = named (-1-i) -- ughhgghfhgjfhg
+    named' i = named (-1 - i) -- ughhgghfhgjfhg
     goMove :: Movement -> Diagram B -> Diagram B
-    goMove (Movement i j) dia = dia # connMove (-1-i) (-1-j)
+    goMove (Movement i j) dia = dia # connMove (-1 - i) (-1 - j)
     go :: Integer -> Xbar -> Diagram B
-    go i xbar = center $ opacity (if or [j == Xbar.index xbar | Movement j _ <- movements] then 0.5 else 1.0) $ case xbar of
+    go i xbar = center $
+      opacity (if or [j == XbarUtils.index xbar | Movement j _ <- movements] then 0.5 else 1.0) $ case xbar of
         Leaf j t -> (toa (wordColor t) 1 t === toa rui 0.8 (gloss' t)) # named i # named' j
         Roof j t src -> vsep 0.1 [toa bao 1 t # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 src] === toa rui 0.8 (gloss' src) # named' j
-        Tag j t x -> vsep 0.5 [toa bao 1 t # named i, go (2*i) x] # named' j # conn i (2*i)
-        Pair j t x y -> vsep 1 [toa bao 1 t # named i, center (hsep 0.2 [go (2*i) x, go (2*i+1) y])] # named' j # conn i (2*i) # conn i (2*i+1)
-
+        Tag j t x -> vsep 0.5 [toa bao 1 t # named i, go (2 * i) x] # named' j # conn i (2 * i)
+        Pair j t x y -> vsep 1 [toa bao 1 t # named i, center (hsep 0.2 [go (2 * i) x, go (2 * i + 1) y])] # named' j # conn i (2 * i) # conn i (2 * i + 1)
