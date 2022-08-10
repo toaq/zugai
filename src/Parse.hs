@@ -1,11 +1,14 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Parse where
+
 import Control.Monad
-import Lex
-import Data.List.NonEmpty qualified as N
 import Data.List.NonEmpty (NonEmpty)
-import Data.Text qualified as T
+import Data.List.NonEmpty qualified as N
 import Data.Text (Text)
+import Data.Text qualified as T
 import Debug.Trace
+import Lex
 import Text.Parsec as P
 
 -- Most leaves of the parse tree are "W" (words with possible free modifiers after them).
@@ -15,61 +18,92 @@ unW :: W t -> t
 unW (W (Pos _ _ t) _) = t
 
 instance Show t => Show (W t) where
-    show (W (Pos p s v) fs) = show (T.unpack s) ++ ['#' | _ <- fs]
+  show (W (Pos p s v) fs) = show (T.unpack s) ++ ['#' | _ <- fs]
 
 data FreeMod
-    = Fint (Pos Toned)
-    | Fvoc (Pos () {-hu-}) Np
-    | Finc (Pos () {-ju-}) Sentence
-    | Fpar (Pos () {-kio-}) Discourse (W () {-ki-})
-    deriving (Eq, Show)
+  = Fint (Pos Toned)
+  | Fvoc (Pos () {-hu-}) Np
+  | Finc (Pos () {-ju-}) Sentence
+  | Fpar (Pos () {-kio-}) Discourse (W () {-ki-})
+  deriving (Eq, Show)
 
 -- Generic type for constructs which can be connected like "X (na) ru Y", or "to ru X to Y", or occur alone.
 data Connable' na c
-    = Conn c na (W Connective) (Connable' na c)
-    | ConnTo (W () {-to-}) (W Connective) (Connable' na c) (W () {-to-}) (Connable' na c)
-    | Single c
-    deriving (Eq, Show)
+  = Conn c na (W Connective) (Connable' na c)
+  | ConnTo (W () {-to-}) (W Connective) (Connable' na c) (W () {-to-}) (Connable' na c)
+  | Single c
+  deriving (Eq, Show)
+
 type Connable = Connable' ()
+
 type ConnableNa = Connable' (W ())
 
 -- Parse tree types
 newtype Discourse = Discourse [DiscourseItem] deriving (Eq, Show)
+
 data DiscourseItem = DiSentence Sentence | DiFragment Fragment | DiFree FreeMod deriving (Eq, Show)
+
 data Sentence = Sentence (Maybe (W Text {-je-})) Statement (Maybe (W Toned {-da-})) deriving (Eq, Show)
+
 data Fragment = FrPrenex Prenex | FrTopic Topic deriving (Eq, Show)
+
 data Topic = Topica Adverbial | Topicn Np deriving (Eq, Show)
+
 data Prenex = Prenex (NonEmpty Topic) (W () {-bi-}) deriving (Eq, Show)
+
 data Statement = Statement (Maybe (W Complementizer)) (Maybe Prenex) Predication deriving (Eq, Show)
+
 type Predication = ConnableNa PredicationC
+
 data PredicationC = Predication Predicate [Adverbial] [Np] [Adverbial] deriving (Eq, Show)
+
 newtype Predicate = Predicate Vp deriving (Eq, Show)
+
 data Adverbial = Tadvp Advp | Tpp Pp deriving (Eq, Show)
+
 type Terminator = Maybe (W ())
+
 type Advp = Connable AdvpC
+
 data AdvpC = Advp (Pos () {-t7-}) Vp deriving (Eq, Show)
+
 type Pp = Connable PpC
+
 data PpC = Pp Prep Np deriving (Eq, Show)
+
 type Prep = Connable PrepC
+
 data PrepC = Prep (Pos () {-t6-}) Vp deriving (Eq, Show)
+
 type Np = Connable NpC
+
 data NpC = Focused (W Text {-mao-}) NpF | Unf NpF deriving (Eq, Show)
+
 data NpF = ArgRel NpR Rel | Unr NpR deriving (Eq, Show)
+
 data NpR = Npro (W Text) | Ndp Dp | Ncc Cc deriving (Eq, Show)
+
 data Dp = Dp (W Determiner) (Maybe Vp) deriving (Eq, Show)
+
 type Rel = Connable RelC
+
 data RelC = Rel Statement Terminator deriving (Eq, Show) -- t3
+
 data Cc = Cc Statement Terminator deriving (Eq, Show) -- t5
+
 type Vp = Connable VpC
+
 data VpC = Serial VpN VpC | Nonserial VpN deriving (Eq, Show)
+
 data VpN -- nonserial verb phrase
-    = Vname (W NameVerb) Name Terminator
-    | Vshu (W ()) (Pos Text)
-    | Voiv (W Text) Np Terminator
-    | Vmo (W ()) Discourse Terminator
-    | Vlu (W ()) Statement Terminator
-    | Vverb (W Text)
-    deriving (Eq, Show)
+  = Vname (W NameVerb) Name Terminator
+  | Vshu (W ()) (Pos Text)
+  | Voiv (W Text) Np Terminator
+  | Vmo (W ()) Discourse Terminator
+  | Vlu (W ()) Statement Terminator
+  | Vverb (W Text)
+  deriving (Eq, Show)
+
 data Name = VerbName Vp | TermName Topic deriving (Eq, Show)
 
 -- Parsers
@@ -89,14 +123,14 @@ tokEq expected = tok (\x -> if x == expected then Just x else Nothing)
 
 -- | Parse a token into () if it equals the argument token.
 tokEq_ :: Token -> Parser (Pos ())
-tokEq_ = fmap (()<$) . tokEq
+tokEq_ = fmap (() <$) . tokEq
 
 pInterjection :: Parser (Pos Toned)
 pInterjection = tok $ \t -> case t of Interjection x -> Just x; _ -> Nothing
 
 pFreeMod :: Parser FreeMod
 pFreeMod =
-    (Fint <$> pInterjection)
+  (Fint <$> pInterjection)
     <|> (Fvoc <$> tokEq_ Hu <*> pNp)
     <|> (Finc <$> tokEq_ Ju <*> pSentence)
     <|> (Fpar <$> tokEq_ Kio <*> pDiscourse <*> pKi)
@@ -147,16 +181,18 @@ pT7token = tok $ \t -> case t of T7token -> Just (); _ -> Nothing
 -- parse nothing
 pConnable' :: Parser na -> Parser c -> Parser c -> Parser (Connable' na c)
 pConnable' pNa pFirst pRest =
-    try (ConnTo <$> pTo <*> pConnective <*> pConnable' pNa pFirst pRest <*> pTo <*> pConnable' pNa pRest pRest)
+  try (ConnTo <$> pTo <*> pConnective <*> pConnable' pNa pFirst pRest <*> pTo <*> pConnable' pNa pRest pRest)
     <|> pAfterthought
   where
     pAfterthought = do
-        left <- pFirst
-        right <- optionMaybe $ try $
+      left <- pFirst
+      right <-
+        optionMaybe $
+          try $
             (,,) <$> pNa <*> pConnective <*> pConnable' pNa pRest pRest
-        pure $ case right of
-            Nothing -> Single left
-            Just (na, ru, rest) -> Conn left na ru rest
+      pure $ case right of
+        Nothing -> Single left
+        Just (na, ru, rest) -> Conn left na ru rest
 
 -- Connectable constructs not requiring "na" in afterthought.
 pConnable :: Parser c -> Parser c -> Parser (Connable' () c)
@@ -176,6 +212,7 @@ pBi, pKi, pTo :: Parser (W ())
 pBi = pW (tokEq_ Bi)
 pKi = pW (tokEq_ Ki)
 pTo = pW (tokEq_ To)
+
 -- hu, ju, kio handled inside pW
 
 pCy, pGa, pKy, pTeo :: Parser Terminator
@@ -185,17 +222,17 @@ pKy = pTerminator Ky
 pTeo = pTerminator Teo
 
 pIllocution :: Parser (W Toned)
-pIllocution = pW $ tok $ \t -> case t of Illocution x -> Just x; _ -> Nothing
+pIllocution = pW $ tok $ \case Illocution x -> Just x; _ -> Nothing
 
 pSentenceConnector :: Parser (W Text)
-pSentenceConnector = pW $ tok $ \t ->
-    case t of
-        SentenceConnector x -> Just x
-        Connective c -> Just (T.toLower $ T.pack $ show c) -- hack
-        _ -> Nothing
+pSentenceConnector = pW $
+  tok $ \case
+    SentenceConnector x -> Just x
+    Connective c -> Just (T.toLower $ T.pack $ show c) -- hack
+    _ -> Nothing
 
 pVerb :: Parser (W Text)
-pVerb = pW $ tok $ \t -> case t of Verb te -> Just te; _ -> Nothing
+pVerb = pW $ tok $ \case Verb te -> Just te; _ -> Nothing
 
 pRawWord :: Parser (Pos Text)
 pRawWord = token show posPos (\(Pos p src _) -> Just (Pos p src src))
@@ -205,7 +242,7 @@ pName = (VerbName <$> pVp) <|> (TermName <$> pTopic)
 
 pVpN :: Parser VpN
 pVpN =
-    (Vname <$> pNameVerb <*> pName <*> pGa)
+  (Vname <$> pNameVerb <*> pName <*> pGa)
     <|> (Vshu <$> pShu <*> pRawWord)
     <|> (Voiv <$> pOiv <*> pNp <*> pGa)
     <|> (Vmo <$> pMo <*> pDiscourse <*> pTeo)
@@ -220,9 +257,9 @@ pVpC = do head <- pVpN; (Serial head <$> pVpC) <|> pure (Nonserial head)
 
 pDp :: Parser Dp
 pDp = do
-    d <- pDeterminer
-    vp <- if unW d == DT2 then Just <$> pVp else optionMaybe pVp
-    pure $ Dp d vp
+  d <- pDeterminer
+  vp <- if unW d == DT2 then Just <$> pVp else optionMaybe pVp
+  pure $ Dp d vp
 
 pNp :: Parser Np
 pNp = pConnableSame pNpC

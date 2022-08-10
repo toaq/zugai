@@ -1,13 +1,14 @@
 module TextUtils where
 
 import Data.Char
-import Data.Text qualified as T
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Text.Normalize qualified as T
 
 -- tr "aeiou" "12345" "hello" == "h2ll4"
 tr :: Text -> Text -> Text -> Text
-tr froms tos = T.map (\c -> maybe c id $ lookup c $ T.zip froms tos)
+tr froms tos = T.map (\c -> fromMaybe c $ lookup c $ T.zip froms tos)
 
 isCombiningDiacritic :: Char -> Bool
 isCombiningDiacritic c = c >= '\x0300' && c <= '\x0309'
@@ -29,12 +30,12 @@ isToneSrc t = T.length t == 2 && isCombiningDiacritic (T.last t)
 
 setTone :: Text -> Text -> Text
 setTone dia t =
-    case T.break (`T.elem` "aeiou") (normalizeToaq t) of
-        (c, vvq) | Just (v, vq) <- T.uncons vvq -> c <> T.cons v dia <> vq
-        _ -> t
+  case T.break (`T.elem` "aeiou") (normalizeToaq t) of
+    (c, vvq) | Just (v, vq) <- T.uncons vvq -> c <> T.cons v dia <> vq
+    _ -> t
 
 copyTone :: Text -> Text -> Text
-copyTone o t = setTone (T.take 1 $ T.filter isCombiningDiacritic o) t
+copyTone o = setTone (T.take 1 $ T.filter isCombiningDiacritic o)
 
 inT2 :: Text -> Text
 inT2 = setTone "\x0301"

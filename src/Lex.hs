@@ -1,24 +1,29 @@
 module Lex where
 
-import Control.Monad ( msum )
-import Data.Char ( isDigit, isLetter )
+import Control.Monad (msum)
+import Data.Char (isDigit, isLetter)
 import Data.List.Split (wordsBy)
-import Data.Maybe ( fromMaybe, isNothing )
+import Data.Maybe (fromMaybe, isNothing)
+import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Normalize qualified as T
-import Data.Text (Text)
 import Text.Parsec as P
 import TextUtils
-    ( isToaqLetter, isToaqChar, normalizeToaq, bareToaq, setTone )
+  ( bareToaq,
+    isToaqChar,
+    isToaqLetter,
+    normalizeToaq,
+    setTone,
+  )
 
-newtype LexOptions =
-    LexOptions
-    { allowSparseToneMarking :: Bool
-    } deriving (Eq, Show)
+newtype LexOptions = LexOptions
+  { allowSparseToneMarking :: Bool
+  }
+  deriving (Eq, Show)
 
 defaultLexOptions :: LexOptions
 defaultLexOptions =
-    LexOptions
+  LexOptions
     { allowSparseToneMarking = True
     }
 
@@ -30,54 +35,73 @@ cword (CT4 c) = Just c
 cword (CT5 c) = c
 
 type Toned = (Text, Tone)
+
 data Determiner = DT2 | Sa | Tu | Tuq | Sia | Ke | Hoi | Baq | Hi | Ja | Co | Kaga | Puy | XShi Determiner deriving (Eq, Ord, Show)
+
 data CWord = La | Ma | Tio deriving (Eq, Ord, Show)
+
 data Complementizer = CT3 (Maybe CWord) | CT4 CWord | CT5 (Maybe CWord) deriving (Eq, Ord, Show)
+
 data Connective = Ra | Ri | Ru | Ro | Roi deriving (Eq, Ord, Show)
+
 data NameVerb = Mi | Miru deriving (Eq, Ord, Show)
+
 data Token
-    = Focuser Text -- left as text so these can be turned into text<>"jeo".
-    | Determiner Determiner
-    | Connective Connective
-    | Complementizer Complementizer
-    | Oiv Text -- left as text so these can be turned into text<>"ga".
-    | NameVerb NameVerb
-    | Shu
-    | Mo
-    | Lu
-    | Bi | Cy | Ga | Hu | Ju | Ki | Kio | Ky | Na | Teo | To
-    | Illocution Toned -- not interpreted
-    | SentenceConnector Text -- not interpreted
-    | Interjection Toned -- not interpreted
-    | Verb Text
-    | Pronoun Text -- implies natural t2
-    | T4jei -- e.g. süq is tokenized as [Complementizer (CT3 Nothing), T4jei, Pronoun "suq"]
-    | T6token
-    | T7token
-    deriving (Eq, Ord, Show)
+  = Focuser Text -- left as text so these can be turned into text<>"jeo".
+  | Determiner Determiner
+  | Connective Connective
+  | Complementizer Complementizer
+  | Oiv Text -- left as text so these can be turned into text<>"ga".
+  | NameVerb NameVerb
+  | Shu
+  | Mo
+  | Lu
+  | Bi
+  | Cy
+  | Ga
+  | Hu
+  | Ju
+  | Ki
+  | Kio
+  | Ky
+  | Na
+  | Teo
+  | To
+  | Illocution Toned -- not interpreted
+  | SentenceConnector Text -- not interpreted
+  | Interjection Toned -- not interpreted
+  | Verb Text
+  | Pronoun Text -- implies natural t2
+  | T4jei -- e.g. süq is tokenized as [Complementizer (CT3 Nothing), T4jei, Pronoun "suq"]
+  | T6token
+  | T7token
+  deriving (Eq, Ord, Show)
 
 -- A token (or other inner type) tagged with source position and source text.
-data Pos t = Pos { posPos :: SourcePos, posSrc :: Text, posVal :: t } deriving (Eq)
+data Pos t = Pos {posPos :: SourcePos, posSrc :: Text, posVal :: t} deriving (Eq)
+
 instance Functor Pos where
-    fmap f (Pos x y z) = Pos x y (f z)
+  fmap f (Pos x y z) = Pos x y (f z)
+
 instance Show t => Show (Pos t) where
-    show x = show (posSrc x)
-    -- show x = show (posVal x) ++ "\x1b[96m~" ++ T.unpack (posSrc x) ++ "\x1b[0m" -- "\x1b[32m" ++ T.unpack (posSrc x) ++ "\x1b[0m"
+  show x = show (posSrc x)
+
+-- show x = show (posVal x) ++ "\x1b[96m~" ++ T.unpack (posSrc x) ++ "\x1b[0m" -- "\x1b[32m" ++ T.unpack (posSrc x) ++ "\x1b[0m"
 
 convertDigits :: Text -> Text
 convertDigits t =
-    case T.unsnoc t of
-        Just (t', c) | isDigit c && t' /= "" && T.all isToaqLetter t' ->
-            case c of
-                '2' -> setTone "\x0301" t'
-                '3' -> setTone "\x0308" t'
-                '4' -> setTone "\x0309" t'
-                '5' -> setTone "\x0302" t'
-                '6' -> setTone "\x0300" t'
-                '7' -> setTone "\x0303" t'
-                '8' -> setTone "" t'
-                _ -> error ("Invalid tone digit: " <> show c)
-        _ -> t
+  case T.unsnoc t of
+    Just (t', c) | isDigit c && t' /= "" && T.all isToaqLetter t' ->
+      case c of
+        '2' -> setTone "\x0301" t'
+        '3' -> setTone "\x0308" t'
+        '4' -> setTone "\x0309" t'
+        '5' -> setTone "\x0302" t'
+        '6' -> setTone "\x0300" t'
+        '7' -> setTone "\x0303" t'
+        '8' -> setTone "" t'
+        _ -> error ("Invalid tone digit: " <> show c)
+    _ -> t
 
 toneFromChar :: Char -> Maybe Tone
 toneFromChar '\x0301' = Just T2
@@ -136,10 +160,10 @@ toToneless "na" = Just Na
 toToneless "teo" = Just Teo
 toToneless "to" = Just To
 toToneless x
-    | Just inner <- T.stripSuffix "shi" x
-    , not ("shi" `T.isSuffixOf` inner)
-    , Just (Determiner det) <- toToneless inner
-    = Just (Determiner $ XShi det)
+  | Just inner <- T.stripSuffix "shi" x,
+    not ("shi" `T.isSuffixOf` inner),
+    Just (Determiner det) <- toToneless inner =
+    Just (Determiner $ XShi det)
 toToneless x | isFocuser x = Just (Focuser x)
 toToneless x | isSentenceConnector x = Just (SentenceConnector x)
 toToneless _ = Nothing
@@ -161,23 +185,25 @@ toneTokens T8 = []
 
 toToken :: LexOptions -> String -> Either String [Token]
 toToken opt word =
-    let base = T.pack (filter isLetter word)
-        tone' = msum (map toneFromChar word)
-        defaultTone = if allowSparseToneMarking opt then T4 else T8
-        tone = fromMaybe defaultTone tone'
-    in case () of
-        _ | Just token <- toToneless base ->
+  let base = T.pack (filter isLetter word)
+      tone' = msum (map toneFromChar word)
+      defaultTone = if allowSparseToneMarking opt then T4 else T8
+      tone = fromMaybe defaultTone tone'
+   in case () of
+        _
+          | Just token <- toToneless base ->
             if tone' == Just T8 || isNothing tone'
-                then Right [token]
-                else Left (T.unpack base <> " must have neutral tone")
+              then Right [token]
+              else Left (T.unpack base <> " must have neutral tone")
         _ | Just cword <- toCWord base, tone == T3 -> Right [Complementizer $ CT3 (Just cword)] -- lä mä tïo
-        _ | Just cword <- toCWord base, tone == T4 -> Right [Complementizer $ CT4 cword       ] -- la ma tio
+        _ | Just cword <- toCWord base, tone == T4 -> Right [Complementizer $ CT4 cword] -- la ma tio
         _ | Just cword <- toCWord base, tone == T5 -> Right [Complementizer $ CT5 (Just cword)] -- lâ mâ tîo
         _ | isIllocution base -> Right [Illocution (base, tone)]
         _ | isInterjection base -> Right [Interjection (base, tone)]
         _ | isPronoun base, tone == T2 -> Right [Pronoun base]
         _ | isPronoun base -> Right $ toneTokens tone ++ [T4jei, Pronoun base]
-        _ | otherwise -> Right $ (toneTokens tone ++) . pure $ case base of
+        _ | otherwise -> Right $
+          (toneTokens tone ++) . pure $ case base of
             _ | isOiv base -> Oiv base
             "mo" -> Mo
             "lu" -> Lu
@@ -197,16 +223,17 @@ makeSuprasegmental pos t = error "makeSuprasegmental called on unexpected token"
 
 tokenParser :: LexOptions -> Parsec Text () [Pos Token]
 tokenParser opt = do
-    pos <- getPosition
-    text <- T.pack <$> many1 (satisfy isToaqChar)
-    let src = T.normalize T.NFKC $ convertDigits text
-    case toToken opt $ T.unpack $ normalizeToaq src of
-        Right [] -> error "wtf"
-        Right [token] -> pure [Pos pos src token]
-        Right tokens -> pure $
-            map (makeSuprasegmental pos) (init tokens)
-            ++ [Pos pos (bareToaq src) $ last tokens]
-        Left err -> fail err
+  pos <- getPosition
+  text <- T.pack <$> many1 (satisfy isToaqChar)
+  let src = T.normalize T.NFKC $ convertDigits text
+  case toToken opt $ T.unpack $ normalizeToaq src of
+    Right [] -> error "wtf"
+    Right [token] -> pure [Pos pos src token]
+    Right tokens ->
+      pure $
+        map (makeSuprasegmental pos) (init tokens)
+          ++ [Pos pos (bareToaq src) $ last tokens]
+    Left err -> fail err
 
 trivia :: Parsec Text () ()
 trivia = skipMany (satisfy $ not . isToaqChar)

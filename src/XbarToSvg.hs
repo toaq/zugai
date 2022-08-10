@@ -9,7 +9,7 @@ import Data.Colour.RGBSpace.HSL
 import Data.Text (Text)
 import Data.Text qualified as T
 import Debug.Trace
-import Diagrams.Backend.SVG
+import Diagrams.Backend.SVG (B)
 import Diagrams.Prelude
 import Diagrams.TwoD.Text qualified as TD
 import Lex
