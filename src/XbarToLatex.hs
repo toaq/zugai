@@ -22,15 +22,6 @@ colorWord t = "{\\color[HTML]{" <> color <> "}" <> t <> "}"
           Right (Verb _) -> "99eeff"
           _ -> "ffcc88"
 
-coindexationNames :: [(Int, Int)] -> Map Int Char
-coindexationNames coixs = go 'i' M.empty $ sortOn (uncurry min) coixs
-  where
-    go c m [] = m
-    go c m ((i, j) : xs) = case (m M.!? i, m M.!? j) of
-      (Nothing, Nothing) -> go (succ c) (M.insert i c (M.insert j c m)) xs
-      (Just z, _) -> go c (M.insert j z m) xs
-      (_, Just z) -> go c (M.insert i z m) xs
-
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
 xbarToLatex :: Maybe (Text -> Text) -> (Xbar, Movements) -> Text
 xbarToLatex annotate (xbar, Movements movements coixs traces) =

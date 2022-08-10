@@ -7,6 +7,9 @@
 module XbarUtils where
 
 import Control.Monad.State
+import Data.List (sortOn)
+import Data.Map (Map)
+import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import Dictionary
@@ -137,3 +140,16 @@ traceAt x =
         let ms = xbarMovements s
          in s {xbarMovements = ms {traces = index x : traces ms}}
     )
+
+coindexationNames :: [(Int, Int)] -> Map Int Char
+coindexationNames coixs = go 'i' M.empty $ sortOn (uncurry min) coixs
+  where
+    go c m [] = m
+    go c m ((i, j) : xs) = case (m M.!? i, m M.!? j) of
+      (Nothing, Nothing) -> go (succ c) (M.insert i c (M.insert j c m)) xs
+      (Just z, _) -> go c (M.insert j z m) xs
+      (_, Just z) -> go c (M.insert i z m) xs
+
+getCoindexationName :: [(Int, Int)] -> Int -> Maybe Text
+getCoindexationName coixs =
+  let cn = coindexationNames coixs in fmap T.singleton . (cn M.!?)

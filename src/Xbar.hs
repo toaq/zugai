@@ -17,6 +17,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Debug.Trace
 import Dictionary
 import Lex
@@ -411,14 +412,35 @@ instance ToXbar Connective where toXbar t = mkTag "Co" =<< toXbar (show t)
 instance ToXbar Complementizer where toXbar t = mkTag "C" =<< toXbar (show t)
 
 -- Show an Xbar tree using indentation and ANSI colors.
-showXbarAnsi :: Xbar -> [Text]
-showXbarAnsi (Leaf _ src) = ["\x1b[94m" <> src <> "\x1b[0m"]
-showXbarAnsi (Roof _ t src) = ["\x1b[95m" <> t <> ": " <> src <> "\x1b[0m"]
-showXbarAnsi (Tag _ t sub) =
-  case showXbarAnsi sub of
-    [one] -> [t <> ": " <> one]
-    many -> (t <> ":") : map ("  " <>) many
-showXbarAnsi (Pair _ t x y) = (t <> ":") : map ("  " <>) (showXbarAnsi x) ++ map ("  " <>) (showXbarAnsi y)
+showXbarAnsi :: Xbar -> Movements -> [Text]
+showXbarAnsi xbar (Movements moves coixs traces) = go xbar
+  where
+    cn = getCoindexationName coixs
+    traceChildren = indicesBelow traces xbar
+    mv i t = T.concat markers <> t <> coindex
+      where
+        mark s n = "\x1b[38;5;34m" <> s <> T.pack (show n) <> " \x1b[0m"
+        markers = do
+          (n, Movement src tgt) <- zip [1 ..] moves
+          [if i == src then mark "←" n else if i == tgt then mark "→" n else ""]
+        coindex = maybe "" (\s -> "\x1b[38;5;39m[" <> s <> "]\x1b[0m") (cn i)
+    go (Leaf i src) =
+      let col = if i `elem` traceChildren then "\x1b[90;9m" else "\x1b[38;5;208m"
+       in [col <> prettifyToaq src <> "\x1b[0m"]
+    go (Roof i t src) = [mv i t <> "  " <> "\x1b[38;5;208m" <> prettifyToaq src <> "\x1b[0m"]
+    go (Tag i t sub) =
+      case go sub of
+        [one] -> [mv i t <> "  " <> one]
+        many -> mv i t : map ("  " <>) many
+    go (Pair i t x y) = mv i t : map ("  " <>) (go x) ++ map ("  " <>) (go y)
+
+lpx :: Text -> IO ()
+lpx text = do
+  dict <- readDictionary
+  let Right tokens = lexToaq text
+  let Right discourse = parseDiscourse tokens
+  let (xbar, movements) = runXbarWithMovements dict discourse
+  mapM_ T.putStrLn (showXbarAnsi xbar movements)
 
 -- Convert an Xbar tree to JSON.
 xbarToJson :: Maybe (Text -> Text) -> Xbar -> J.Value
