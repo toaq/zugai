@@ -48,7 +48,7 @@ toa color height t =
    in d <> boundingRect (d `atop` strut' # frame 0.2) # lcA transparent
 
 xbarToDiagram :: (Text -> Text) -> (Xbar, Movements) -> Diagram B
-xbarToDiagram gloss (xbar, Movements movements _) =
+xbarToDiagram gloss (xbar, Movements movements coixs traces) =
   go 1 xbar
     # (\d -> foldr goMove d movements)
     # frame 0.25
@@ -64,7 +64,7 @@ xbarToDiagram gloss (xbar, Movements movements _) =
     goMove (Movement i j) dia = dia # connMove (-1 - i) (-1 - j)
     go :: Integer -> Xbar -> Diagram B
     go i xbar = center $
-      opacity (if or [j == XbarUtils.index xbar | Movement j _ <- movements] then 0.5 else 1.0) $ case xbar of
+      opacity (if XbarUtils.index xbar `elem` traces then 0.5 else 1.0) $ case xbar of
         Leaf j t -> (toa (wordColor t) 1 t === toa rui 0.8 (gloss' t)) # named i # named' j
         Roof j t src -> vsep 0.1 [toa bao 1 t # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 src] === toa rui 0.8 (gloss' src) # named' j
         Tag j t x -> vsep 0.5 [toa bao 1 t # named i, go (2 * i) x] # named' j # conn i (2 * i)

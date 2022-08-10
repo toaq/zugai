@@ -33,13 +33,12 @@ coindexationNames coixs = go 'i' M.empty $ sortOn (uncurry min) coixs
 
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
 xbarToLatex :: Maybe (Text -> Text) -> (Xbar, Movements) -> Text
-xbarToLatex annotate (xbar, Movements movements coixs) =
+xbarToLatex annotate (xbar, Movements movements coixs traces) =
   "\\begin{forest}\n[,phantom" <> go xbar <> "[,phantom,tikz={" <> T.unwords (map goMove movements) <> "}]]\\end{forest}"
   where
     cn = coindexationNames coixs
-    isMoved i = any ((i ==) . movementSource) movements
-    movedIndices = filter isMoved (indices xbar)
-    traceIndices = indicesBelow movedIndices xbar
+    isMoved i = i `elem` traces
+    traceChildren = indicesBelow traces xbar
     tshow = T.pack . show
     node i label children =
       "[" <> label
@@ -61,7 +60,7 @@ xbarToLatex annotate (xbar, Movements movements coixs) =
       let srci = prettifyToaq src
           src'
             | src == "" = "$\\varnothing$"
-            | isMoved i || i `elem` traceIndices = "\\sout{" <> srci <> "}"
+            | isMoved i || i `elem` traceChildren = "\\sout{" <> srci <> "}"
             | otherwise = colorWord srci
        in "\\textsf{" <> src' <> "}" <> note annotate src
     note (Just f) src

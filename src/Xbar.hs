@@ -30,7 +30,7 @@ import XbarUtils
 
 runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, Movements)
 runXbarWithMovements dict d =
-  case runState (unMx (toXbar d)) (XbarState 0 [] (Movements [] []) dict) of
+  case runState (unMx (toXbar d)) (XbarState 0 [] emptyMovements dict) of
     (x, s) -> (x, xbarMovements s)
 
 runXbar :: Dictionary -> Discourse -> Xbar
@@ -164,6 +164,7 @@ makeVPSerial vp nps = do
     Just (w, nps) -> do
       (_, xVs, xVPs) <- makeVPSerial w nps
       move xVs xVnow
+      traceAt xVs
       pure [xVPs]
   let xsArgs = xsNpsNow ++ xsNpsSerial
   (xVTrace, xVPish) <- makeVP serialVerbClass xVnow xsArgs
@@ -200,6 +201,7 @@ instance ToXbar PredicationC where
     let attachP = if arity >= 3 then "𝑣P" else "VP"
     xFV <- retag fvtag <$> toXbar nonTam
     move xVTrace xFV
+    traceAt xVTrace
     xVPa <- attachAdverbials attachP xVPish
     xFP <- mkPair "FP" xFV xVPa
     foldrM wrapTam xFP xsTam

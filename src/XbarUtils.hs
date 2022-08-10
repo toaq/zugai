@@ -67,9 +67,13 @@ data Movement = Movement
 
 data Movements = Movements
   { movements :: [Movement],
-    coindexations :: [(Int, Int)]
+    coindexations :: [(Int, Int)],
+    traces :: [Int]
   }
   deriving (Eq, Show)
+
+emptyMovements :: Movements
+emptyMovements = Movements [] [] []
 
 data XbarState = XbarState
   { xbarNodeCounter :: Int,
@@ -124,4 +128,12 @@ coindex i j =
     ( \s ->
         let ms = xbarMovements s
          in s {xbarMovements = ms {coindexations = (i, j) : coindexations ms}}
+    )
+
+traceAt :: Xbar -> Mx ()
+traceAt x =
+  modify
+    ( \s ->
+        let ms = xbarMovements s
+         in s {xbarMovements = ms {traces = index x : traces ms}}
     )
