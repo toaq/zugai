@@ -126,7 +126,7 @@ tokEq_ :: Token -> Parser (Pos ())
 tokEq_ = fmap (() <$) . tokEq
 
 pInterjection :: Parser (Pos Toned)
-pInterjection = tok $ \t -> case t of Interjection x -> Just x; _ -> Nothing
+pInterjection = tok $ \case Interjection x -> Just x; _ -> Nothing
 
 pFreeMod :: Parser FreeMod
 pFreeMod =
@@ -139,39 +139,39 @@ pW :: Parser (Pos a) -> Parser (W a)
 pW p = W <$> p <*> many pFreeMod
 
 pFocuser :: Parser (W Text)
-pFocuser = pW $ tok $ \t -> case t of Focuser te -> Just te; _ -> Nothing
+pFocuser = pW $ tok $ \case Focuser te -> Just te; _ -> Nothing
 
 pDeterminer :: Parser (W Determiner)
-pDeterminer = pW $ tok $ \t -> case t of Determiner d -> Just d; _ -> Nothing
+pDeterminer = pW $ tok $ \case Determiner d -> Just d; _ -> Nothing
 
 pConnective :: Parser (W Connective)
-pConnective = pW $ tok $ \t -> case t of Connective d -> Just d; _ -> Nothing
+pConnective = pW $ tok $ \case Connective d -> Just d; _ -> Nothing
 
 pComplementizerT3, pComplementizerT4, pComplementizerT5 :: Parser (W Complementizer)
-pComplementizerT3 = pW $ tok $ \t -> case t of Complementizer c@(CT3 _) -> Just c; _ -> Nothing
-pComplementizerT4 = pW $ tok $ \t -> case t of Complementizer c@(CT4 _) -> Just c; _ -> Nothing
-pComplementizerT5 = pW $ tok $ \t -> case t of Complementizer c@(CT5 _) -> Just c; _ -> Nothing
+pComplementizerT3 = pW $ tok $ \case Complementizer c@(CT3 _) -> Just c; _ -> Nothing
+pComplementizerT4 = pW $ tok $ \case Complementizer c@(CT4 _) -> Just c; _ -> Nothing
+pComplementizerT5 = pW $ tok $ \case Complementizer c@(CT5 _) -> Just c; _ -> Nothing
 
 pOiv :: Parser (W Text)
-pOiv = pW $ tok $ \t -> case t of Oiv te -> Just te; T4jei -> Just "jei"; _ -> Nothing
+pOiv = pW $ tok $ \case Oiv te -> Just te; T4jei -> Just "jei"; _ -> Nothing
 
 pPronoun :: Parser (W Text)
-pPronoun = pW $ tok $ \t -> case t of Pronoun te -> Just te; _ -> Nothing
+pPronoun = pW $ tok $ \case Pronoun te -> Just te; _ -> Nothing
 
 pNameVerb :: Parser (W NameVerb)
-pNameVerb = pW $ tok $ \t -> case t of NameVerb nv -> Just nv; _ -> Nothing
+pNameVerb = pW $ tok $ \case NameVerb nv -> Just nv; _ -> Nothing
 
 pShu, pMo, pLu :: Parser (W ())
-pShu = pW $ tok $ \t -> case t of Shu -> Just (); _ -> Nothing
-pMo = pW $ tok $ \t -> case t of Mo -> Just (); _ -> Nothing
-pLu = pW $ tok $ \t -> case t of Lu -> Just (); _ -> Nothing
+pShu = pW $ tok $ \case Shu -> Just (); _ -> Nothing
+pMo = pW $ tok $ \case Mo -> Just (); _ -> Nothing
+pLu = pW $ tok $ \case Lu -> Just (); _ -> Nothing
 
 pTerminator :: Token -> Parser Terminator
 pTerminator = optionMaybe . pW . tokEq_
 
 pT6token, pT7token :: Parser (Pos ())
-pT6token = tok $ \t -> case t of T6token -> Just (); _ -> Nothing
-pT7token = tok $ \t -> case t of T7token -> Just (); _ -> Nothing
+pT6token = tok $ \case T6token -> Just (); _ -> Nothing
+pT7token = tok $ \case T7token -> Just (); _ -> Nothing
 
 -- | Helper for parsing connectable constructs.
 -- @'pConnable'' pNa pFirst pRest@ parses a @pFirst@ followed by many @pRest@s,

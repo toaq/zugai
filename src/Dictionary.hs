@@ -21,13 +21,12 @@ import TextUtils
 data VerbClass = Tense | Aspect | Modality | Negation deriving (Eq, Ord, Show)
 
 instance FromJSON VerbClass where
-  parseJSON = withText "verb_class" $ \t ->
-    case t of
-      "tense" -> pure Tense
-      "aspect" -> pure Aspect
-      "modality" -> pure Modality
-      "negation" -> pure Negation
-      _ -> fail ("invalid verb_class: " <> T.unpack t)
+  parseJSON = withText "verb_class" $ \case
+    "tense" -> pure Tense
+    "aspect" -> pure Aspect
+    "modality" -> pure Modality
+    "negation" -> pure Negation
+    t -> fail ("invalid verb_class: " <> T.unpack t)
 
 data VerbInfo = VerbInfo
   { verbFrame :: Text,

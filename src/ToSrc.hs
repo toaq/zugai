@@ -16,7 +16,7 @@ import TextUtils
 (<~>) :: Text -> Text -> Text
 (<~>) = combineWords
 
-data ToSrcOptions = ToSrcOptions
+newtype ToSrcOptions = ToSrcOptions
   { punctuate :: Bool
   }
   deriving (Eq, Show)
