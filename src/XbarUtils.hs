@@ -10,6 +10,7 @@ import Control.Monad.State
 import Data.List (sortOn)
 import Data.Map (Map)
 import Data.Map qualified as M
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Dictionary
@@ -43,6 +44,14 @@ indicesBelow is (Tag i _ x) = if i `elem` is then indices x else indicesBelow is
 indicesBelow is (Pair i _ x y) = if i `elem` is then indices x ++ indices y else indicesBelow is x ++ indicesBelow is y
 indicesBelow is (Leaf i _) = [i | i `elem` is] -- not really "below" but... it's useful for little v movement
 indicesBelow is (Roof i _ _) = [i | i `elem` is]
+
+subtrees :: Xbar -> [Xbar]
+subtrees t@(Tag _ _ x) = t : subtrees x
+subtrees t@(Pair _ _ x y) = t : subtrees x ++ subtrees y
+subtrees t = [t]
+
+subtreeByIndex :: Int -> Xbar -> Maybe Xbar
+subtreeByIndex i x = listToMaybe [t | t <- subtrees x, index t == i]
 
 label :: Xbar -> Text
 label (Tag _ t _) = t
@@ -121,6 +130,12 @@ mkLeaf t = do i <- nextNodeNumber; pure $ Leaf i t
 
 mkRoof :: Text -> Text -> Mx Xbar
 mkRoof t s = do i <- nextNodeNumber; pure $ Roof i t s
+
+mkCopy :: Xbar -> Mx Xbar
+mkCopy (Tag _ t x) = do i <- nextNodeNumber; Tag i t <$> mkCopy x
+mkCopy (Pair _ t x y) = do i <- nextNodeNumber; Pair i t <$> mkCopy x <*> mkCopy y
+mkCopy (Leaf _ s) = do i <- nextNodeNumber; pure $ Leaf i s
+mkCopy (Roof _ t s) = do i <- nextNodeNumber; pure $ Roof i t s
 
 move' :: Int -> Int -> Mx ()
 move' i j =

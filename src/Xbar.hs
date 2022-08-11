@@ -107,10 +107,31 @@ instance ToXbar Statement where
       Nothing -> pure xFP
     s <- popScope
     traceM (show s)
-    xWithQPs <- foldrM mkQP xTopicP (scopeQuantifiers s)
+    xWithFoc <- foldrM mkFocAdvP xTopicP (scopeFocuses s)
+    xWithQPs <- foldrM mkQP xWithFoc (scopeQuantifiers s)
     if or [d == Ja | (d, _, _) <- scopeQuantifiers s]
       then mkPair "CP[+λ]" (mapSrc (<> "[+λ]") xC) xWithQPs
       else mkPair "CP" xC xWithQPs
+
+focGloss :: Text -> Text
+focGloss "ku" = "[focus, -contrast]"
+focGloss "bei" = "[focus, +contrast]"
+focGloss "tou" = "[only]"
+focGloss "mao" = "[also]"
+focGloss "juaq" = "[even]"
+focGloss _ = "[?]"
+
+mkFocAdvP :: (Text, Int) -> Xbar -> Mx Xbar
+mkFocAdvP (focuser, iDP) x = do
+  xFocAdv <- mkTag "FocAdv" =<< mkLeaf (focGloss $ bareToaq focuser)
+  -- Copy the DP up here... kind of a hack
+  xDP <- case subtreeByIndex iDP x of
+    Just dp -> mkCopy dp
+    Nothing -> mkRoof "DP" "???"
+  move' iDP (index xDP)
+  traceAt xDP
+  xFocAdvP <- mkPair "FocAdvP" xFocAdv xDP
+  mkPair (label x) xFocAdvP x
 
 qgloss :: Determiner -> Text
 qgloss Sa = "[∃]"
@@ -307,7 +328,11 @@ instance ToXbar PpC where
   toXbar (Pp _ np) = error "X-bar: coordination of prepositions is unimplemented"
 
 instance ToXbar NpC where
-  toXbar (Focused foc np) = do x <- toXbar foc; y <- toXbar np; mkPair "Foc" x y
+  toXbar (Focused foc np) = do
+    xFoc <- mkTag "Foc" =<< toXbar foc
+    xDP <- toXbar np
+    focus (toSrc foc) (index xDP)
+    mkPair "FocP(DP)" xFoc xDP
   toXbar (Unf np) = toXbar np
 
 instance ToXbar NpF where

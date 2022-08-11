@@ -15,12 +15,13 @@ type VarRef = Text -- like "de poq" or "ta": VP-turned-to-text or pronoun word t
 data Scope t = Scope
   { argsSeen :: Int, -- args seen so far in clause: used to make aq decisions
     bindings :: Map VarRef t, -- after "sa dẻ pỏq", generate var "D" and map "de poq" + "ta" to "D" here.
-    scopeQuantifiers :: [(Determiner, VarRef, t)]
+    scopeQuantifiers :: [(Determiner, VarRef, t)],
+    scopeFocuses :: [(Text, t)]
   }
   deriving (Eq, Show)
 
 emptyScope :: Scope t
-emptyScope = Scope 0 M.empty []
+emptyScope = Scope 0 M.empty [] []
 
 class Monad m => HasScopes t m | m -> t where
   getScopes :: m [Scope t]
@@ -62,3 +63,7 @@ quantify det var t = do
     isHigh d = d == Ja || d == Hi
     ins qs = case span (\(d, _, _) -> isHigh d >= isHigh det) qs of
       (pre, post) -> pre ++ (det, var, t) : post
+
+focus :: HasScopes t m => Text -> t -> m ()
+focus focuser t = do
+  modifyTop (\scope -> scope {scopeFocuses = scopeFocuses scope ++ [(focuser, t)]})
