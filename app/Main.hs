@@ -1,6 +1,5 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module Main where
 
@@ -10,6 +9,7 @@ import Control.Monad
 import Data.Aeson.Micro qualified as J
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
+import Data.ByteString.Lazy.Char8 qualified as BSL
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
@@ -26,7 +26,6 @@ import Lex
 import Lib
 import Options.Applicative
 import Parse hiding (Parser)
-import Text.RawString.QQ
 import TextUtils
 import ToSrc
 import Xbar
@@ -86,7 +85,7 @@ unwrap :: Show a => Either a b -> IO b
 unwrap (Left a) = throwIO (ZugaiException $ show a)
 unwrap (Right b) = pure b
 
-processInput :: OutputMode -> Dictionary -> Text -> IO ()
+processInput :: OutputMode -> Dictionary -> Text -> IO BSL.ByteString
 processInput om dict unstrippedInput = do
   let input = T.strip unstrippedInput
   lexed <- unwrap (lexToaq input)
@@ -102,52 +101,27 @@ processInput om dict unstrippedInput = do
         ToXbarSvg -> renderBS $ renderDia SVG (SVGOptions (mkHeight 500) Nothing "" [] True) (xbarToDiagram (glossWith dict) (runXbarWithMovements dict parsed))
         ToEnglish -> enc $ toEnglish dict parsed
         ToLogic -> enc $ T.intercalate "\n" $ map showFormula $ interpret dict parsed
-  BSL.putStr (output <> "\n")
+  pure output
 
-boxesPreamble :: Text
-boxesPreamble =
-  [r|
-<html>
-<head>
-<title>zugai boxes output</title>
-<style>
-.box {
-    font-size: 18px;
-    font-family: sans-serif;
-    display: flex;
-    border-width: 2px;
-    margin: 20px 5px 5px 5px;
-    align-items: flex-end;
-    border-style: solid;
-    min-width: 20px;
-}
-.discourse { border-style: none; flex-direction: column; align-items: flex-start; }
-.box.leaf { border-style: none; }
-.box { position: relative; }
-.box:before { width: 0px; height: 0px; position: absolute; top: 5px; left: 5px; opacity: 0.5; font-size: 12px; }
-.sentence          { border-color: #72c91b; background-color: #dafa94; color: black; } .sentence:before { content: "sentence"; }
-.clause            { border-color: #b85450; background-color: #f8cecc; color: black; } .clause:before { content: "clause"; }
-.complementizer    { border-color: #b20000; background-color: #e51400; color: white; } .complementizer:before { content: "C"; }
-.topic             { border-color: #a50040; background-color: #d80073; color: white; } .topic:before { content: "topic"; }
-.verbal-complex    { border-color: #2d7600; background-color: #72c91b; color: black; } .verbal-complex:before { content: "verb"; }
-.post-field        { border-color: #d79b00; background-color: #ffc41f; color: black; } .post-field:before { content: ""; }
-.adverbial         { border-color: #432d57; background-color: #76608a; color: white; } .adverbial:before { content: "adv"; }
-.argument          { border-color: #c73500; background-color: #fa6800; color: black; } .argument:before { content: "noun"; }
-.sentence-boundary { border-color: #666666; background-color: #eeeeee; color: black; } .sentence-boundary:before { content: "start"; }
-.illocution        { border-color: #6c8ebf; background-color: #8bafe4; color: black; } .illocution:before { content: "illoc"; }
-</style>
-</head>
-<body>
-|]
+applyTemplate :: FilePath -> BSL.ByteString -> IO BS.ByteString
+applyTemplate path string = do
+  contents <- BS.readFile path
+  let (pre, post) = BS.breakSubstring "%OUTPUT%" contents
+  pure $ pre <> BSL.toStrict string <> post
+
+applyTemplateFor :: OutputMode -> BSL.ByteString -> IO BS.ByteString
+applyTemplateFor ToXbarLatex = applyTemplate "data/templates/xbar.tex"
+applyTemplateFor ToBoxes = applyTemplate "data/templates/boxes.html"
+applyTemplateFor _ = pure . BSL.toStrict
 
 main :: IO ()
 main = do
   CliOptions im om lineByLine <- execParser cliInfo
   input <- case im of FromStdin -> T.getContents; FromFile s -> T.readFile s
   dict <- readDictionary
-  when (om == ToXbarLatex) $ T.putStr latexPreamble
-  when (om == ToBoxes) $ T.putStr boxesPreamble
-  if lineByLine
-    then mapM_ (processInput om dict) (T.lines input)
-    else processInput om dict input
-  when (om == ToXbarLatex) $ T.putStrLn "\\end{document}"
+  output <-
+    if lineByLine
+      then BSL.unlines <$> mapM (processInput om dict) (T.lines input)
+      else processInput om dict input
+  wrapped <- applyTemplateFor om output
+  BS.putStr wrapped

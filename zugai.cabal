@@ -62,7 +62,6 @@ library
     , optparse-applicative >=0.16
     , parsec >=3.1.14.0
     , pretty-simple
-    , raw-strings-qq
     , split >=0.2.3.4
     , svg-builder
     , text
@@ -93,7 +92,6 @@ executable zugai-exe
     , optparse-applicative >=0.16
     , parsec >=3.1.14.0
     , pretty-simple
-    , raw-strings-qq
     , split >=0.2.3.4
     , svg-builder
     , text
@@ -129,7 +127,6 @@ test-suite zugai-test
     , optparse-applicative >=0.16
     , parsec >=3.1.14.0
     , pretty-simple
-    , raw-strings-qq
     , split >=0.2.3.4
     , svg-builder
     , text
