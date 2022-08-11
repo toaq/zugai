@@ -26,7 +26,9 @@ bareToaq :: Text -> Text
 bareToaq = T.filter isToaqLetter . normalizeToaq
 
 isToneSrc :: Text -> Bool
-isToneSrc t = T.length t == 2 && isCombiningDiacritic (T.last t)
+isToneSrc t =
+  let t' = T.normalize T.NFKD t
+   in T.length t' == 2 && isCombiningDiacritic (T.last t')
 
 setTone :: Text -> Text -> Text
 setTone dia t =

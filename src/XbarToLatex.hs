@@ -1,12 +1,16 @@
 module XbarToLatex where
 
+import Cli
+import Data.ByteString qualified as BS
 import Data.Char
 import Data.List
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Encoding (encodeUtf8)
 import Data.Text.IO qualified as T
+import Debug.Trace (traceShow)
 import Dictionary (glossWith, readDictionary)
 import Lex
 import Parse
@@ -15,14 +19,15 @@ import Xbar
 import XbarUtils
 
 colorWord :: Text -> Text
-colorWord t = "{\\color[HTML]{" <> color <> "}" <> t <> "}"
+colorWord t = "{\\color{" <> color <> "}" <> t <> "}"
   where
+    t' = T.filter (\c -> c /= '{' && c /= '}') t
     color =
-      if isToneSrc t
-        then "ff88cc"
+      if isToneSrc t' || "[" `T.isPrefixOf` t'
+        then "other"
         else case last <$> toToken defaultLexOptions (T.unpack $ normalizeToaq t) of
-          Right (Verb _) -> "99eeff"
-          _ -> "ffcc88"
+          Right (Verb _) -> "verb"
+          _ -> "particle"
 
 escapeLatex :: Text -> Text
 escapeLatex t = "{" <> T.concatMap latexSym t <> "}"
@@ -73,24 +78,9 @@ xbarToLatex annotate (xbar, Movements movements coixs traces) =
       | noteText <- f src,
         noteText /= "" =
         let (cmd, transform) = if T.all isUpper noteText then ("\\textsc", T.toLower) else ("\\textit", id)
-         in "\\\\" <> cmd <> "{\\color[HTML]{dcddde}" <> transform noteText <> "}"
+         in "\\\\" <> cmd <> "{\\color{fg}" <> transform noteText <> "}"
     note _ _ = ""
     goMove (Movement i j) = "\\draw[->] (n" <> tshow i <> ") to[out=south,in=south] (n" <> tshow j <> ");"
-
-latexPreamble :: Text
-latexPreamble =
-  T.unlines
-    [ "\\documentclass[preview,border=30pt]{standalone}",
-      "\\usepackage{amssymb}",
-      "\\usepackage{ulem}",
-      "\\usepackage{xcolor}",
-      "\\usepackage[linguistics]{forest}",
-      "\\usetikzlibrary{arrows.meta}",
-      "\\tikzset{>={Stealth[width=2mm,length=2mm]}}",
-      "\\begin{document}",
-      "\\pagecolor[HTML]{36393E}",
-      "\\color[HTML]{DCDDDE}"
-    ]
 
 lpl :: Text -> IO ()
 lpl text = do
@@ -98,4 +88,6 @@ lpl text = do
   let Right tokens = lexToaq text
   let Right discourse = parseDiscourse tokens
   let tex = xbarToLatex (Just (glossWith dict)) (runXbarWithMovements dict discourse)
-  T.writeFile "output.tex" (latexPreamble <> tex <> "\\end{document}")
+  wrapped <- applyTemplateFor ToXbarLatex (encodeUtf8 tex)
+  BS.writeFile "output.tex" wrapped
+  putStrLn "Wrote to output.tex."
