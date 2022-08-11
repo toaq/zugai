@@ -41,7 +41,7 @@ inT2 :: Text -> Text
 inT2 = setTone "\x0301"
 
 combineWords :: Text -> Text -> Text
-combineWords x y = if isToneSrc x then copyTone x y else x <> " " <> y
+combineWords x y = if isToneSrc x then copyTone x y else T.strip (x <> " " <> y)
 
 prettifyToaq :: Text -> Text
 prettifyToaq = tr "i" "ı" . T.normalize T.NFKC

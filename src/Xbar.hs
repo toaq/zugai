@@ -126,7 +126,7 @@ mkFocAdvP (focuser, iDP) x = do
   xFocAdv <- mkTag "FocAdv" =<< mkLeaf (focGloss $ bareToaq focuser)
   -- Copy the DP up here... kind of a hack
   xDP <- case subtreeByIndex iDP x of
-    Just dp -> mkCopy dp
+    Just dp -> mkRoof "DP" =<< aggregateSrc dp
     Nothing -> mkRoof "DP" "???"
   move' iDP (index xDP)
   traceAt xDP
@@ -389,7 +389,7 @@ instance ToXbar VpC where
     xV <- toXbar v
     xW <- toXbar w
     serial <- mkPair "Serial" xV xW
-    mkRoof "V" (aggregateSrc serial)
+    mkRoof "V" =<< aggregateSrc serial
   toXbar (Nonserial x) = toXbar x
 
 instance ToXbar VpN where

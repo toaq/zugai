@@ -71,11 +71,18 @@ mapSrc f (Pair i t x y) = Pair i t (mapSrc f x) (mapSrc f y)
 mapSrc f (Leaf i s) = Leaf i (f s)
 mapSrc f (Roof i t s) = Roof i t (f s)
 
-aggregateSrc :: Xbar -> Text
-aggregateSrc (Tag _ _ x) = aggregateSrc x
-aggregateSrc (Pair _ _ x y) = combineWords (aggregateSrc x) (aggregateSrc y)
-aggregateSrc (Leaf _ s) = s
-aggregateSrc (Roof _ _ s) = s
+aggregateSrc :: Xbar -> Mx Text
+aggregateSrc x =
+  do
+    ts <- gets (traces . xbarMovements)
+    let ixs = indicesBelow ts x
+        go :: Xbar -> Text
+        go (Tag _ _ x) = go x
+        go (Pair _ _ x y) = combineWords (go x) (go y)
+        go (Leaf i s) =
+          if i `elem` ixs || "[" `T.isPrefixOf` s then "" else s
+        go (Roof _ _ s) = s
+    pure $ go x
 
 data Movement = Movement
   { movementSource :: Int,

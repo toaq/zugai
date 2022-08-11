@@ -42,22 +42,26 @@ xbarToLatex annotate (xbar, Movements movements coixs traces) =
     isMoved i = i `elem` traces
     traceChildren = indicesBelow traces xbar
     tshow = T.pack . show
-    node i label children =
-      "[" <> escapeLatex label
-        <> case cn M.!? i of Just c -> "$_" <> T.cons c "$"; Nothing -> ""
-        <> ",tikz={\\node [name=n"
-        <> tshow i
-        <> ",inner sep=0,fit to=tree]{};}"
-        <> children
-        <> "]"
+    node canBox i label children =
+      let drawBox = canBox && or [i == src | Movement src tgt <- movements]
+       in "[" <> escapeLatex label
+            <> case cn M.!? i of Just c -> "$_" <> T.cons c "$"; Nothing -> ""
+            <> (if drawBox then ",fit=band" else "")
+            <> ",tikz={\\node [name=n"
+            <> tshow i
+            <> ",inner sep=0,fit to=tree"
+            <> (if drawBox then ",draw=gray,dashed" else "")
+            <> "]{};}"
+            <> children
+            <> "]"
     label = T.replace "◌" "o"
-    go (Leaf i src) = node i (goSrc i (label src)) ""
-    go (Roof i t src) = node i (label t) ("[" <> goSrc i src <> ",roof]")
-    go (Tag i t sub) = node i (label t) (go sub)
+    go (Leaf i src) = node False i (goSrc i (label src)) ""
+    go (Roof i t src) = node False i (label t) ("[" <> goSrc i src <> ",roof]")
+    go (Tag i t sub) = node False i (label t) (go sub)
     go p@(Pair i t x y) =
       -- if isMoved i then go (Roof i t (aggregateSrc p)) else
       -- this causes problems: goMove outputs node names that didn't get generated, so tikz errors
-      node i (label t) (go x <> " " <> go y)
+      node True i (label t) (go x <> " " <> go y)
     goSrc i src =
       let srci = escapeLatex $ prettifyToaq src
           src'
