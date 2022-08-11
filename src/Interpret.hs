@@ -261,9 +261,9 @@ bindVpWithTransform verbTransform det (Just vp) =
     v <- makeFreeVar (Just name)
     -- bind vars in the interpreter state:
     bind name (Var v)
-    Scope argsSeen _ <- gets (head . scopes)
+    argc <- gets (argsSeen . head . scopes)
     di <- gets stDictionary
-    let anaphora = if argsSeen == 0 then Just "aq" else lookupPronoun di name
+    let anaphora = if argc == 0 then Just "aq" else lookupPronoun di name
     case anaphora of
       Just prn -> bind prn (Var v)
       Nothing -> pure ()

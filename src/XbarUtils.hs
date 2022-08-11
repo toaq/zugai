@@ -44,11 +44,17 @@ indicesBelow is (Pair i _ x y) = if i `elem` is then indices x ++ indices y else
 indicesBelow is (Leaf i _) = [i | i `elem` is] -- not really "below" but... it's useful for little v movement
 indicesBelow is (Roof i _ _) = [i | i `elem` is]
 
-retag :: Text -> Xbar -> Xbar
-retag t (Tag i _ x) = Tag i t x
-retag t (Pair i _ x y) = Pair i t x y
-retag _ x@(Leaf _ _) = x
-retag t (Roof i _ s) = Roof i t s
+label :: Xbar -> Text
+label (Tag _ t _) = t
+label (Pair _ t _ _) = t
+label (Leaf _ t) = "?"
+label (Roof _ t _) = t
+
+relabel :: Text -> Xbar -> Xbar
+relabel t (Tag i _ x) = Tag i t x
+relabel t (Pair i _ x y) = Pair i t x y
+relabel _ x@(Leaf _ _) = x
+relabel t (Roof i _ s) = Roof i t s
 
 mapSrc :: (Text -> Text) -> Xbar -> Xbar
 mapSrc f (Tag i t x) = Tag i t (mapSrc f x)
@@ -116,14 +122,16 @@ mkLeaf t = do i <- nextNodeNumber; pure $ Leaf i t
 mkRoof :: Text -> Text -> Mx Xbar
 mkRoof t s = do i <- nextNodeNumber; pure $ Roof i t s
 
+move' :: Int -> Int -> Mx ()
+move' i j =
+  modify
+    ( \s ->
+        let ms = xbarMovements s
+         in s {xbarMovements = ms {movements = Movement i j : movements ms}}
+    )
+
 move :: Xbar -> Xbar -> Mx ()
-move src tgt =
-  let m = Movement (index src) (index tgt)
-   in modify
-        ( \s ->
-            let ms = xbarMovements s
-             in s {xbarMovements = ms {movements = m : movements ms}}
-        )
+move src tgt = move' (index src) (index tgt)
 
 coindex :: Int -> Int -> Mx ()
 coindex i j =

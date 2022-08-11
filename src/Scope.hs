@@ -8,17 +8,19 @@ import Control.Monad (msum)
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
+import Lex (Determiner (..))
 
 type VarRef = Text -- like "de poq" or "ta": VP-turned-to-text or pronoun word that refers to a variable
 
 data Scope t = Scope
   { argsSeen :: Int, -- args seen so far in clause: used to make aq decisions
-    bindings :: Map VarRef t -- after "sa dẻ pỏq", generate var "D" and map "de poq" + "ta" to "D" here.
+    bindings :: Map VarRef t, -- after "sa dẻ pỏq", generate var "D" and map "de poq" + "ta" to "D" here.
+    scopeQuantifiers :: [(Determiner, VarRef, t)]
   }
   deriving (Eq, Show)
 
 emptyScope :: Scope t
-emptyScope = Scope 0 M.empty
+emptyScope = Scope 0 M.empty []
 
 class Monad m => HasScopes t m | m -> t where
   getScopes :: m [Scope t]
@@ -44,11 +46,19 @@ bind :: HasScopes t m => VarRef -> t -> m ()
 bind var term = modifyTop (\scope -> scope {bindings = M.insert var term (bindings scope)})
 
 incrementArgsSeen :: HasScopes t m => m ()
-incrementArgsSeen = modifyTop (\(Scope i s) -> Scope (i + 1) s)
+incrementArgsSeen = modifyTop (\sc -> sc {argsSeen = argsSeen sc + 1})
 
 resetArgsSeen :: HasScopes t m => m ()
-resetArgsSeen = modifyTop (\(Scope i s) -> Scope 0 s)
+resetArgsSeen = modifyTop (\sc -> sc {argsSeen = 0})
 
 scopeLookup :: HasScopes t m => VarRef -> m (Maybe t)
 scopeLookup name =
   msum . map (M.lookup name . bindings) <$> getScopes
+
+quantify :: HasScopes t m => Determiner -> VarRef -> t -> m ()
+quantify det var t = do
+  modifyTop (\scope -> scope {scopeQuantifiers = ins (scopeQuantifiers scope)})
+  where
+    isHigh d = d == Ja || d == Hi
+    ins qs = case span (\(d, _, _) -> isHigh d >= isHigh det) qs of
+      (pre, post) -> pre ++ (det, var, t) : post

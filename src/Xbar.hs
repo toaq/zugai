@@ -105,8 +105,30 @@ instance ToXbar Statement where
     xTopicP <- case maybeXsTopicsBi of
       Just (xs, bi) -> prenexToXbar xs bi xFP
       Nothing -> pure xFP
-    popScope
-    mkPair "CP" xC xTopicP
+    s <- popScope
+    traceM (show s)
+    xWithQPs <- foldrM mkQP xTopicP (scopeQuantifiers s)
+    if or [d == Ja | (d, _, _) <- scopeQuantifiers s]
+      then mkPair "CP[+λ]" (mapSrc (<> "[+λ]") xC) xWithQPs
+      else mkPair "CP" xC xWithQPs
+
+qgloss :: Determiner -> Text
+qgloss Sa = "[∃]"
+qgloss Tu = "[∀]"
+qgloss Tuq = "[Λ]"
+qgloss Ke = "[℩]"
+qgloss Ja = "[λ]"
+qgloss (XShi q) = T.init (qgloss q) <> "¹]"
+qgloss _ = "[…]"
+
+mkQP :: (Determiner, VarRef, Int) -> Xbar -> Mx Xbar
+mkQP (det, name, indexOfDPV) x = do
+  xQ <- mkTag "Q" =<< mkLeaf (qgloss det)
+  xV <- mkTag "V" =<< mkLeaf name
+  traceAt xV
+  move' indexOfDPV (index xV)
+  xQP <- mkPair "QP" xQ xV
+  mkPair (label x) xQP x
 
 -- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
 makeVP :: Maybe VerbClass -> Xbar -> [Xbar] -> Mx (Xbar, Xbar)
@@ -121,7 +143,7 @@ makeVP mvc xV xsNp =
         [] -> do
           pure (xV, xV)
         [xDPS] -> do
-          xVP <- mkPair (tamnv <> "P") (retag tamnv xV) xDPS
+          xVP <- mkPair (tamnv <> "P") (relabel tamnv xV) xDPS
           pure (xV, xVP)
         [xDPS, xDPO] -> do
           xV' <- mkPair "V'" xV xDPO
@@ -200,7 +222,7 @@ instance ToXbar PredicationC where
     (arity, xVTrace, xVPish) <- makeVPSerial nonTam (map Right nps)
     let fvtag = if arity >= 3 then "F+𝑣+V" else "F+V"
     let attachP = if arity >= 3 then "𝑣P" else "VP"
-    xFV <- retag fvtag <$> toXbar nonTam
+    xFV <- relabel fvtag <$> toXbar nonTam
     move xVTrace xFV
     traceAt xVTrace
     xVPa <- attachAdverbials attachP xVPish
@@ -302,13 +324,14 @@ instance ToXbar NpR where
   toXbar (Ndp dp) = toXbar dp
   toXbar (Ncc cc) = toXbar cc
 
-bindVp :: Text -> Int -> Mx ()
-bindVp name idx = do
-  bind name idx
+bindVp :: Determiner -> Text -> Int -> Int -> Mx ()
+bindVp det name iDP iVP = do
+  quantify det name iVP
+  bind name iDP
   dictionary <- gets xbarDictionary
   let anaphora = lookupPronoun dictionary name
   case anaphora of
-    Just prn -> bind prn idx
+    Just prn -> bind prn iDP
     Nothing -> pure ()
 
 instance ToXbar Dp where
@@ -317,17 +340,17 @@ instance ToXbar Dp where
     iDP <- nextNodeNumber
     xVP <- case maybeVp of
       Nothing -> toXbar (nullVp (posPos pos))
-      Just vp -> do
-        case unW det of
-          DT2 -> do
-            mi <- scopeLookup (toName vp)
-            case mi of
-              Nothing -> bindVp (toName vp) iDP
-              Just i -> coindex iDP i
-          _ -> do
-            bindVp (toName vp) iDP
-        ss <- getScopes
-        toXbar vp
+      Just vp -> toXbar vp
+    let iVP = index xVP
+    let name = maybe "" toName maybeVp
+    case unW det of
+      DT2 -> do
+        mi <- scopeLookup name
+        case mi of
+          Nothing -> bindVp Ke name iDP iVP
+          Just i -> coindex iDP i
+      det -> do
+        bindVp det name iDP iVP
     pure $ Pair iDP "DP" xD xVP
 
 instance ToXbar RelC where
@@ -410,37 +433,6 @@ instance ToXbar Determiner where toXbar det = mkTag "D" =<< toXbar (show det)
 instance ToXbar Connective where toXbar t = mkTag "Co" =<< toXbar (show t)
 
 instance ToXbar Complementizer where toXbar t = mkTag "C" =<< toXbar (show t)
-
--- Show an Xbar tree using indentation and ANSI colors.
-showXbarAnsi :: Xbar -> Movements -> [Text]
-showXbarAnsi xbar (Movements moves coixs traces) = go xbar
-  where
-    cn = getCoindexationName coixs
-    traceChildren = indicesBelow traces xbar
-    mv i t = T.concat markers <> t <> coindex
-      where
-        mark s n = "\x1b[38;5;34m" <> s <> T.pack (show n) <> " \x1b[0m"
-        markers = do
-          (n, Movement src tgt) <- zip [1 ..] moves
-          [if i == src then mark "←" n else if i == tgt then mark "→" n else ""]
-        coindex = maybe "" (\s -> "\x1b[38;5;39m[" <> s <> "]\x1b[0m") (cn i)
-    go (Leaf i src) =
-      let col = if i `elem` traceChildren then "\x1b[90;9m" else "\x1b[38;5;208m"
-       in [col <> prettifyToaq src <> "\x1b[0m"]
-    go (Roof i t src) = [mv i t <> "  " <> "\x1b[38;5;208m" <> prettifyToaq src <> "\x1b[0m"]
-    go (Tag i t sub) =
-      case go sub of
-        [one] -> [mv i t <> "  " <> one]
-        many -> mv i t : map ("  " <>) many
-    go (Pair i t x y) = mv i t : map ("  " <>) (go x) ++ map ("  " <>) (go y)
-
-lpx :: Text -> IO ()
-lpx text = do
-  dict <- readDictionary
-  let Right tokens = lexToaq text
-  let Right discourse = parseDiscourse tokens
-  let (xbar, movements) = runXbarWithMovements dict discourse
-  mapM_ T.putStrLn (showXbarAnsi xbar movements)
 
 -- Convert an Xbar tree to JSON.
 xbarToJson :: Maybe (Text -> Text) -> Xbar -> J.Value

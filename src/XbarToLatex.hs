@@ -1,4 +1,4 @@
-module XbarToLatex (xbarToLatex) where
+module XbarToLatex where
 
 import Data.Char
 import Data.List
@@ -6,6 +6,8 @@ import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
+import Dictionary (glossWith, readDictionary)
 import Lex
 import Parse
 import TextUtils
@@ -22,6 +24,15 @@ colorWord t = "{\\color[HTML]{" <> color <> "}" <> t <> "}"
           Right (Verb _) -> "99eeff"
           _ -> "ffcc88"
 
+escapeLatex :: Text -> Text
+escapeLatex t = "{" <> T.concatMap latexSym t <> "}"
+  where
+    latexSym '𝑣' = "$v$"
+    latexSym '∃' = "$\\exists$"
+    latexSym '∀' = "$\\forall$"
+    latexSym 'λ' = "$\\lambda$"
+    latexSym c = T.singleton c
+
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
 xbarToLatex :: Maybe (Text -> Text) -> (Xbar, Movements) -> Text
 xbarToLatex annotate (xbar, Movements movements coixs traces) =
@@ -32,14 +43,14 @@ xbarToLatex annotate (xbar, Movements movements coixs traces) =
     traceChildren = indicesBelow traces xbar
     tshow = T.pack . show
     node i label children =
-      "[" <> label
+      "[" <> escapeLatex label
         <> case cn M.!? i of Just c -> "$_" <> T.cons c "$"; Nothing -> ""
         <> ",tikz={\\node [name=n"
         <> tshow i
         <> ",inner sep=0,fit to=tree]{};}"
         <> children
         <> "]"
-    label = T.replace "𝑣" "$v$" . T.replace "◌" "o"
+    label = T.replace "◌" "o"
     go (Leaf i src) = node i (goSrc i (label src)) ""
     go (Roof i t src) = node i (label t) ("[" <> goSrc i src <> ",roof]")
     go (Tag i t sub) = node i (label t) (go sub)
@@ -48,7 +59,7 @@ xbarToLatex annotate (xbar, Movements movements coixs traces) =
       -- this causes problems: goMove outputs node names that didn't get generated, so tikz errors
       node i (label t) (go x <> " " <> go y)
     goSrc i src =
-      let srci = prettifyToaq src
+      let srci = escapeLatex $ prettifyToaq src
           src'
             | src == "" = "$\\varnothing$"
             | isMoved i || i `elem` traceChildren = "\\sout{" <> srci <> "}"
@@ -61,3 +72,26 @@ xbarToLatex annotate (xbar, Movements movements coixs traces) =
          in "\\\\" <> cmd <> "{\\color[HTML]{dcddde}" <> transform noteText <> "}"
     note _ _ = ""
     goMove (Movement i j) = "\\draw[->] (n" <> tshow i <> ") to[out=south,in=south] (n" <> tshow j <> ");"
+
+latexPreamble :: Text
+latexPreamble =
+  T.unlines
+    [ "\\documentclass[preview,border=30pt]{standalone}",
+      "\\usepackage{amssymb}",
+      "\\usepackage{ulem}",
+      "\\usepackage{xcolor}",
+      "\\usepackage[linguistics]{forest}",
+      "\\usetikzlibrary{arrows.meta}",
+      "\\tikzset{>={Stealth[width=2mm,length=2mm]}}",
+      "\\begin{document}",
+      "\\pagecolor[HTML]{36393E}",
+      "\\color[HTML]{DCDDDE}"
+    ]
+
+lpl :: Text -> IO ()
+lpl text = do
+  dict <- readDictionary
+  let Right tokens = lexToaq text
+  let Right discourse = parseDiscourse tokens
+  let tex = xbarToLatex (Just (glossWith dict)) (runXbarWithMovements dict discourse)
+  T.writeFile "output.tex" (latexPreamble <> tex <> "\\end{document}")
