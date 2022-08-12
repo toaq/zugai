@@ -144,8 +144,11 @@ qgloss _ = "[…]"
 
 mkQP :: (Determiner, VarRef, Int) -> Xbar -> Mx Xbar
 mkQP (det, name, indexOfDPV) x = do
+  let isVP = case subtreeByIndex indexOfDPV x of
+        Just xDPV | label xDPV == "VP" -> True
+        _ -> False
   xQ <- mkTag "Q" =<< mkLeaf (qgloss det)
-  xV <- mkTag "V" =<< mkLeaf name
+  xV <- if isVP then mkRoof "VP" name else mkTag "V" =<< mkLeaf name
   traceAt xV
   move' indexOfDPV (index xV)
   xQP <- mkPair "QP" xQ xV
@@ -163,6 +166,12 @@ makeVP mvc xV xsNp =
    in case xsNp of
         [] -> do
           pure (xV, xV)
+        [xDPS] | label xV == "VP" -> do
+          -- Our "xV" is actually a VP with an incorporated object.
+          xv <- mkLeaf "𝑣"
+          xv' <- mkPair "𝑣'" xv xV
+          xvP <- mkPair "𝑣P" xDPS xv'
+          pure (xV, xvP)
         [xDPS] -> do
           xVP <- mkPair (tamnv <> "P") (relabel tamnv xV) xDPS
           pure (xV, xVP)
@@ -229,6 +238,11 @@ wrapTam (vc, xV) xFP = do
   (_, xTamP) <- makeVP (Just vc) xV [xFP]
   pure xTamP
 
+needsVPMovement :: VpC -> Bool
+needsVPMovement (Nonserial (Vverb {})) = False
+needsVPMovement (Nonserial _) = True
+needsVPMovement (Serial n _) = needsVPMovement (Nonserial n)
+
 instance ToXbar PredicationC where
   toXbar (Predication predicate advsL nps advsR) = do
     xsAdvL <- mapM toXbar advsL
@@ -241,9 +255,13 @@ instance ToXbar PredicationC where
     -- Extract TAMs so we can wrap them around FP later.
     (xsTam, nonTam) <- extractTams v
     (arity, xVTrace, xVPish) <- makeVPSerial nonTam (map Right nps)
-    let fvtag = if arity >= 3 then "F+𝑣+V" else "F+V"
+    xFV <-
+      if needsVPMovement v
+        then mkRoof "F+VP" (toSrc nonTam)
+        else do
+          let fvtag = if arity >= 3 then "F+𝑣+V" else "F+V"
+          relabel fvtag <$> toXbar nonTam
     let attachP = if arity >= 3 then "𝑣P" else "VP"
-    xFV <- relabel fvtag <$> toXbar nonTam
     move xVTrace xFV
     traceAt xVTrace
     xVPa <- attachAdverbials attachP xVPish
@@ -372,7 +390,7 @@ instance ToXbar Dp where
       DT2 -> do
         mi <- scopeLookup name
         case mi of
-          Nothing -> bindVp Ke name iDP iVP
+          Nothing -> pure () -- bindVp Ke name iDP iVP  <-- do this in semantics stage instead.
           Just i -> coindex iDP i
       det -> do
         bindVp det name iDP iVP
@@ -396,22 +414,22 @@ instance ToXbar VpN where
   toXbar (Vname nv name tmr) = do
     t1 <- toXbar nv
     t2 <- toXbar name
-    t3 <- mkPair "Vname" t1 t2
-    terminated "Vname" t3 tmr
+    t3 <- mkPair "VP" t1 t2
+    terminated "VP" t3 tmr
   toXbar (Vshu shu text) = do
-    t1 <- mkTag "Quoter" =<< toXbar shu
-    t2 <- mkTag "Quoted" =<< toXbar text
-    mkPair "Vquote" t1 t2
+    t1 <- mkTag "V" =<< toXbar shu
+    t2 <- mkTag "DP" =<< toXbar text
+    mkPair "VP" t1 t2
   toXbar (Voiv oiv np tmr) = do
     t1 <- mkTag "OIV" =<< toXbar oiv
     t2 <- toXbar np
     t3 <- mkPair "Vinc" t1 t2
     terminated "Vinc" t3 tmr
   toXbar (Vmo mo disc teo) = do
-    t1 <- mkTag "Quoter" =<< toXbar mo
+    t1 <- mkTag "V" =<< toXbar mo
     t2 <- toXbar disc
-    t3 <- mkPair "Vquote" t1 t2
-    terminated "Vquote" t3 teo
+    t3 <- mkPair "VP" t1 t2
+    terminated "VP" t3 teo
   toXbar (Vlu lu stmt ky) = do
     t1 <- mkTag "Free" =<< toXbar lu
     t2 <- toXbar stmt
@@ -420,8 +438,8 @@ instance ToXbar VpN where
   toXbar (Vverb w) = mkTag "V" =<< toXbar w
 
 instance ToXbar Name where
-  toXbar (VerbName x) = toXbar x
-  toXbar (TermName x) = toXbar x
+  toXbar (VerbName x) = relabel "DP" <$> toXbar x
+  toXbar (TermName x) = relabel "DP" <$> toXbar x
 
 instance ToXbar FreeMod where
   toXbar (Fint teto) = mkTag "Interj" =<< toXbar teto
@@ -451,7 +469,7 @@ instance ToXbar (Text, Tone) where toXbar (t, _) = mkLeaf t
 
 instance ToXbar String where toXbar t = toXbar (T.pack t)
 
-instance ToXbar NameVerb where toXbar nv = mkTag "NameVerb" =<< toXbar (show nv)
+instance ToXbar NameVerb where toXbar nv = mkTag "V" =<< toXbar (show nv)
 
 instance ToXbar Determiner where toXbar det = mkTag "D" =<< toXbar (show det)
 

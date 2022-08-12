@@ -36,6 +36,7 @@ escapeLatex t = "{" <> T.concatMap latexSym t <> "}"
     latexSym '∃' = "$\\exists$"
     latexSym '∀' = "$\\forall$"
     latexSym 'λ' = "$\\lambda$"
+    latexSym '℩' = "\\rotatebox[origin=C]{180}{$\\iota$}"
     latexSym c = T.singleton c
 
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.

@@ -67,9 +67,9 @@ data Token
   | Na
   | Teo
   | To
-  | Illocution Toned -- not interpreted
-  | SentenceConnector Text -- not interpreted
-  | Interjection Toned -- not interpreted
+  | Illocution Toned
+  | SentenceConnector Text
+  | Interjection Toned
   | Verb Text
   | Pronoun Text -- implies natural t2
   | T4jei -- e.g. süq is tokenized as [Complementizer (CT3 Nothing), T4jei, Pronoun "suq"]
