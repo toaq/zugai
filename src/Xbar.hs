@@ -48,7 +48,9 @@ nullVp sourcePos = Single (Nonserial (Vverb (W (Pos sourcePos "" "") [])))
 -- Pair a construct with its optional terminator.
 terminated :: Text -> Xbar -> Terminator -> Mx Xbar
 terminated _ t Nothing = pure t
-terminated tag t (Just word) = mkPair tag t =<< (mkTag "End" =<< toXbar word)
+terminated tag t (Just word) = do
+  xF <- mkTag (tag <> "\\textsubscript{F}") =<< toXbar word
+  mkPair (tag <> "\\textsubscript{F}P") t xF
 
 covert :: Mx Xbar
 covert = mkLeaf ""
@@ -397,10 +399,10 @@ instance ToXbar Dp where
     pure $ Pair iDP "DP" xD xVP
 
 instance ToXbar RelC where
-  toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
+  toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "C" x tmr
 
 instance ToXbar Cc where
-  toXbar (Cc pred tmr) = do x <- toXbar pred; terminated "CP" x tmr
+  toXbar (Cc pred tmr) = do x <- toXbar pred; terminated "C" x tmr
 
 instance ToXbar VpC where
   toXbar (Serial v w) = do
@@ -415,26 +417,26 @@ instance ToXbar VpN where
     t1 <- toXbar nv
     t2 <- toXbar name
     t3 <- mkPair "VP" t1 t2
-    terminated "VP" t3 tmr
+    terminated "V" t3 tmr
   toXbar (Vshu shu text) = do
     t1 <- mkTag "V" =<< toXbar shu
     t2 <- mkTag "DP" =<< toXbar text
     mkPair "VP" t1 t2
   toXbar (Voiv oiv np tmr) = do
-    t1 <- mkTag "OIV" =<< toXbar oiv
+    t1 <- mkTag "V" =<< toXbar oiv
     t2 <- toXbar np
-    t3 <- mkPair "Vinc" t1 t2
-    terminated "Vinc" t3 tmr
+    t3 <- mkPair "VP" t1 t2
+    terminated "V" t3 tmr
   toXbar (Vmo mo disc teo) = do
     t1 <- mkTag "V" =<< toXbar mo
     t2 <- toXbar disc
     t3 <- mkPair "VP" t1 t2
-    terminated "VP" t3 teo
+    terminated "V" t3 teo
   toXbar (Vlu lu stmt ky) = do
-    t1 <- mkTag "Free" =<< toXbar lu
+    t1 <- mkTag "V" =<< toXbar lu
     t2 <- toXbar stmt
-    t3 <- mkPair "Vfree" t1 t2
-    terminated "Vfree" t3 ky
+    t3 <- mkPair "VP" t1 t2
+    terminated "V" t3 ky
   toXbar (Vverb w) = mkTag "V" =<< toXbar w
 
 instance ToXbar Name where
