@@ -107,8 +107,9 @@ readDictionary = do
 glossWith :: Dictionary -> Text -> Text
 glossWith dictionary =
   let trie = Trie.fromList [(T.encodeUtf8 k, entryGloss v) | (k, v) <- M.toList dictionary]
+      forEachWord f = T.unwords . (map f) . T.words
       go :: B.ByteString -> [[Text]]
       go "" = [[]]
       go bs =
         [gloss : r | (pre, gloss, rest) <- reverse $ Trie.matches trie bs, r <- go rest]
-   in maybe "" (T.intercalate "-") . listToMaybe . go . T.encodeUtf8 . dictNormalize
+   in forEachWord $ maybe "" (T.intercalate "-") . listToMaybe . go . T.encodeUtf8 . dictNormalize
