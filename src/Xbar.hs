@@ -190,30 +190,43 @@ makeVP mvc xV xsNp =
           pure (xV, xvP)
         _ -> error "verb has too many arguments"
 
-data Pro = Pro deriving (Eq, Ord, Show)
+newtype Pro = Pro (Maybe Int) deriving (Eq, Ord, Show)
 
 instance ToXbar Pro where
-  toXbar Pro = mkTag "DP" =<< mkLeaf "PRO"
+  toXbar (Pro i) = do
+    xDP <- mkTag "DP" =<< mkLeaf "PRO"
+    mapM_ (coindex (index xDP)) i
+    pure xDP
 
 instance (ToXbar a, ToXbar b) => ToXbar (Either a b) where
   toXbar (Left a) = toXbar a
   toXbar (Right b) = toXbar b
 
+selectCoindex :: Char -> [Xbar] -> Maybe Int
+selectCoindex 'i' (xi : _) = Just (index xi)
+selectCoindex 'i' xs = error $ "couldn't coindex with subject: " <> show (length xs) <> " args"
+selectCoindex 'j' (_ : xj : _) = Just (index xj)
+selectCoindex 'j' xs = error $ "couldn't coindex with object: " <> show (length xs) <> " args"
+selectCoindex 'x' _ = Nothing
+selectCoindex c _ = error $ "unrecognized coindex char: " <> show c
+
 -- make a VP for a serial and return (top arity, V to trace into F, VP)
 makeVPSerial :: VpC -> [Either Pro Np] -> Mx (Int, Xbar, Xbar)
 makeVPSerial vp nps = do
-  (vNow, npsNow, serialTail, serialVerbClass) <- case vp of
-    Nonserial v -> pure (v, nps, Nothing, Nothing)
+  (vNow, xsNpsNow, serialTail, serialVerbClass) <- case vp of
+    Nonserial v -> do xsNps <- mapM toXbar nps; pure (v, xsNps, Nothing, Nothing)
     Serial v vs -> do
       dict <- gets xbarDictionary
       let frame = fromMaybe "c 0" (lookupFrame dict (toSrc v))
       let vc = lookupVerbClass dict (toSrc v)
-      let proCount = frameDigit frame
+      -- let proCount = frameDigit frame
       let cCount = sum [1 | 'c' <- T.unpack frame]
-      let npsLater = replicate proCount (Left Pro) ++ drop cCount nps
-      pure (v, take cCount nps, Just (vs, npsLater), vc)
+      xsNpsNow <- (++) <$> mapM toXbar (take cCount nps) <*> replicateM (cCount - length nps) (mkTag "DP" =<< covert)
+      let ijxs = [c | (d : cs) <- T.unpack <$> T.words frame, isDigit d, c <- cs]
+      let pros = [Left (Pro (selectCoindex c xsNpsNow)) | c <- ijxs]
+      let npsLater = pros ++ drop cCount nps
+      pure (v, xsNpsNow, Just (vs, npsLater), vc)
   xVnow <- mapSrc T.toLower <$> toXbar vNow
-  xsNpsNow <- mapM toXbar npsNow
   xsNpsSerial <- case serialTail of
     Nothing -> pure []
     Just (w, nps) -> do
