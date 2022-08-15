@@ -54,7 +54,10 @@ terminated tag t (Just word) = do
   mkPair (tag <> "\\textsubscript{F}P") t xF
 
 covert :: Mx Xbar
-covert = mkLeaf ""
+covert = mkLeaf " " -- I know this is kinda silly... but it's useful that `T.strip` ignores it.
+
+blank :: Mx Xbar
+blank = mkLeaf ""
 
 prenexToXbar :: NonEmpty Xbar -> W () -> Xbar -> Mx Xbar
 prenexToXbar (x :| []) bi c = do
@@ -182,7 +185,7 @@ makeVP xV xsNp = do
       pure (xV, xV)
     [xDPS] | label xV == "VP" -> do
       -- Our "xV" is actually a VP with an incorporated object.
-      xv <- mkLeaf "𝑣"
+      xv <- mkTag "𝑣" =<< blank
       xv' <- mkPair "𝑣'" xv xV
       xvP <- mkPair "𝑣P" xDPS xv'
       pure (xV, xvP)
@@ -195,7 +198,7 @@ makeVP xV xsNp = do
       xVP <- mkPair "VP" xDPS xV'
       pure (xV, xVP)
     [xDPA, xDPS, xDPO] -> do
-      xv <- mkLeaf "𝑣"
+      xv <- mkTag "𝑣" =<< blank
       xV' <- mkPair "V'" xV xDPO
       xVP <- mkPair "VP" xDPS xV'
       xv' <- mkPair "𝑣'" xv xVP

@@ -61,6 +61,7 @@ xbarToLatex annotate (xbar, Movements movements coixs traces) =
             <> children
             <> "]"
     label = T.replace "◌" "o"
+    go (Leaf i "") = ""
     go (Leaf i src) = node False i (goSrc i (label src)) ""
     go (Roof i t src) = node False i (label t) ("[" <> goSrc i src <> ",roof]")
     go (Tag i t sub) = node False i (label t) (go sub)
@@ -71,7 +72,7 @@ xbarToLatex annotate (xbar, Movements movements coixs traces) =
     goSrc i src =
       let srci = escapeLatex $ prettifyToaq src
           src'
-            | src == "" = "$\\varnothing$"
+            | src == " " = "$\\varnothing$"
             | isMoved i || i `elem` traceChildren = "\\sout{" <> srci <> "}"
             | otherwise = colorWord srci
        in "\\textsf{" <> src' <> "}" <> note annotate src
