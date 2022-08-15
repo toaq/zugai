@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -176,34 +177,33 @@ vpcLabel (Nonserial _) = pure "V"
 vpcLabel (Serial x _) = vpcLabel (Nonserial x)
 
 -- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
-makeVP :: Maybe VerbClass -> Xbar -> [Xbar] -> Mx (Xbar, Xbar)
-makeVP mvc xV xsNp = do
-  traceM $ show (mvc, xV)
-  let vname = verbClassName mvc
-   in case xsNp of
-        [] -> do
-          pure (xV, xV)
-        [xDPS] | label xV == "VP" -> do
-          -- Our "xV" is actually a VP with an incorporated object.
-          xv <- mkLeaf "𝑣"
-          xv' <- mkPair "𝑣'" xv xV
-          xvP <- mkPair "𝑣P" xDPS xv'
-          pure (xV, xvP)
-        [xDPS] -> do
-          xVP <- mkPair (vname <> "P") (relabel vname xV) xDPS
-          pure (xV, xVP)
-        [xDPS, xDPO] -> do
-          xV' <- mkPair "V'" xV xDPO
-          xVP <- mkPair "VP" xDPS xV'
-          pure (xV, xVP)
-        [xDPA, xDPS, xDPO] -> do
-          xv <- mkLeaf "𝑣"
-          xV' <- mkPair "V'" xV xDPO
-          xVP <- mkPair "VP" xDPS xV'
-          xv' <- mkPair "𝑣'" xv xVP
-          xvP <- mkPair "𝑣P" xDPA xv'
-          pure (xV, xvP)
-        _ -> error "verb has too many arguments"
+makeVP :: Xbar -> [Xbar] -> Mx (Xbar, Xbar)
+makeVP xV xsNp = do
+  case xsNp of
+    [] -> do
+      pure (xV, xV)
+    [xDPS] | label xV == "VP" -> do
+      -- Our "xV" is actually a VP with an incorporated object.
+      xv <- mkLeaf "𝑣"
+      xv' <- mkPair "𝑣'" xv xV
+      xvP <- mkPair "𝑣P" xDPS xv'
+      pure (xV, xvP)
+    [xDPS] -> do
+      vname <- verbLabel =<< aggregateSrc xV
+      xVP <- mkPair (vname <> "P") (relabel vname xV) xDPS
+      pure (xV, xVP)
+    [xDPS, xDPO] -> do
+      xV' <- mkPair "V'" xV xDPO
+      xVP <- mkPair "VP" xDPS xV'
+      pure (xV, xVP)
+    [xDPA, xDPS, xDPO] -> do
+      xv <- mkLeaf "𝑣"
+      xV' <- mkPair "V'" xV xDPO
+      xVP <- mkPair "VP" xDPS xV'
+      xv' <- mkPair "𝑣'" xv xVP
+      xvP <- mkPair "𝑣P" xDPA xv'
+      pure (xV, xvP)
+    _ -> error "verb has too many arguments"
 
 newtype Pro = Pro (Maybe Int) deriving (Eq, Ord, Show)
 
@@ -228,23 +228,20 @@ selectCoindex c _ = error $ "unrecognized coindex char: " <> show c
 -- make a VP for a serial and return (top arity, V to trace into F, VP)
 makeVPSerial :: VpC -> [Either Pro Np] -> Mx (Int, Xbar, Xbar)
 makeVPSerial vp nps = do
-  (vNow, xsNpsNow, serialTail, serialVerbClass) <- case vp of
+  (vNow, xsNpsNow, serialTail) <- case vp of
     Nonserial v -> do
-      dict <- gets xbarDictionary
-      let mvc = lookupVerbClass dict (toSrc v)
       xsNps <- mapM toXbar nps
-      pure (v, xsNps, Nothing, mvc)
+      pure (v, xsNps, Nothing)
     Serial v vs -> do
       dict <- gets xbarDictionary
       let frame = fromMaybe "c 0" (lookupFrame dict (toSrc v))
-      let vc = lookupVerbClass dict (toSrc v)
       -- let proCount = frameDigit frame
       let cCount = sum [1 | 'c' <- T.unpack frame]
       xsNpsNow <- (++) <$> mapM toXbar (take cCount nps) <*> replicateM (cCount - length nps) (mkTag "DP" =<< covert)
       let ijxs = [c | (d : cs) <- T.unpack <$> T.words frame, isDigit d, c <- cs]
       let pros = [Left (Pro (selectCoindex c xsNpsNow)) | c <- ijxs]
       let npsLater = pros ++ drop cCount nps
-      pure (v, xsNpsNow, Just (vs, npsLater), vc)
+      pure (v, xsNpsNow, Just (vs, npsLater))
   xVnow <- mapSrc T.toLower <$> toXbar vNow
   xsNpsSerial <- case serialTail of
     Nothing -> pure []
@@ -254,22 +251,26 @@ makeVPSerial vp nps = do
       traceAt xVs
       pure [xVPs]
   let xsArgs = xsNpsNow ++ xsNpsSerial
-  (xVTrace, xVPish) <- makeVP serialVerbClass xVnow xsArgs
+  (xVTrace, xVPish) <- makeVP xVnow xsArgs
   pure (length xsArgs, xVTrace, xVPish)
 
+isTam :: VpN -> Mx Bool
+isTam vpn = do
+  d <- gets xbarDictionary
+  pure $ isJust $ lookupVerbClass d (toSrc vpn)
+
 -- Split a verb complex into tagged TAMs and a non-TAM verb complex.
-extractTams :: VpC -> Mx ([(VerbClass, Xbar)], VpC)
+extractTams :: VpC -> Mx ([Xbar], VpC)
 extractTams v@(Nonserial _) = pure ([], v)
 extractTams v@(Serial vh vt) = do
-  d <- gets xbarDictionary
-  case lookupVerbClass d (toSrc vh) of
-    Nothing -> pure ([], v)
-    Just c -> do xV <- toXbar vh; (ts, non) <- extractTams vt; pure ((c, xV) : ts, non)
+  isTam vh >>= \case
+    False -> pure ([], v)
+    True -> do xV <- toXbar vh; (ts, non) <- extractTams vt; pure (xV : ts, non)
 
 -- Wrap an extracted TAM verb around FP.
-wrapTam :: (VerbClass, Xbar) -> Xbar -> Mx Xbar
-wrapTam (vc, xV) xFP = do
-  (_, xTamP) <- makeVP (Just vc) xV [xFP]
+wrapTam :: Xbar -> Xbar -> Mx Xbar
+wrapTam xV xFP = do
+  (_, xTamP) <- makeVP xV [xFP]
   pure xTamP
 
 needsVPMovement :: VpC -> Bool
