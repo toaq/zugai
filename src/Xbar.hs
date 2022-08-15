@@ -150,21 +150,36 @@ mkQP (det, name, indexOfDPV) x = do
         Just xDPV | label xDPV == "VP" -> True
         _ -> False
   xQ <- mkTag "Q" =<< mkLeaf (qgloss det)
-  xV <- if isVP then mkRoof "VP" name else mkTag "V" =<< mkLeaf name
+  xV <- if isVP then mkRoof "VP" name else do vl <- verbLabel name; mkTag vl =<< mkLeaf name
   traceAt xV
   move' indexOfDPV (index xV)
   xQP <- mkPair "QP" xQ xV
   mkPair (label x) xQP x
 
+verbClassName :: Maybe VerbClass -> Text
+verbClassName Nothing = "V"
+verbClassName (Just Tense) = "T"
+verbClassName (Just Aspect) = "Asp"
+verbClassName (Just Modality) = "Mod"
+verbClassName (Just Negation) = "Neg"
+
+verbLabel :: Text -> Mx Text
+verbLabel verbText = do
+  d <- gets xbarDictionary
+  let mvc = lookupVerbClass d verbText
+  traceM $ show (verbText, mvc)
+  pure (verbClassName mvc)
+
+vpcLabel :: VpC -> Mx Text
+vpcLabel (Nonserial (Vverb w)) = verbLabel (unW w)
+vpcLabel (Nonserial _) = pure "V"
+vpcLabel (Serial x _) = vpcLabel (Nonserial x)
+
 -- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
 makeVP :: Maybe VerbClass -> Xbar -> [Xbar] -> Mx (Xbar, Xbar)
-makeVP mvc xV xsNp =
-  let tamnv = case mvc of
-        Nothing -> "V"
-        Just Tense -> "T"
-        Just Aspect -> "Asp"
-        Just Modality -> "Mod"
-        Just Negation -> "Neg"
+makeVP mvc xV xsNp = do
+  traceM $ show (mvc, xV)
+  let vname = verbClassName mvc
    in case xsNp of
         [] -> do
           pure (xV, xV)
@@ -175,7 +190,7 @@ makeVP mvc xV xsNp =
           xvP <- mkPair "𝑣P" xDPS xv'
           pure (xV, xvP)
         [xDPS] -> do
-          xVP <- mkPair (tamnv <> "P") (relabel tamnv xV) xDPS
+          xVP <- mkPair (vname <> "P") (relabel vname xV) xDPS
           pure (xV, xVP)
         [xDPS, xDPO] -> do
           xV' <- mkPair "V'" xV xDPO
@@ -214,7 +229,11 @@ selectCoindex c _ = error $ "unrecognized coindex char: " <> show c
 makeVPSerial :: VpC -> [Either Pro Np] -> Mx (Int, Xbar, Xbar)
 makeVPSerial vp nps = do
   (vNow, xsNpsNow, serialTail, serialVerbClass) <- case vp of
-    Nonserial v -> do xsNps <- mapM toXbar nps; pure (v, xsNps, Nothing, Nothing)
+    Nonserial v -> do
+      dict <- gets xbarDictionary
+      let mvc = lookupVerbClass dict (toSrc v)
+      xsNps <- mapM toXbar nps
+      pure (v, xsNps, Nothing, mvc)
     Serial v vs -> do
       dict <- gets xbarDictionary
       let frame = fromMaybe "c 0" (lookupFrame dict (toSrc v))
@@ -274,7 +293,8 @@ instance ToXbar PredicationC where
       if needsVPMovement v
         then mkRoof "F+VP" (toSrc nonTam)
         else do
-          let fvtag = if arity >= 3 then "F+𝑣+V" else "F+V"
+          vl <- vpcLabel nonTam
+          let fvtag = (if arity >= 3 then "F+𝑣+" else "F+") <> vl
           relabel fvtag <$> toXbar nonTam
     let attachP = if arity >= 3 then "𝑣P" else "VP"
     move xVTrace xFV
@@ -450,7 +470,9 @@ instance ToXbar VpN where
     t2 <- toXbar stmt
     t3 <- mkPair "VP" t1 t2
     terminated "V" t3 ky
-  toXbar (Vverb w) = mkTag "V" =<< toXbar w
+  toXbar (Vverb w) = do
+    label <- verbLabel (unW w)
+    mkTag label =<< toXbar w
 
 instance ToXbar Name where
   toXbar (VerbName x) = relabel "DP" <$> toXbar x
