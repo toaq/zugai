@@ -109,7 +109,6 @@ instance ToXbar Statement where
       Just (xs, bi) -> prenexToXbar xs bi xFP
       Nothing -> pure xFP
     s <- popScope
-    traceM (show s)
     xWithFoc <- foldrM mkFocAdvP xTopicP (scopeFocuses s)
     xWithQPs <- foldrM mkQP xWithFoc (scopeQuantifiers s)
     if or [d == Ja | (d, _, _) <- scopeQuantifiers s]
@@ -168,7 +167,6 @@ verbLabel :: Text -> Mx Text
 verbLabel verbText = do
   d <- gets xbarDictionary
   let mvc = lookupVerbClass d verbText
-  traceM $ show (verbText, mvc)
   pure (verbClassName mvc)
 
 vpcLabel :: VpC -> Mx Text
