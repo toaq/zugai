@@ -472,6 +472,10 @@ instance ToXbar VpN where
   toXbar (Vlu lu stmt ky) = do
     xV <- mkTag "V" =<< toXbar lu
     xCP <- toXbar stmt
+    case xCP of
+      Pair _ _ xC _ -> do
+        c <- T.takeWhile (/= '[') . T.strip <$> aggregateSrc xC
+        when (c /= "") $ error $ "lu cannot be followed by an overt complementizer (\"lu " <> T.unpack c <> "\" is invalid)"
     xVP <- mkPair "VP" xV xCP
     terminated "V" xVP ky
   toXbar (Vverb w) = do
