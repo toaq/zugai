@@ -150,7 +150,7 @@ qgloss _ = "[…]"
 mkQP :: (Determiner, VarRef, Int) -> Xbar -> Mx Xbar
 mkQP (det, name, indexOfDPV) x = do
   let isVP = case subtreeByIndex indexOfDPV x of
-        Just xDPV | label xDPV == "VP" -> True
+        Just xDPV | "VP" `T.isSuffixOf` label xDPV -> True
         _ -> False
   xQ <- mkTag "Q" =<< mkLeaf (qgloss det)
   xV <- if isVP then mkRoof "VP" name else do vl <- verbLabel name; mkTag vl =<< mkLeaf name
@@ -187,7 +187,7 @@ makeVP xV xsNp = do
       error $ show verb <> " accepts at most " <> show i <> " argument" <> ['s' | i /= 1]
     [] -> do
       pure (xV, xV)
-    [xDPS] | label xV == "VP" -> do
+    [xDPS] | "VP" `T.isSuffixOf` label xV -> do
       -- Our "xV" is actually a VP with an incorporated object.
       xv <- mkTag "𝑣" =<< blank
       xv' <- mkPair "𝑣'" xv xV
@@ -297,7 +297,8 @@ instance ToXbar PredicationC where
     (arity, xVTrace, xVPish) <- makeVPSerial nonTam (map Right nps)
     xFV <-
       if needsVPMovement v
-        then mkRoof "F+VP" (toSrc nonTam)
+        then do
+          mkRoof ("F+" <> label xVTrace) (toSrc nonTam)
         else do
           vl <- vpcLabel nonTam
           let fvtag = (if arity >= 3 then "F+𝑣+" else "F+") <> vl
@@ -453,29 +454,41 @@ instance ToXbar VpC where
 
 instance ToXbar VpN where
   toXbar (Vname nv name tmr) = do
-    t1 <- toXbar nv
-    t2 <- toXbar name
-    t3 <- mkPair "VP" t1 t2
-    terminated "V" t3 tmr
+    xV <- toXbar nv
+    xDP <- toXbar name
+    xVP <- mkPair "VP" xV xDP
+    terminated "V" xVP tmr
   toXbar (Vshu shu text) = do
-    t1 <- mkTag "V" =<< toXbar shu
-    t2 <- mkTag "DP" =<< toXbar text
-    mkPair "VP" t1 t2
+    xV <- mkTag "V" =<< toXbar shu
+    xDP <- mkTag "DP" =<< toXbar text
+    mkPair "VP" xV xDP
   toXbar (Voiv oiv np tmr) = do
-    t1 <- mkTag "V" =<< toXbar oiv
-    t2 <- toXbar np
-    t3 <- mkPair "VP" t1 t2
-    terminated "V" t3 tmr
+    xCopV <- mkTag "CopV" =<< toXbar oiv
+    pushScope
+    xDP <- toXbar np
+    s <- popScope
+    let gloss = if unW oiv == "po" then "[hao]" else "[" <> unW oiv <> "ga]"
+    xV <- mkTag "V" =<< mkLeaf gloss
+    xV' <- mkPair "V'" xV xDP
+    xDPpro <- toXbar (Pro Nothing)
+    xVP <- mkPair "VP" xDPpro xV'
+    xWithFoc <- foldrM mkFocAdvP xVP (scopeFocuses s)
+    xWithQPs <- foldrM mkQP xWithFoc (scopeQuantifiers s)
+    xC <- mkTag "C" =<< covert
+    xCP <- mkPair "CP" xC xWithQPs
+    traceM $ show s
+    xCopVP <- mkPair "CopVP" xCopV xCP
+    terminated "CopV" xCopVP tmr
   toXbar (Vmo mo disc teo) = do
-    t1 <- mkTag "V" =<< toXbar mo
-    t2 <- toXbar disc
-    t3 <- mkPair "VP" t1 t2
-    terminated "V" t3 teo
+    xV <- mkTag "V" =<< toXbar mo
+    xDiscourse <- toXbar disc
+    xVP <- mkPair "VP" xV xDiscourse
+    terminated "V" xVP teo
   toXbar (Vlu lu stmt ky) = do
-    t1 <- mkTag "V" =<< toXbar lu
-    t2 <- toXbar stmt
-    t3 <- mkPair "VP" t1 t2
-    terminated "V" t3 ky
+    xV <- mkTag "V" =<< toXbar lu
+    xCP <- toXbar stmt
+    xVP <- mkPair "VP" xV xCP
+    terminated "V" xVP ky
   toXbar (Vverb w) = do
     label <- verbLabel (unW w)
     mkTag label =<< toXbar w
