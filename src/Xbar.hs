@@ -195,7 +195,8 @@ makeVP xV xsNp = do
       pure (xV, xvP)
     [xDPS] -> do
       vname <- verbLabel verb
-      xVP <- mkPair (vname <> "P") (relabel vname xV) xDPS
+      let xV' = if label xV == "V" then relabel vname xV else xV
+      xVP <- mkPair (vname <> "P") xV' xDPS
       pure (xV, xVP)
     [xDPS, xDPO] -> do
       xV' <- mkPair "V'" xV xDPO
