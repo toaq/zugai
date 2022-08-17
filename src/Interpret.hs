@@ -381,7 +381,7 @@ interpretVpN (Vshu shu (Pos _ src _)) = pure $ TmFun 1 1 "a" $ \[t] -> pure $ Eq
 interpretVpN (Vmo mo txt teo) = pure $ TmFun 1 1 "a" $ \[t] -> pure $ Equ t (Quo (T.pack $ show txt))
 interpretVpN (Voiv oiv np ga) = do
   t <- interpretNp np
-  pure $ TmFun 1 1 "a" $ \[u] -> pure $ Prd (bareSrc oiv <> "ga") [t, u]
+  pure $ TmFun 1 1 "a" $ \[u] -> pure $ Prd (bareSrc oiv <> "ga") [u, t]
 interpretVpN (Vlu lu stmt ky) = pure $
   TmFun 1 1 "a" $ \[t] -> do
     pushScope

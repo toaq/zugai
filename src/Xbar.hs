@@ -396,7 +396,10 @@ instance ToXbar NpC where
   toXbar (Unf np) = toXbar np
 
 instance ToXbar NpF where
-  toXbar (ArgRel arg rel) = do x <- toXbar arg; y <- toXbar rel; mkPair "DP" x y
+  toXbar (ArgRel arg rel) = do
+    xDP <- toXbar arg
+    xCP <- toXbar rel
+    mkPair "DP" xDP xCP
   toXbar (Unr np) = toXbar np
 
 instance ToXbar NpR where
