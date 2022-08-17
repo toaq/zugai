@@ -180,7 +180,11 @@ vpcLabel (Serial x _) = vpcLabel (Nonserial x)
 -- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
 makeVP :: Xbar -> [Xbar] -> Mx (Xbar, Xbar)
 makeVP xV xsNp = do
+  verb <- aggregateSrc xV
+  dict <- gets xbarDictionary
   case xsNp of
+    xs | Just i <- lookupMaxArity dict verb, length xs > i ->
+      error $ show verb <> " accepts at most " <> show i <> " argument" <> ['s' | i /= 1]
     [] -> do
       pure (xV, xV)
     [xDPS] | label xV == "VP" -> do
@@ -190,7 +194,7 @@ makeVP xV xsNp = do
       xvP <- mkPair "𝑣P" xDPS xv'
       pure (xV, xvP)
     [xDPS] -> do
-      vname <- verbLabel =<< aggregateSrc xV
+      vname <- verbLabel verb
       xVP <- mkPair (vname <> "P") (relabel vname xV) xDPS
       pure (xV, xVP)
     [xDPS, xDPO] -> do

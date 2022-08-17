@@ -73,7 +73,7 @@ lookupFrame d t = do
 -- lookupVerbClass d "leo" == Nothing
 -- lookupVerbClass d "pu" == Just Tense
 lookupVerbClass :: Dictionary -> Text -> Maybe VerbClass
-lookupVerbClass d t = d M.!? bareToaq t >>= entryVerbInfo >>= verbClass
+lookupVerbClass d word = d M.!? bareToaq word >>= entryVerbInfo >>= verbClass
 
 -- lookupPronoun d "poq" == Just "ho"
 lookupPronoun :: Dictionary -> Text -> Maybe Text
@@ -82,6 +82,14 @@ lookupPronoun d t =
     "lu" : _ -> Just "kuy"
     x : _ -> verbPronominalClass <$> (entryVerbInfo =<< d M.!? x)
     [] -> Nothing
+
+lookupMaxArity :: Dictionary -> Text -> Maybe Int
+lookupMaxArity d word = do
+    entry <- d M.!? bareToaq word
+    vi <- entryVerbInfo entry
+    case verbFrame vi of
+        "" -> Nothing
+        frame -> Just (length (T.words frame))
 
 dictNormalize :: Text -> Text
 dictNormalize t =
