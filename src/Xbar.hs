@@ -259,25 +259,6 @@ makeVPSerial vp nps = do
   (xVTrace, xVPish) <- makeVP xVnow xsArgs
   pure (length xsArgs, xVTrace, xVPish)
 
-isTam :: VpN -> Mx Bool
-isTam vpn = do
-  d <- gets xbarDictionary
-  pure $ isJust $ lookupVerbClass d (toSrc vpn)
-
--- Split a verb complex into tagged TAMs and a non-TAM verb complex.
-extractTams :: VpC -> Mx ([Xbar], VpC)
-extractTams v@(Nonserial _) = pure ([], v)
-extractTams v@(Serial vh vt) = do
-  isTam vh >>= \case
-    False -> pure ([], v)
-    True -> do xV <- toXbar vh; (ts, non) <- extractTams vt; pure (xV : ts, non)
-
--- Wrap an extracted TAM verb around FP.
-wrapTam :: Xbar -> Xbar -> Mx Xbar
-wrapTam xV xFP = do
-  (_, xTamP) <- makeVP xV [xFP]
-  pure xTamP
-
 needsVPMovement :: VpC -> Bool
 needsVPMovement (Nonserial (Vverb {})) = False
 needsVPMovement (Nonserial _) = True
@@ -286,29 +267,29 @@ needsVPMovement (Serial n _) = needsVPMovement (Nonserial n)
 instance ToXbar PredicationC where
   toXbar (Predication predicate advsL nps advsR) = do
     xsAdvL <- mapM toXbar advsL
-    xsAdvR <- mapM toXbar advsR
-    let attachAdverbials nodeName x = do
-          x' <- foldlM (mkPair nodeName) x xsAdvR
-          foldrM (mkPair nodeName) x' xsAdvL
-
     let Predicate (Single v) = predicate
-    -- Extract TAMs so we can wrap them around FP later.
-    (xsTam, nonTam) <- extractTams v
-    (arity, xVTrace, xVPish) <- makeVPSerial nonTam (map Right nps)
+    (arity, xVTrace, xVPish) <- makeVPSerial v (map Right nps)
     xFV <-
       if needsVPMovement v
         then do
-          mkRoof ("F+" <> label xVTrace) (toSrc nonTam)
+          mkRoof ("F+" <> label xVTrace) (toSrc v)
         else do
-          vl <- vpcLabel nonTam
+          vl <- vpcLabel v
           let fvtag = (if arity >= 3 then "F+𝑣+" else "F+") <> vl
-          relabel fvtag <$> toXbar nonTam
-    let attachP = if arity >= 3 then "𝑣P" else "VP"
+          relabel fvtag <$> toXbar v
     move xVTrace xFV
     traceAt xVTrace
-    xVPa <- attachAdverbials attachP xVPish
-    xFP <- mkPair "FP" xFV xVPa
-    foldrM wrapTam xFP xsTam
+    xsAdvR <- mapM toXbar advsR
+    let isVPLike t = "VP" `T.isSuffixOf` t || "𝑣P" `T.isSuffixOf` t
+    let attachAdverbials (Pair i t xL xR) | not (isVPLike t) = do
+            xR' <- attachAdverbials xR
+            pure (Pair i t xL xR')
+        attachAdverbials x = do
+            let lbl = case label x of "V" -> "VP"; l -> l
+            x' <- foldlM (mkPair lbl) x xsAdvR
+            foldrM (mkPair lbl) x' xsAdvL
+    xVPa <- attachAdverbials xVPish
+    mkPair "FP" xFV xVPa
 
 instance ToXbar Predicate where
   toXbar (Predicate vp) = toXbar vp

@@ -59,6 +59,10 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - zugai
+    when:
+    - condition: false
+      other-modules: Paths_zugai
+
 
 tests:
   zugai-test:
