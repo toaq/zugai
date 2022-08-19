@@ -97,13 +97,10 @@ def expand_and_format(serial_string, dictionary):
         total_frame, steps = expand(serial, dictionary)
     except ExpandSerialException as e:
         return f"Error: {e}"
-    return "\n".join(
-        [
-            f"**{' '.join(serial)}** (`{' '.join(total_frame)}`):",
-            "```",
-            *(" ".join([" ="[i > 0], *step]) for i, step in enumerate(steps)),
-            "```",
-        ]
+    return (
+        f"**{' '.join(serial)}** (`{' '.join(total_frame)}`):\n```\n  "
+        + "\n= ".join(map(" ".join, steps))
+        + "\n```"
     )
 
 
