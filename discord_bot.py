@@ -1,8 +1,15 @@
 import discord
-import os, io
+import io, json, os
 from zugai import RunException, run, latex_png
+from src.expand_serial import expand_and_format
 
-client = discord.Client()
+with open("data/dictionary/dictionary.json") as f:
+    dictionary = json.load(f)
+dictionary = {e["toaq"]: e for e in dictionary}
+
+intents = discord.Intents.default()
+intents.message_content = True
+client = discord.Client(intents=intents)
 
 @client.event
 async def on_ready():
@@ -38,6 +45,8 @@ async def on_message(message):
             txt = run("parsing", ["zugai-exe", "--to-" + cmd], input=sentence.encode())
             file = discord.File(io.BytesIO(txt), filename="result.html")
             await message.channel.send(file=file)
+        elif cmd == "serial":
+            await message.channel.send(expand_and_format(sentence, dictionary))
     except RunException as e:
         await message.channel.send(str(e))
 
