@@ -22,15 +22,20 @@ class ExpandSerialException(Exception):
 def expand(serial, dictionary):
     frames = []
     for w in serial:
-        if w not in dictionary:
-            raise ExpandSerialException(f"I don't know the word **{w}**.")
-        entry = dictionary[w]
-        if "verb_class" in entry:
-            frames.append(["0"])
-        elif "frame" in entry and entry["frame"]:
-            frames.append([w for w in entry["frame"].split()])
+        if w == "ıq":
+            frames.append(["c", "1i"])
+        elif w == "cuoı":
+            frames.append(["c", "c", "2ij"])
         else:
-            raise ExpandSerialException(f"I don't know the frame of **{w}**.")
+            if w not in dictionary:
+                raise ExpandSerialException(f"I don't know the word **{w}**.")
+            entry = dictionary[w]
+            if "verb_class" in entry:
+                frames.append(["0"])
+            elif "frame" in entry and entry["frame"]:
+                frames.append([w for w in entry["frame"].split()])
+            else:
+                raise ExpandSerialException(f"I don't know the frame of **{w}**.")
 
     total_frame = [w[0] for w in frames[-1]]
     for i, left in list(enumerate(frames))[-2::-1]:
@@ -76,7 +81,7 @@ def expand(serial, dictionary):
             if "a" in frame:
                 step.append(f" (+ {word} {vars[0]} pẽ {rest})")
             steps.append(step)
-        if word in ["taq", "mu", "ıq", "jeo"]:
+        if word in ["taq", "mu", "cuoı", "ıq", "jeo"]:
             pre = old_pre
             jas = [vars_now[ord(i) - ord("i")] for i in frame[-1][1:]]
             vars[: len(jas)] = jas
