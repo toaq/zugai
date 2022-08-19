@@ -41,7 +41,7 @@ def expand(serial, dictionary):
         num_ja = int(left[-1][0]) if left[-1][0].isdigit() else 0
         if num_ja > len(total_frame):
             raise ExpandSerialException(
-                f"**{serial[i]}** serializes with more arguments than **{' '.join(serial[i+1:])}** offers."
+                f"**{serial[i]}** needs a {num_ja}-ary relation but **{' '.join(serial[i+1:])}** is only {len(total_frame)}-ary."
             )
         total_frame = ["c"] * num_c + total_frame[num_ja:]
 
