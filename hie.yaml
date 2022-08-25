@@ -1,2 +1,10 @@
 cradle:
   stack:
+    - path: "./src"
+      component: "zugai:lib"
+    - path: "./exe"
+      component: "zugai:exe:zugai-exe"
+    - path: "./etc/xbar-stats"
+      component: "zugai:exe:xbar-stats"
+    - path: "./test"
+      component: "zugai:test:zugai-test"
