@@ -1,6 +1,9 @@
 from contextlib import contextmanager
 from typing import List
+import os
 import subprocess
+
+DEFAULT_TIMEOUT = float(os.getenv("ZUGAI_TIMEOUT", 15))
 
 class RunException(Exception):
     """
@@ -8,14 +11,14 @@ class RunException(Exception):
     """
     pass
 
-def run(verbing: str, cmd_args: List[str], **kwargs):
+def run(verbing: str, cmd_args: List[str], timeout: float = DEFAULT_TIMEOUT, **kwargs):
     """
     Run a command (`cmd_args`) described in error messages by the gerund `verbing`.
 
-    Times out after 7 seconds.
+    Times out after 15 seconds by default.
     """
     try:
-        result = subprocess.run(cmd_args, **kwargs, check=True, timeout=7, capture_output=True)
+        result = subprocess.run(cmd_args, **kwargs, check=True, timeout=timeout, capture_output=True)
         return result.stdout
     except BaseException as e:
         message = f"Error while {verbing}:\n{e}\n"
