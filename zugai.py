@@ -17,13 +17,11 @@ def run(verbing: str, cmd_args: List[str], **kwargs):
     try:
         result = subprocess.run(cmd_args, **kwargs, check=True, timeout=7, capture_output=True)
         return result.stdout
-    except subprocess.CalledProcessError as e:
-        if e.stderr:
-            raise RunException(f"Error while {verbing}:\n```\n{e.stderr.decode().strip()}\n```")
-        else:
-            raise RunException(f"Error while {verbing}.")
-    except subprocess.TimeoutExpired as e:
-        raise RunException(f"Timed out while {verbing}.")
+    except BaseException as e:
+        message = f"Error while {verbing}:\n{e}\n"
+        if e.stderr: message += f"\nStderr:\n```\n{e.stderr.decode().strip()}\n```\n"
+        if e.output: message += f"\nStdout:\n```\n{e.output.decode().strip()}\n```\n"
+        raise RunException(message)
 
 @contextmanager
 def latex_png(sentence: str):
