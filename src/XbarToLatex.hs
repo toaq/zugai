@@ -90,6 +90,6 @@ lpl text = do
   let Right tokens = lexToaq text
   let Right discourse = parseDiscourse tokens
   let tex = xbarToLatex (Just (glossWith dict)) (runXbarWithMovements dict discourse)
-  wrapped <- applyTemplateFor ToXbarLatex (encodeUtf8 tex)
+  wrapped <- applyTemplateFor ToXbarLatex Dark (encodeUtf8 tex)
   BS.writeFile "output.tex" wrapped
   putStrLn "Wrote to output.tex."

@@ -1,6 +1,7 @@
 module Cli where
 
 import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as BSC
 import Options.Applicative
 
 data InputMode = FromStdin | FromFile String
@@ -32,14 +33,22 @@ parseOutputMode =
     <|> flag' ToEnglish (long "to-english" <> help "Output mode: badly machine-translated English")
     <|> flag' ToLogic (long "to-logic" <> help "Output mode: predicate logic notation")
 
+data Theme = Dark | Light deriving (Eq, Ord, Show)
+
 data CliOptions = CliOptions
   { inputMode :: InputMode,
     outputMode :: OutputMode,
+    theme :: Theme,
     lineByLine :: Bool
   }
 
 parseCli :: Parser CliOptions
-parseCli = CliOptions <$> parseInputMode <*> parseOutputMode <*> flag False True (long "line-by-line" <> help "Process each line in the input as a separate text")
+parseCli =
+  CliOptions
+    <$> parseInputMode
+    <*> parseOutputMode
+    <*> flag Dark Light (long "light-theme" <> help "Prefer light-theme output when applicable")
+    <*> flag False True (long "line-by-line" <> help "Process each line in the input as a separate text")
 
 cliInfo :: ParserInfo CliOptions
 cliInfo = info (parseCli <**> helper) (fullDesc <> progDesc "Parse and interpret Toaq text.")
@@ -50,7 +59,12 @@ applyTemplate path string = do
   let (pre, post) = BS.breakSubstring "%OUTPUT%" contents
   pure $ pre <> string <> post
 
-applyTemplateFor :: OutputMode -> BS.ByteString -> IO BS.ByteString
-applyTemplateFor ToXbarLatex = applyTemplate "data/templates/xbar.tex"
-applyTemplateFor ToBoxes = applyTemplate "data/templates/boxes.html"
-applyTemplateFor _ = pure
+enableLatexLightTheme :: BS.ByteString -> BS.ByteString
+enableLatexLightTheme = BSC.unlines . map (\x -> if "\\iffalse" `BS.isPrefixOf` x then "\\iftrue" else x) . BSC.lines
+
+applyTemplateFor :: OutputMode -> Theme -> BS.ByteString -> IO BS.ByteString
+applyTemplateFor ToXbarLatex theme text =
+  (if theme == Light then enableLatexLightTheme else id) <$>
+    applyTemplate "data/templates/xbar.tex" text
+applyTemplateFor ToBoxes _ text = applyTemplate "data/templates/boxes.html" text
+applyTemplateFor _ _ text = pure text

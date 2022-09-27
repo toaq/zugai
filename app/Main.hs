@@ -66,12 +66,12 @@ processInput om dict unstrippedInput = do
 
 main :: IO ()
 main = do
-  CliOptions im om lineByLine <- execParser cliInfo
+  CliOptions im om theme lineByLine <- execParser cliInfo
   input <- case im of FromStdin -> T.getContents; FromFile s -> T.readFile s
   dict <- readDictionary
   output <-
     if lineByLine
       then BS.unlines <$> mapM (processInput om dict) (T.lines input)
       else processInput om dict input
-  wrapped <- applyTemplateFor om output
+  wrapped <- applyTemplateFor om theme output
   BS.putStr wrapped
