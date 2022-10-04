@@ -16,7 +16,7 @@ showXbarAnsi xbar (Movements moves coixs traces) = go xbar
   where
     cn = getCoindexationName coixs
     traceChildren = indicesBelow traces xbar
-    mv i t = T.concat markers <> t <> coindex
+    mv i t = T.concat markers <> T.pack (show t) <> coindex
       where
         mark s n = "\x1b[38;5;34m" <> s <> T.pack (show n) <> " \x1b[0m"
         markers = do
@@ -25,13 +25,15 @@ showXbarAnsi xbar (Movements moves coixs traces) = go xbar
         coindex = maybe "" (\s -> "\x1b[38;5;39m[" <> s <> "]\x1b[0m") (cn i)
     go (Leaf i src) =
       let col = if i `elem` traceChildren then "\x1b[90;9m" else "\x1b[38;5;208m"
-       in [col <> prettifyToaq src <> "\x1b[0m"]
-    go (Roof i t src) = [mv i t <> "  " <> "\x1b[38;5;208m" <> prettifyToaq src <> "\x1b[0m"]
+       in [col <> renderSource src <> "\x1b[0m"]
+    go (Roof i t src) = [mv i t <> "  " <> "\x1b[38;5;208m" <> renderSource src <> "\x1b[0m"]
     go (Tag i t sub) =
       case go sub of
         [one] -> [mv i t <> "  " <> one]
         many -> mv i t : map ("  " <>) many
     go (Pair i t x y) = mv i t : map ("  " <>) (go x) ++ map ("  " <>) (go y)
+    renderSource (Overt t) = prettifyToaq t
+    renderSource (Covert t) = t
 
 lpx :: Text -> IO ()
 lpx text = do

@@ -29,6 +29,7 @@ import Text.Parsec.Pos (initialPos)
 import TextUtils
 import ToSrc
 import XbarUtils
+import XbarLabels
 
 runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, Movements)
 runXbarWithMovements dict d =
@@ -47,32 +48,32 @@ nullVp :: SourcePos -> Vp
 nullVp sourcePos = Single (Nonserial (Vverb (W (Pos sourcePos "" "") [])))
 
 -- Pair a construct with its optional terminator.
-terminated :: Text -> Xbar -> Terminator -> Mx Xbar
+terminated :: Category -> Xbar -> Terminator -> Mx Xbar
 terminated _ t Nothing = pure t
-terminated tag t (Just word) = do
-  xF <- mkTag (tag <> "\\textsubscript{F}") =<< toXbar word
-  mkPair (tag <> "\\textsubscript{F}P") t xF
+terminated cat t (Just word) = do
+  xF <- mkTag (Label (X_F cat) []) =<< toXbar word
+  mkPair (Label (XP (X_F cat)) []) t xF
 
 covert :: Mx Xbar
-covert = mkLeaf " " -- I know this is kinda silly... but it's useful that `T.strip` ignores it.
+covert = mkLeaf (Covert " ") -- I know this is kinda silly... but it's useful that `T.strip` ignores it.
 
 blank :: Mx Xbar
-blank = mkLeaf ""
+blank = mkLeaf (Covert "")
 
 prenexToXbar :: NonEmpty Xbar -> W () -> Xbar -> Mx Xbar
 prenexToXbar (x :| []) bi c = do
   xBi <- toXbar bi
-  xTopic <- mkTag "Topic" xBi
-  xTopic' <- mkPair "Topic'" xTopic c
-  mkPair "TopicP" x xTopic'
+  xTopic <- mkTag _Topic xBi
+  xTopic' <- mkPair _Topic' xTopic c
+  mkPair _TopicP x xTopic'
 prenexToXbar (x :| (x' : xs)) bi c = do
-  xBi <- mkTag "Topic" =<< covert
+  xBi <- mkTag _Topic =<< covert
   xRest <- prenexToXbar (x' :| xs) bi c
-  xTopic' <- mkPair "Topic'" xBi xRest
-  mkPair "TopicP" x xTopic'
+  xTopic' <- mkPair _Topic' xBi xRest
+  mkPair _TopicP x xTopic'
 
 instance ToXbar Discourse where
-  toXbar (Discourse ds) = foldl1 (\ma mb -> do a <- ma; b <- mb; mkPair "Discourse" a b) (toXbar <$> ds)
+  toXbar (Discourse ds) = foldl1 (\ma mb -> do a <- ma; b <- mb; mkPair _SAP a b) (toXbar <$> ds)
 
 instance ToXbar DiscourseItem where
   toXbar (DiSentence x) = toXbar x
@@ -84,10 +85,10 @@ instance ToXbar Sentence where
     t <- do
       sa <- maybe covert toXbar ill
       x <- toXbar stmt
-      y <- mkTag "SA" sa
-      mkPair "SAP" x y
+      y <- mkTag _SA sa
+      mkPair _SAP x y
     case msc of
-      Just sc -> do xSConn <- mkTag "SConn" =<< toXbar sc; mkPair "SAP" xSConn t
+      Just sc -> do xSConn <- mkTag _SAP =<< toXbar sc; mkPair _SAP xSConn t
       Nothing -> pure t
 
 instance ToXbar Fragment where
@@ -101,7 +102,7 @@ instance ToXbar Statement where
     pushScope
     xC <- case mc of
       Just c -> toXbar c
-      Nothing -> mkTag "C" =<< covert
+      Nothing -> mkTag _C =<< covert
     maybeXsTopicsBi <- case mp of
       Nothing -> pure Nothing
       Just (Prenex ts bi) -> do
@@ -115,66 +116,72 @@ instance ToXbar Statement where
     xWithFoc <- foldrM mkFocAdvP xTopicP (scopeFocuses s)
     xWithQPs <- foldrM mkQP xWithFoc (scopeQuantifiers s)
     if or [d == Ja | (d, _, _) <- scopeQuantifiers s]
-      then mkPair "CP[+λ]" (mapSrc (<> "[+λ]") xC) xWithQPs
-      else mkPair "CP" xC xWithQPs
+      then mkPair _CPλ xC xWithQPs
+      else mkPair _CP xC xWithQPs
 
-focGloss :: Text -> Text
-focGloss "ku" = "[focus, -contrast]"
-focGloss "bei" = "[focus, +contrast]"
-focGloss "tou" = "[only]"
-focGloss "mao" = "[also]"
-focGloss "juaq" = "[even]"
-focGloss _ = "[?]"
+focGloss :: Text -> Source
+focGloss "ku" = Covert "focus, -contrast"
+focGloss "bei" = Covert "focus, +contrast"
+focGloss "tou" = Covert "only"
+focGloss "mao" = Covert "also"
+focGloss "juaq" = Covert "even"
+focGloss _ = Covert "?"
 
 mkFocAdvP :: (Text, Int) -> Xbar -> Mx Xbar
 mkFocAdvP (focuser, iDP) x = do
-  xFocAdv <- mkTag "FocAdv" =<< mkLeaf (focGloss $ bareToaq focuser)
+  xFocAdv <- mkTag _Foc =<< mkLeaf (focGloss $ bareToaq focuser)
   -- Copy the DP up here... kind of a hack
   xDP <- case subtreeByIndex iDP x of
-    Just dp -> mkRoof "DP" =<< aggregateSrc dp
-    Nothing -> mkRoof "DP" "???"
+    Just dp -> mkRoof _DP . Overt =<< aggregateSrc dp
+    Nothing -> mkRoof _DP (Covert "???")
   move' iDP (index xDP)
   traceAt xDP
-  xFocAdvP <- mkPair "FocAdvP" xFocAdv xDP
+  xFocAdvP <- mkPair _FocP xFocAdv xDP
   mkPair (label x) xFocAdvP x
 
 qgloss :: Determiner -> Text
-qgloss Sa = "[∃]"
-qgloss Tu = "[∀]"
-qgloss Tuq = "[Λ]"
-qgloss Ke = "[℩]"
-qgloss Ja = "[λ]"
-qgloss (XShi q) = T.init (qgloss q) <> "¹]"
-qgloss _ = "[…]"
+qgloss Sa = "∃"
+qgloss Tu = "∀"
+qgloss Tuq = "Λ"
+qgloss Ke = "℩"
+qgloss Ja = "λ"
+qgloss (XShi q) = qgloss q <> "¹"
+qgloss _ = "…"
+
+labelIsVP :: Label -> Bool
+labelIsVP = (== XP (Head HV)) . labelCategory
 
 mkQP :: (Determiner, VarRef, Int) -> Xbar -> Mx Xbar
 mkQP (det, name, indexOfDPV) x = do
   let isVP = case subtreeByIndex indexOfDPV x of
-        Just xDPV | "VP" `T.isSuffixOf` label xDPV -> True
+        Just xDPV -> labelIsVP (label xDPV)
         _ -> False
-  xQ <- mkTag "Q" =<< mkLeaf (qgloss det)
-  xV <- if isVP then mkRoof "VP" name else do vl <- verbLabel name; mkTag vl =<< mkLeaf name
+  xQ <- mkTag _Q =<< mkLeaf (Covert $ qgloss det)
+  xV <-
+    if isVP
+      then mkRoof _VP (Overt name)
+      else do vl <- verbLabel name; mkTag vl =<< mkLeaf (Overt name)
   traceAt xV
   move' indexOfDPV (index xV)
-  xQP <- mkPair "QP" xQ xV
+  xQP <- mkPair _QP xQ xV
   mkPair (label x) xQP x
 
-verbClassName :: Maybe VerbClass -> Text
-verbClassName Nothing = "V"
-verbClassName (Just Tense) = "T"
-verbClassName (Just Aspect) = "Asp"
-verbClassName (Just Modality) = "Mod"
-verbClassName (Just Negation) = "Neg"
+verbClassName :: Maybe VerbClass -> HeadCategory
+verbClassName Nothing = HV
+verbClassName (Just Tense) = HT
+verbClassName (Just Aspect) = HAsp
+verbClassName (Just Modality) = HMod
+verbClassName (Just Negation) = HNeg
 
-verbLabel :: Text -> Mx Text
+verbLabel :: Text -> Mx Label
 verbLabel verbText = do
   d <- gets xbarDictionary
   let mvc = lookupVerbClass d verbText
-  pure (verbClassName mvc)
+  pure (Label (Head (verbClassName mvc)) [])
 
-vpcLabel :: VpC -> Mx Text
+vpcLabel :: VpC -> Mx Label
 vpcLabel (Nonserial (Vverb w)) = verbLabel (unW w)
-vpcLabel (Nonserial _) = pure "V"
+vpcLabel (Nonserial _) = pure $ Label (Head HV) []
 vpcLabel (Serial x _) = vpcLabel (Nonserial x)
 
 -- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
@@ -183,31 +190,33 @@ makeVP xV xsNp = do
   verb <- aggregateSrc xV
   dict <- gets xbarDictionary
   case xsNp of
-    xs | Just i <- lookupMaxArity dict verb, length xs > i ->
-      error $ show verb <> " accepts at most " <> show i <> " argument" <> ['s' | i /= 1]
+    xs
+      | Just i <- lookupMaxArity dict verb,
+        length xs > i ->
+        error $ show verb <> " accepts at most " <> show i <> " argument" <> ['s' | i /= 1]
     [] -> do
       pure (xV, xV)
-    [xDPS] | "VP" `T.isSuffixOf` label xV -> do
+    [xDPS] | labelIsVP (label xV) -> do
       -- Our "xV" is actually a VP with an incorporated object.
-      xv <- mkTag "𝑣" =<< blank
-      xv' <- mkPair "𝑣'" xv xV
-      xvP <- mkPair "𝑣P" xDPS xv'
+      xv <- mkTag _v =<< blank
+      xv' <- mkPair _v' xv xV
+      xvP <- mkPair _vP xDPS xv'
       pure (xV, xvP)
     [xDPS] -> do
       vname <- verbLabel verb
-      let xV' = if label xV == "V" then relabel vname xV else xV
-      xVP <- mkPair (vname <> "P") xV' xDPS
+      let xV' = if labelCategory (label xV) == Head HV then relabel vname xV else xV
+      xVP <- mkPair (Label (XP $ labelCategory vname) []) xV' xDPS
       pure (xV, xVP)
     [xDPS, xDPO] -> do
-      xV' <- mkPair "V'" xV xDPO
-      xVP <- mkPair "VP" xDPS xV'
+      xV' <- mkPair _V' xV xDPO
+      xVP <- mkPair _VP xDPS xV'
       pure (xV, xVP)
     [xDPA, xDPS, xDPO] -> do
-      xv <- mkTag "𝑣" =<< blank
-      xV' <- mkPair "V'" xV xDPO
-      xVP <- mkPair "VP" xDPS xV'
-      xv' <- mkPair "𝑣'" xv xVP
-      xvP <- mkPair "𝑣P" xDPA xv'
+      xv <- mkTag _v =<< blank
+      xV' <- mkPair _V' xV xDPO
+      xVP <- mkPair _VP xDPS xV'
+      xv' <- mkPair _v' xv xVP
+      xvP <- mkPair _vP xDPA xv'
       pure (xV, xvP)
     _ -> error "verb has too many arguments"
 
@@ -215,7 +224,7 @@ newtype Pro = Pro (Maybe Int) deriving (Eq, Ord, Show)
 
 instance ToXbar Pro where
   toXbar (Pro i) = do
-    xDP <- mkTag "DP" =<< mkLeaf "PRO"
+    xDP <- mkTag _DP =<< mkLeaf (Covert "PRO")
     mapM_ (coindex (index xDP)) i
     pure xDP
 
@@ -243,7 +252,7 @@ makeVPSerial vp nps = do
       let frame = fromMaybe "c 0" (lookupFrame dict (toSrc v))
       -- let proCount = frameDigit frame
       let cCount = sum [1 | 'c' <- T.unpack frame]
-      xsNpsNow <- (++) <$> mapM toXbar (take cCount nps) <*> replicateM (cCount - length nps) (mkTag "DP" =<< covert)
+      xsNpsNow <- (++) <$> mapM toXbar (take cCount nps) <*> replicateM (cCount - length nps) (mkTag _DP =<< covert)
       let ijxs = [c | (d : cs) <- T.unpack <$> T.words frame, isDigit d, c <- cs]
       let pros = [Left (Pro (selectCoindex c xsNpsNow)) | c <- ijxs]
       let npsLater = pros ++ drop cCount nps
@@ -265,6 +274,10 @@ needsVPMovement (Nonserial (Vverb {})) = False
 needsVPMovement (Nonserial _) = True
 needsVPMovement (Serial n _) = needsVPMovement (Nonserial n)
 
+ensurePhrase :: Category -> Category
+ensurePhrase c@(XP _) = c
+ensurePhrase c = XP c
+
 instance ToXbar PredicationC where
   toXbar (Predication predicate advsL nps advsR) = do
     xsAdvL <- mapM toXbar advsL
@@ -273,24 +286,23 @@ instance ToXbar PredicationC where
     xFV <-
       if needsVPMovement v
         then do
-          mkRoof ("F+" <> label xVTrace) (toSrc v)
+          mkRoof _Fplus (Overt $ toSrc v)
         else do
           vl <- vpcLabel v
-          let fvtag = (if arity >= 3 then "F+𝑣+" else "F+") <> vl
-          relabel fvtag <$> toXbar v
+          relabel _Fplus <$> toXbar v
     move xVTrace xFV
     traceAt xVTrace
     xsAdvR <- mapM toXbar advsR
-    let isVPLike t = "VP" `T.isSuffixOf` t || "𝑣P" `T.isSuffixOf` t
+    let isVPLike label = case labelCategory label of XP _ -> True; _ -> False
     let attachAdverbials (Pair i t xL xR) | not (isVPLike t) = do
-            xR' <- attachAdverbials xR
-            pure (Pair i t xL xR')
+          xR' <- attachAdverbials xR
+          pure (Pair i t xL xR')
         attachAdverbials x = do
-            let lbl = case label x of "V" -> "VP"; l -> l
-            x' <- foldlM (mkPair lbl) x xsAdvR
-            foldrM (mkPair lbl) x' xsAdvL
+          let lbl = Label (ensurePhrase $ labelCategory $ label x) []
+          x' <- foldlM (mkPair lbl) x xsAdvR
+          foldrM (mkPair lbl) x' xsAdvL
     xVPa <- attachAdverbials xVPish
-    mkPair "FP" xFV xVPa
+    mkPair _FP xFV xVPa
 
 instance ToXbar Predicate where
   toXbar (Predicate vp) = toXbar vp
@@ -331,8 +343,8 @@ instance ToXbarNa () where toXbarNa t () = pure t
 instance ToXbarNa (W ()) where
   toXbarNa t na = do
     t1 <- toXbar na
-    t2 <- mkTag "End" t1
-    mkPair "CoP" t t2
+    t2 <- mkTag _CoF t1
+    mkPair _CoP t t2
 
 instance (ToXbar t, ToXbarNa na, ConnName t) => ToXbar (Connable' na t) where
   toXbar (Conn x na ru y) = do
@@ -340,53 +352,53 @@ instance (ToXbar t, ToXbarNa na, ConnName t) => ToXbar (Connable' na t) where
     t1 <- toXbarNa tx na
     tr <- toXbar ru
     ty <- toXbar y
-    t2 <- mkPair "Co'" tr ty
-    mkPair ("CoP(" <> connName @t <> ")") t1 t2
+    t2 <- mkPair _Co' tr ty
+    mkPair _CoP t1 t2
   toXbar (ConnTo to ru x to' y) = do
-    tt <- mkTag "Co" =<< toXbar to
+    tt <- mkTag _Co =<< toXbar to
     tr <- toXbar ru
-    t1 <- mkPair "Co'" tt tr
+    t1 <- mkPair _Co' tt tr
     tx <- toXbar x
-    tt' <- mkTag "Co" =<< toXbar to'
+    tt' <- mkTag _Co =<< toXbar to'
     ty <- toXbar y
-    t3 <- mkPair "Co'" tt' ty
-    t2 <- mkPair ("CoP(" <> connName @t <> ")") tx t3
-    mkPair ("CoP(" <> connName @t <> ")") t1 t2
+    t3 <- mkPair _Co' tt' ty
+    t2 <- mkPair _CoP tx t3
+    mkPair _CoP t1 t2
   toXbar (Single x) = toXbar x
 
 instance ToXbar AdvpC where
   toXbar (Advp t7 verb) = do
-    xAdv <- mkTag "Adv" =<< mkLeaf (posSrc t7)
+    xAdv <- mkTag _Adv =<< mkLeaf (Overt $ posSrc t7)
     xV <- toXbar verb
-    mkPair "AdvP" xAdv xV
+    mkPair _AdvP xAdv xV
 
 instance ToXbar PpC where
   toXbar (Pp (Single (Prep t6 verb)) np) = do
-    xP <- mkTag "P" =<< mkLeaf (posSrc t6)
+    xP <- mkTag _P =<< mkLeaf (Overt $ posSrc t6)
     xV <- toXbar verb
     xNP <- toXbar np
-    xVP <- mkPair "VP" xV xNP
-    mkPair "PP" xP xVP
+    xVP <- mkPair _VP xV xNP
+    mkPair _PP xP xVP
   toXbar (Pp _ np) = error "X-bar: coordination of prepositions is unimplemented"
 
 instance ToXbar NpC where
   toXbar (Focused foc np) = do
-    xFoc <- mkTag "Foc" =<< toXbar foc
+    xFoc <- mkTag _Foc =<< toXbar foc
     xDP <- toXbar np
     focus (toSrc foc) (index xDP)
-    mkPair "FocP(DP)" xFoc xDP
+    mkPair _FocP xFoc xDP
   toXbar (Unf np) = toXbar np
 
 instance ToXbar NpF where
   toXbar (ArgRel arg rel) = do
     xDP <- toXbar arg
     xCP <- toXbar rel
-    mkPair "DP" xDP xCP
+    mkPair _DP xDP xCP
   toXbar (Unr np) = toXbar np
 
 instance ToXbar NpR where
   toXbar (Npro txt) = do
-    xDP <- mkTag "DP" =<< mkLeaf (inT2 $ unW txt)
+    xDP <- mkTag _DP =<< mkLeaf (Overt $ inT2 $ unW txt)
     ss <- getScopes
     mi <- scopeLookup (toName txt)
     mapM_ (coindex (index xDP)) mi
@@ -406,7 +418,7 @@ bindVp det name iDP iVP = do
 
 instance ToXbar Dp where
   toXbar (Dp det@(W pos _) maybeVp) = do
-    xD <- mkTag "D" =<< mkLeaf (posSrc pos)
+    xD <- mkTag _D =<< mkLeaf (Overt $ posSrc pos)
     iDP <- nextNodeNumber
     xVP <- case maybeVp of
       Nothing -> toXbar (nullVp (posPos pos))
@@ -421,79 +433,79 @@ instance ToXbar Dp where
           Just i -> coindex iDP i
       det -> do
         bindVp det name iDP iVP
-    pure $ Pair iDP "DP" xD xVP
+    pure $ Pair iDP _DP xD xVP
 
 instance ToXbar RelC where
-  toXbar (Rel pred tmr) = do x <- toXbar pred; terminated "C" x tmr
+  toXbar (Rel pred tmr) = do x <- toXbar pred; terminated (Head HC) x tmr
 
 instance ToXbar Cc where
-  toXbar (Cc pred tmr) = do x <- toXbar pred; terminated "C" x tmr
+  toXbar (Cc pred tmr) = do x <- toXbar pred; terminated (Head HC) x tmr
 
 instance ToXbar VpC where
   toXbar (Serial v w) = do
     xV <- toXbar v
     xW <- toXbar w
-    serial <- mkPair "Serial" xV xW
-    mkRoof "V" =<< aggregateSrc serial
+    serial <- mkPair _V' xV xW
+    mkRoof _V . Overt =<< aggregateSrc serial
   toXbar (Nonserial x) = toXbar x
 
 instance ToXbar VpN where
   toXbar (Vname nv name tmr) = do
     xV <- toXbar nv
     xDP <- toXbar name
-    xVP <- mkPair "VP" xV xDP
-    terminated "V" xVP tmr
+    xVP <- mkPair _VP xV xDP
+    terminated (Head HV) xVP tmr
   toXbar (Vshu shu text) = do
-    xV <- mkTag "V" =<< toXbar shu
-    xDP <- mkTag "DP" =<< toXbar text
-    mkPair "VP" xV xDP
+    xV <- mkTag _V =<< toXbar shu
+    xDP <- mkTag _DP =<< toXbar text
+    mkPair _VP xV xDP
   toXbar (Voiv oiv np tmr) = do
-    xCopV <- mkTag "CopV" =<< toXbar oiv
+    xCopV <- mkTag _CoP =<< toXbar oiv
     pushScope
     xDP <- toXbar np
     s <- popScope
     let gloss = if unW oiv == "po" then "[hao]" else "[" <> unW oiv <> "ga]"
-    xV <- mkTag "V" =<< mkLeaf gloss
-    xV' <- mkPair "V'" xV xDP
+    xV <- mkTag _V =<< mkLeaf (Covert gloss)
+    xV' <- mkPair _V' xV xDP
     xDPpro <- toXbar (Pro Nothing)
-    xVP <- mkPair "VP" xDPpro xV'
+    xVP <- mkPair _VP xDPpro xV'
     xWithFoc <- foldrM mkFocAdvP xVP (scopeFocuses s)
     xWithQPs <- foldrM mkQP xWithFoc (scopeQuantifiers s)
-    xC <- mkTag "C" =<< covert
-    xCP <- mkPair "CP" xC xWithQPs
+    xC <- mkTag _C =<< covert
+    xCP <- mkPair _CP xC xWithQPs
     traceM $ show s
-    xCopVP <- mkPair "CopVP" xCopV xCP
-    terminated "CopV" xCopVP tmr
+    xCopVP <- mkPair _CoP xCopV xCP
+    terminated (Head HV) xCopVP tmr
   toXbar (Vmo mo disc teo) = do
-    xV <- mkTag "V" =<< toXbar mo
+    xV <- mkTag _V =<< toXbar mo
     xDiscourse <- toXbar disc
-    xVP <- mkPair "VP" xV xDiscourse
-    terminated "V" xVP teo
+    xVP <- mkPair _VP xV xDiscourse
+    terminated (Head HV) xVP teo
   toXbar (Vlu lu stmt ky) = do
-    xV <- mkTag "V" =<< toXbar lu
+    xV <- mkTag _V =<< toXbar lu
     xCP <- toXbar stmt
     case stmt of
       Statement (Just c) _ _ ->
         error $ "lu cannot be followed by an overt complementizer (\"lu " <> T.unpack (toSrc c) <> "\" is invalid)"
       _ -> pure ()
-    xVP <- mkPair "VP" xV xCP
-    terminated "V" xVP ky
+    xVP <- mkPair _VP xV xCP
+    terminated (Head HV) xVP ky
   toXbar (Vverb w) = do
     label <- verbLabel (unW w)
     mkTag label =<< toXbar w
 
 instance ToXbar Name where
-  toXbar (VerbName x) = relabel "DP" <$> toXbar x
-  toXbar (TermName x) = relabel "DP" <$> toXbar x
+  toXbar (VerbName x) = relabel _DP <$> toXbar x
+  toXbar (TermName x) = relabel _DP <$> toXbar x
 
 instance ToXbar FreeMod where
-  toXbar (Fint teto) = mkTag "Interj" =<< toXbar teto
-  toXbar (Fvoc hu np) = do x <- toXbar hu; y <- toXbar np; mkPair "Voc" x y
-  toXbar (Finc ju sentence) = do x <- toXbar ju; y <- toXbar sentence; mkPair "Inc" x y
-  toXbar (Fpar kio disc ki) = do x <- toXbar kio; y <- toXbar disc; z <- toXbar ki; mkPair "Par" x =<< mkPair "Par" y z
+  toXbar (Fint teto) = mkTag _Free =<< toXbar teto
+  toXbar (Fvoc hu np) = do x <- toXbar hu; y <- toXbar np; mkPair _Free x y
+  toXbar (Finc ju sentence) = do x <- toXbar ju; y <- toXbar sentence; mkPair _Free x y
+  toXbar (Fpar kio disc ki) = do x <- toXbar kio; y <- toXbar disc; z <- toXbar ki; mkPair _Free x =<< mkPair _Free y z
 
 instance ToXbar () where
-  toXbar () = mkLeaf "()"
+  toXbar () = mkLeaf (Covert "()")
 
 --instance ToXbar (Pos Text) where
 --    toXbar (Pos _ src txt) = Leaf src txt
@@ -501,32 +513,36 @@ instance ToXbar t => ToXbar (Pos t) where
   toXbar (Pos _ src t) = do
     inner <- toXbar t
     case inner of
-      Leaf _ _ -> mkLeaf src
-      Tag _ t (Leaf _ _) -> mkTag t =<< mkLeaf src
+      Leaf _ _ -> mkLeaf (Overt src)
+      Tag _ t (Leaf _ _) -> mkTag t =<< mkLeaf (Overt src)
       x -> pure x
 
 instance ToXbar t => ToXbar (W t) where
-  toXbar (W w fms) = foldl (\ma mb -> do a <- ma; b <- mb; mkPair "Free" a b) (toXbar w) (toXbar <$> fms)
+  toXbar (W w fms) = foldl (\ma mb -> do a <- ma; b <- mb; mkPair _FreeP a b) (toXbar w) (toXbar <$> fms)
 
-instance ToXbar Text where toXbar = mkLeaf
+instance ToXbar Text where toXbar = mkLeaf . Overt
 
-instance ToXbar (Text, Tone) where toXbar (t, _) = mkLeaf t
+instance ToXbar (Text, Tone) where toXbar (t, _) = mkLeaf (Overt t)
 
 instance ToXbar String where toXbar t = toXbar (T.pack t)
 
-instance ToXbar NameVerb where toXbar nv = mkTag "V" =<< toXbar (show nv)
+instance ToXbar NameVerb where toXbar nv = mkTag _V =<< toXbar (show nv)
 
-instance ToXbar Determiner where toXbar det = mkTag "D" =<< toXbar (show det)
+instance ToXbar Determiner where toXbar det = mkTag _D =<< toXbar (show det)
 
-instance ToXbar Connective where toXbar t = mkTag "Co" =<< toXbar (show t)
+instance ToXbar Connective where toXbar t = mkTag _Co =<< toXbar (show t)
 
-instance ToXbar Complementizer where toXbar t = mkTag "C" =<< toXbar (show t)
+instance ToXbar Complementizer where toXbar t = mkTag _C =<< toXbar (show t)
 
 -- Convert an Xbar tree to JSON.
 xbarToJson :: Maybe (Text -> Text) -> Xbar -> J.Value
 xbarToJson annotate xbar =
   case xbar of
-    Leaf _ src -> object ["type" .= J.String "leaf", "src" .= J.String src, "gloss" .= case annotate of Just f -> J.String (f src); _ -> J.Null]
-    Roof _ t src -> object ["type" .= J.String "roof", "tag" .= J.String t, "src" .= J.String src]
-    Tag _ t sub -> object ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array [xbarToJson annotate sub]]
-    Pair _ t x y -> object ["type" .= J.String "node", "tag" .= J.String t, "children" .= J.Array (xbarToJson annotate <$> [x, y])]
+    Leaf _ src -> object ["type" .= J.String "leaf", "src" .= srcToJson src, "gloss" .= case annotate of Just f -> srcToJson (mapSource f src); _ -> J.Null]
+    Roof _ t src -> object ["type" .= J.String "roof", "tag" .= labelToJson t, "src" .= srcToJson src]
+    Tag _ t sub -> object ["type" .= J.String "node", "tag" .= labelToJson t, "children" .= J.Array [xbarToJson annotate sub]]
+    Pair _ t x y -> object ["type" .= J.String "node", "tag" .= labelToJson t, "children" .= J.Array (xbarToJson annotate <$> [x, y])]
+  where
+    srcToJson (Overt t) = J.String t
+    srcToJson (Covert t) = J.String t
+    labelToJson l = J.String (T.pack $ show l) -- bleh

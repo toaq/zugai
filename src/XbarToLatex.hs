@@ -37,7 +37,20 @@ escapeLatex t = "{" <> T.concatMap latexSym t <> "}"
     latexSym '∀' = "$\\forall$"
     latexSym 'λ' = "$\\lambda$"
     latexSym '℩' = "\\rotatebox[origin=C]{180}{$\\iota$}"
+    latexSym '◌' = "o"
     latexSym c = T.singleton c
+
+showLabelLatex :: Label -> Text
+showLabelLatex (Label cat fs) = showCat cat <> T.concat (showFeature <$> fs)
+    where
+        showCat (Head h) = showHead h
+        showCat (X_F c) = showCat c <> "\\textsubscript{F}"
+        showCat (X' c) = showCat c <> "'"
+        showCat (XP c) = showCat c <> "P"
+        showCat (Xplus c) = showCat c <> "+"
+        showHead Hv = "$v$"
+        showHead h = T.tail . T.pack . show $ h
+        showFeature PlusLambda = " [+\\lambda]"
 
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
 xbarToLatex :: Maybe (Text -> Text) -> (Xbar, Movements) -> Text
@@ -60,22 +73,25 @@ xbarToLatex annotate (xbar, Movements movements coixs traces) =
             <> "]{};}"
             <> children
             <> "]"
-    label = T.replace "◌" "o"
-    go (Leaf i "") = ""
-    go (Leaf i src) = node False i (goSrc i (label src)) ""
-    go (Roof i t src) = node False i (label t) ("[" <> goSrc i src <> ",roof]")
-    go (Tag i t sub) = node False i (label t) (go sub)
+    unring = T.replace "◌" "o"
+    go (Leaf i (Overt "")) = "" -- why do we need this again dfjghdkhkj
+    go (Leaf i (Covert "")) = ""
+    go (Leaf i src) = node False i (goSrc i src) ""
+    go (Roof i t src) = node False i (goLabel t) ("[" <> goSrc i src <> ",roof]")
+    go (Tag i t sub) = node False i (goLabel t) (go sub)
     go p@(Pair i t x y) =
       -- if isMoved i then go (Roof i t (aggregateSrc p)) else
       -- this causes problems: goMove outputs node names that didn't get generated, so tikz errors
-      node True i (label t) (go x <> " " <> go y)
-    goSrc i src =
-      let srci = escapeLatex $ prettifyToaq src
+      node True i (goLabel t) (go x <> " " <> go y)
+    goSrc i source =
+      let src = case source of Overt t -> t; Covert t -> t
+          srci = escapeLatex $ prettifyToaq src
           src'
             | src == " " = "$\\varnothing$"
             | isMoved i || i `elem` traceChildren = "\\sout{" <> srci <> "}"
             | otherwise = colorWord srci
        in "\\textsf{" <> src' <> "}" <> note annotate src
+    goLabel = showLabelLatex
     note (Just f) src
       | noteText <- f src,
         noteText /= "" =

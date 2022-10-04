@@ -37,6 +37,7 @@ library
       TextUtils
       ToSrc
       Xbar
+      XbarLabels
       XbarToAnsi
       XbarToLatex
       XbarToSvg

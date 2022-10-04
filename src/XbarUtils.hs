@@ -20,11 +20,46 @@ import Scope
 import TextUtils
 import ToSrc
 
+data Feature = PlusLambda deriving (Eq, Ord, Show)
+
+data HeadCategory = HAdv | HAsp | HC | HCo | HD | HF | HFoc | HFree | HMod | HNeg | HP | HQ | HSA | HT | HTopic | Hv | HV deriving (Eq, Ord, Show)
+
+data Category
+  = Head HeadCategory
+  | X_F Category -- terminator
+  | X' Category
+  | XP Category
+  | Xplus Category
+  deriving (Eq, Ord, Show)
+
+data Label = Label
+  { labelCategory :: Category,
+    labelFeatures :: [Feature]
+  }
+  deriving (Eq, Ord, Show)
+
+showLabel :: Label -> Text
+showLabel (Label cat fs) = showCat cat <> T.concat (showFeature <$> fs)
+    where
+        showCat (Head h) = showHead h
+        showCat (X_F c) = showCat c <> "_F"
+        showCat (X' c) = showCat c <> "'"
+        showCat (XP c) = showCat c <> "P"
+        showCat (Xplus c) = showCat c <> "+"
+        showHead = T.tail . T.pack . show
+        showFeature PlusLambda = "[+λ]"
+
+data Source = Overt Text | Covert Text deriving (Eq, Show)
+
+mapSource :: (Text -> Text) -> Source -> Source
+mapSource f (Overt t) = Overt (f t)
+mapSource f (Covert t) = Covert (f t)
+
 data Xbar
-  = Tag Int Text Xbar
-  | Pair Int Text Xbar Xbar
-  | Leaf Int Text -- Source word
-  | Roof Int Text Text -- Tag and source text
+  = Tag Int Label Xbar
+  | Pair Int Label Xbar Xbar
+  | Leaf Int Source -- Source word
+  | Roof Int Label Source -- Tag and source text
   deriving (Eq, Show)
 
 index :: Xbar -> Int
@@ -53,23 +88,31 @@ subtrees t = [t]
 subtreeByIndex :: Int -> Xbar -> Maybe Xbar
 subtreeByIndex i x = listToMaybe [t | t <- subtrees x, index t == i]
 
-label :: Xbar -> Text
+label :: Xbar -> Label
 label (Tag _ t _) = t
 label (Pair _ t _ _) = t
-label (Leaf _ t) = "?"
+label (Leaf _ t) = error "leaf has no label"
 label (Roof _ t _) = t
 
-relabel :: Text -> Xbar -> Xbar
+relabel :: Label -> Xbar -> Xbar
 relabel t (Tag i _ x) = Tag i t x
 relabel t (Pair i _ x y) = Pair i t x y
 relabel _ x@(Leaf _ _) = x
 relabel t (Roof i _ s) = Roof i t s
 
+overtText :: Source -> Text
+overtText (Overt t) = t
+overtText _ = ""
+
+onOvert :: (Text -> Text) -> Source -> Source
+onOvert f (Overt t) = Overt (f t)
+onOvert f s = s
+
 mapSrc :: (Text -> Text) -> Xbar -> Xbar
-mapSrc f (Tag i t x) = Tag i t (mapSrc f x)
-mapSrc f (Pair i t x y) = Pair i t (mapSrc f x) (mapSrc f y)
-mapSrc f (Leaf i s) = Leaf i (f s)
-mapSrc f (Roof i t s) = Roof i t (f s)
+mapSrc f (Tag i l x) = Tag i l (mapSrc f x)
+mapSrc f (Pair i l x y) = Pair i l (mapSrc f x) (mapSrc f y)
+mapSrc f (Leaf i s) = Leaf i (onOvert f s)
+mapSrc f (Roof i l s) = Roof i l (onOvert f s)
 
 aggregateSrc :: Xbar -> Mx Text
 aggregateSrc x =
@@ -79,9 +122,8 @@ aggregateSrc x =
         go :: Xbar -> Text
         go (Tag _ _ x) = go x
         go (Pair _ _ x y) = combineWords (go x) (go y)
-        go (Leaf i s) =
-          if i `elem` ixs || "[" `T.isPrefixOf` s then "" else s
-        go (Roof _ _ s) = s
+        go (Leaf i s) = if i `elem` ixs then "" else overtText s
+        go (Roof i _ s) = if i `elem` ixs then "" else overtText s
     pure $ go x
 
 data Movement = Movement
@@ -126,23 +168,23 @@ nextNodeNumber = do
 class ToXbar a where
   toXbar :: a -> Mx Xbar
 
-mkTag :: Text -> Xbar -> Mx Xbar
-mkTag t x = do i <- nextNodeNumber; pure $ Tag i t x
+mkTag :: Label -> Xbar -> Mx Xbar
+mkTag l x = do i <- nextNodeNumber; pure $ Tag i l x
 
-mkPair :: Text -> Xbar -> Xbar -> Mx Xbar
-mkPair t x y = do i <- nextNodeNumber; pure $ Pair i t x y
+mkPair :: Label -> Xbar -> Xbar -> Mx Xbar
+mkPair l x y = do i <- nextNodeNumber; pure $ Pair i l x y
 
-mkLeaf :: Text -> Mx Xbar
-mkLeaf t = do i <- nextNodeNumber; pure $ Leaf i t
+mkLeaf :: Source -> Mx Xbar
+mkLeaf s = do i <- nextNodeNumber; pure $ Leaf i s
 
-mkRoof :: Text -> Text -> Mx Xbar
-mkRoof t s = do i <- nextNodeNumber; pure $ Roof i t s
+mkRoof :: Label -> Source -> Mx Xbar
+mkRoof l s = do i <- nextNodeNumber; pure $ Roof i l s
 
 mkCopy :: Xbar -> Mx Xbar
-mkCopy (Tag _ t x) = do i <- nextNodeNumber; Tag i t <$> mkCopy x
-mkCopy (Pair _ t x y) = do i <- nextNodeNumber; Pair i t <$> mkCopy x <*> mkCopy y
+mkCopy (Tag _ l x) = do i <- nextNodeNumber; Tag i l <$> mkCopy x
+mkCopy (Pair _ l x y) = do i <- nextNodeNumber; Pair i l <$> mkCopy x <*> mkCopy y
 mkCopy (Leaf _ s) = do i <- nextNodeNumber; pure $ Leaf i s
-mkCopy (Roof _ t s) = do i <- nextNodeNumber; pure $ Roof i t s
+mkCopy (Roof _ l s) = do i <- nextNodeNumber; pure $ Roof i l s
 
 move' :: Int -> Int -> Mx ()
 move' i j =

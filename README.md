@@ -6,7 +6,7 @@ It can currently be invoked from [Discord](https://toaq.me/Discord) using `%tree
 
 ## For programmers
 
-### Haskell CLI tool
+### zugai-exe
 
 This is the "core" of zugaı that does all the hard work.
 

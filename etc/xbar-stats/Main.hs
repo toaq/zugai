@@ -7,7 +7,7 @@ module Main where
 import Data.Set (Set)
 import Data.Text (Text)
 import Xbar (runXbar)
-import XbarUtils (Xbar(..))
+import XbarUtils (Xbar(..), showLabel)
 import qualified Data.Set as S
 import Dictionary (readDictionary, Dictionary)
 import qualified Data.Text as T
@@ -27,14 +27,11 @@ import System.IO.Unsafe (unsafePerformIO)
 import Control.DeepSeq (force, NFData, ($!!))
 import GHC.Generics (Generic)
 
-type Label = Text
-data Node = Node Label [Label]
+type LabelName = Text
+data Node = Node LabelName [LabelName]
   deriving (Eq, Ord, Generic)
 
 instance NFData Node
-
-nodeLbl :: Node -> Label
-nodeLbl (Node lbl _) = lbl
 
 main :: IO ()
 main = do
@@ -44,7 +41,7 @@ main = do
         & getConst . traverse_ (Const . handleSentence dict)
         & S.toAscList
   for_ nodes $ \(Node lbl xs) -> do
-    printf "%s → %s\n" lbl $ T.unwords xs
+    printf "%s → %s\n" lbl (T.unwords xs)
 
 handleSentence :: Dictionary -> Text -> Set Node
 handleSentence dict sent = unsafePerformIO $ do
@@ -61,23 +58,24 @@ eitherToMaybe = either (const Nothing) Just
 
 xbarStats :: Xbar -> Set Node
 xbarStats = snd . go where
-  go :: Xbar -> (Maybe Label, Set Node)
+  go :: Xbar -> (Maybe LabelName, Set Node)
   go = \case
     Tag _ lbl x ->
-      let (lx, ns) = go x
-          this = maybeToSet $ do lx' <- lx; pure $ Node lbl [lx']
-      in (Just lbl, ns <> this)
+      let ln = showLabel lbl
+          (lx, ns) = go x
+          this = maybeToSet $ do lx' <- lx; pure $ Node ln [lx']
+      in (Just ln, ns <> this)
     Pair _ lbl x y ->
-      let (lx, ns)  = go x
+      let ln = showLabel lbl
+          (lx, ns)  = go x
           (ly, ns') = go y
           this = maybeToSet $ do
             lx' <- lx
             ly' <- ly
-            pure $ Node lbl [lx', ly']
-      in (Just lbl, ns <> ns' <> this)
-    Leaf _ _       -> (Nothing, mempty)
-    Roof _ _ _     -> (Nothing, mempty)
-    -- Tag _ lbl x -> _
+            pure $ Node ln [lx', ly']
+      in (Just ln, ns <> ns' <> this)
+    Leaf {} -> (Nothing, mempty)
+    Roof {} -> (Nothing, mempty)
 
 maybeToSet :: Ord a => Maybe a -> Set a
 maybeToSet = maybe mempty S.singleton
