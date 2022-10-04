@@ -40,20 +40,30 @@ data Label = Label
 
 showLabel :: Label -> Text
 showLabel (Label cat fs) = showCat cat <> T.concat (showFeature <$> fs)
-    where
-        showCat (Head h) = showHead h
-        showCat (X_F c) = showCat c <> "_F"
-        showCat (X' c) = showCat c <> "'"
-        showCat (XP c) = showCat c <> "P"
-        showCat (Xplus c) = showCat c <> "+"
-        showHead = T.tail . T.pack . show
-        showFeature PlusLambda = "[+λ]"
+  where
+    showCat (Head h) = showHead h
+    showCat (X_F c) = showCat c <> "_F"
+    showCat (X' c) = showCat c <> "'"
+    showCat (XP c) = showCat c <> "P"
+    showCat (Xplus c) = showCat c <> "+"
+    showHead = T.tail . T.pack . show
+    showFeature PlusLambda = "[+λ]"
 
-data Source = Overt Text | Covert Text deriving (Eq, Show)
+data Source
+  = Overt Text
+  | Covert Text
+  | Traced Text
+  deriving (Eq, Show)
+
+sourceText :: Source -> Text
+sourceText (Overt t) = t
+sourceText (Covert t) = t
+sourceText (Traced t) = t
 
 mapSource :: (Text -> Text) -> Source -> Source
 mapSource f (Overt t) = Overt (f t)
 mapSource f (Covert t) = Covert (f t)
+mapSource f (Traced t) = Covert (f t)
 
 data Xbar
   = Tag Int Label Xbar
@@ -108,22 +118,20 @@ onOvert :: (Text -> Text) -> Source -> Source
 onOvert f (Overt t) = Overt (f t)
 onOvert f s = s
 
-mapSrc :: (Text -> Text) -> Xbar -> Xbar
+mapSrc :: (Source -> Source) -> Xbar -> Xbar
 mapSrc f (Tag i l x) = Tag i l (mapSrc f x)
 mapSrc f (Pair i l x y) = Pair i l (mapSrc f x) (mapSrc f y)
-mapSrc f (Leaf i s) = Leaf i (onOvert f s)
-mapSrc f (Roof i l s) = Roof i l (onOvert f s)
+mapSrc f (Leaf i s) = Leaf i (f s)
+mapSrc f (Roof i l s) = Roof i l (f s)
 
 aggregateSrc :: Xbar -> Mx Text
 aggregateSrc x =
   do
-    ts <- gets (traces . xbarMovements)
-    let ixs = indicesBelow ts x
-        go :: Xbar -> Text
+    let go :: Xbar -> Text
         go (Tag _ _ x) = go x
         go (Pair _ _ x y) = combineWords (go x) (go y)
-        go (Leaf i s) = if i `elem` ixs then "" else overtText s
-        go (Roof i _ s) = if i `elem` ixs then "" else overtText s
+        go (Leaf i s) = overtText s
+        go (Roof i _ s) = overtText s
     pure $ go x
 
 data Movement = Movement
@@ -134,13 +142,12 @@ data Movement = Movement
 
 data Movements = Movements
   { movements :: [Movement],
-    coindexations :: [(Int, Int)],
-    traces :: [Int]
+    coindexations :: [(Int, Int)]
   }
   deriving (Eq, Show)
 
 emptyMovements :: Movements
-emptyMovements = Movements [] [] []
+emptyMovements = Movements [] []
 
 data XbarState = XbarState
   { xbarNodeCounter :: Int,
@@ -203,14 +210,6 @@ coindex i j =
     ( \s ->
         let ms = xbarMovements s
          in s {xbarMovements = ms {coindexations = (i, j) : coindexations ms}}
-    )
-
-traceAt :: Xbar -> Mx ()
-traceAt x =
-  modify
-    ( \s ->
-        let ms = xbarMovements s
-         in s {xbarMovements = ms {traces = index x : traces ms}}
     )
 
 coindexationNames :: [(Int, Int)] -> Map Int Char

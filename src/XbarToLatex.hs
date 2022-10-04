@@ -42,24 +42,22 @@ escapeLatex t = "{" <> T.concatMap latexSym t <> "}"
 
 showLabelLatex :: Label -> Text
 showLabelLatex (Label cat fs) = showCat cat <> T.concat (showFeature <$> fs)
-    where
-        showCat (Head h) = showHead h
-        showCat (X_F c) = showCat c <> "\\textsubscript{F}"
-        showCat (X' c) = showCat c <> "'"
-        showCat (XP c) = showCat c <> "P"
-        showCat (Xplus c) = showCat c <> "+"
-        showHead Hv = "$v$"
-        showHead h = T.tail . T.pack . show $ h
-        showFeature PlusLambda = " [+\\lambda]"
+  where
+    showCat (Head h) = showHead h
+    showCat (X_F c) = showCat c <> "\\textsubscript{F}"
+    showCat (X' c) = showCat c <> "'"
+    showCat (XP c) = showCat c <> "P"
+    showCat (Xplus c) = showCat c <> "+"
+    showHead Hv = "$v$"
+    showHead h = T.tail . T.pack . show $ h
+    showFeature PlusLambda = " [+\\lambda]"
 
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
 xbarToLatex :: Maybe (Text -> Text) -> (Xbar, Movements) -> Text
-xbarToLatex annotate (xbar, Movements movements coixs traces) =
+xbarToLatex annotate (xbar, Movements movements coixs) =
   "\\begin{forest}\n[,phantom" <> go xbar <> "[,phantom,tikz={" <> T.unwords (map goMove movements) <> "}]]\\end{forest}"
   where
     cn = coindexationNames coixs
-    isMoved i = i `elem` traces
-    traceChildren = indicesBelow traces xbar
     tshow = T.pack . show
     node canBox i label children =
       let drawBox = canBox && or [i == src | Movement src tgt <- movements]
@@ -84,12 +82,13 @@ xbarToLatex annotate (xbar, Movements movements coixs traces) =
       -- this causes problems: goMove outputs node names that didn't get generated, so tikz errors
       node True i (goLabel t) (go x <> " " <> go y)
     goSrc i source =
-      let src = case source of Overt t -> t; Covert t -> t
-          srci = escapeLatex $ prettifyToaq src
+      let src = sourceText source
           src'
             | src == " " = "$\\varnothing$"
-            | isMoved i || i `elem` traceChildren = "\\sout{" <> srci <> "}"
-            | otherwise = colorWord srci
+            | otherwise = case source of
+              Covert src -> colorWord $ "[" <> escapeLatex src <> "]"
+              Traced src -> "\\sout{" <> escapeLatex (prettifyToaq src) <> "}"
+              Overt src -> colorWord (escapeLatex (prettifyToaq src))
        in "\\textsf{" <> src' <> "}" <> note annotate src
     goLabel = showLabelLatex
     note (Just f) src

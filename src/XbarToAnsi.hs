@@ -12,28 +12,30 @@ import XbarUtils
 
 -- Show an Xbar tree using indentation and ANSI colors.
 showXbarAnsi :: Xbar -> Movements -> [Text]
-showXbarAnsi xbar (Movements moves coixs traces) = go xbar
+showXbarAnsi xbar (Movements moves coixs) = go xbar
   where
+    orange = "\x1b[38;5;208m"
+    green = "\x1b[38;5;34m"
+    blue = "\x1b[38;5;39m"
+    strikeout = "\x1b[90;9m"
     cn = getCoindexationName coixs
-    traceChildren = indicesBelow traces xbar
-    mv i t = T.concat markers <> T.pack (show t) <> coindex
+    mv i t = T.concat markers <> showLabel t <> coindex
       where
-        mark s n = "\x1b[38;5;34m" <> s <> T.pack (show n) <> " \x1b[0m"
+        mark s n = green <> s <> T.pack (show n) <> " \x1b[0m"
         markers = do
           (n, Movement src tgt) <- zip [1 ..] moves
           [if i == src then mark "←" n else if i == tgt then mark "→" n else ""]
-        coindex = maybe "" (\s -> "\x1b[38;5;39m[" <> s <> "]\x1b[0m") (cn i)
-    go (Leaf i src) =
-      let col = if i `elem` traceChildren then "\x1b[90;9m" else "\x1b[38;5;208m"
-       in [col <> renderSource src <> "\x1b[0m"]
-    go (Roof i t src) = [mv i t <> "  " <> "\x1b[38;5;208m" <> renderSource src <> "\x1b[0m"]
+        coindex = maybe "" (\s -> blue <> "[" <> s <> "]\x1b[0m") (cn i)
+    go (Leaf i src) = [renderSource src <> "\x1b[0m"]
+    go (Roof i t src) = [mv i t <> "  " <> orange <> renderSource src <> "\x1b[0m"]
     go (Tag i t sub) =
       case go sub of
         [one] -> [mv i t <> "  " <> one]
         many -> mv i t : map ("  " <>) many
     go (Pair i t x y) = mv i t : map ("  " <>) (go x) ++ map ("  " <>) (go y)
-    renderSource (Overt t) = prettifyToaq t
-    renderSource (Covert t) = t
+    renderSource (Overt t) = orange <> prettifyToaq t
+    renderSource (Covert t) = orange <> t
+    renderSource (Traced t) = strikeout <> prettifyToaq t
 
 lpx :: Text -> IO ()
 lpx text = do
@@ -41,4 +43,4 @@ lpx text = do
   let Right tokens = lexToaq text
   let Right discourse = parseDiscourse tokens
   let (xbar, movements) = runXbarWithMovements dict discourse
-  mapM_ T.putStrLn (showXbarAnsi xbar movements)
+  T.putStrLn $ T.unlines (showXbarAnsi xbar movements)

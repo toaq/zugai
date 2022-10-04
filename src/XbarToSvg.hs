@@ -41,10 +41,6 @@ rui = sRGB24 0xD8 0xD8 0xD8
 kuao :: Colour Double
 kuao = sRGB24 0x80 0xD0 0xFF
 
-sourceText :: Source -> Text
-sourceText (Overt t) = t
-sourceText (Covert t) = t
-
 toa :: Colour Double -> Double -> Text -> Diagram B
 toa color height t =
   let str = if t == "" then "∅" else T.unpack t
@@ -57,7 +53,7 @@ labelText :: Label -> Text
 labelText = showLabel
 
 xbarToDiagram :: (Text -> Text) -> (Xbar, Movements) -> Diagram B
-xbarToDiagram gloss (xbar, Movements movements coixs traces) =
+xbarToDiagram gloss (xbar, Movements movements coixs) =
   go 1 xbar
     # (\d -> foldr goMove d movements)
     # frame 0.25
@@ -73,7 +69,7 @@ xbarToDiagram gloss (xbar, Movements movements coixs traces) =
     goMove (Movement i j) dia = dia # connMove (-1 - i) (-1 - j)
     go :: Integer -> Xbar -> Diagram B
     go i xbar = center $
-      opacity (if XbarUtils.index xbar `elem` traces then 0.5 else 1.0) $ case xbar of
+      case xbar of
         Leaf j t -> (toa (wordColor t) 1 (sourceText t) === toa rui 0.8 (gloss' $ sourceText t)) # named i # named' j
         Roof j t src -> vsep 0.1 [toa bao 1 (labelText t) # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 (sourceText src)] === toa rui 0.8 (gloss' $ sourceText src) # named' j
         Tag j t x -> vsep 0.5 [toa bao 1 (labelText t) # named i, go (2 * i) x] # named' j # conn i (2 * i)

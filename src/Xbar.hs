@@ -28,8 +28,8 @@ import Text.Parsec (SourcePos)
 import Text.Parsec.Pos (initialPos)
 import TextUtils
 import ToSrc
-import XbarUtils
 import XbarLabels
+import XbarUtils
 
 runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, Movements)
 runXbarWithMovements dict d =
@@ -132,10 +132,9 @@ mkFocAdvP (focuser, iDP) x = do
   xFocAdv <- mkTag _Foc =<< mkLeaf (focGloss $ bareToaq focuser)
   -- Copy the DP up here... kind of a hack
   xDP <- case subtreeByIndex iDP x of
-    Just dp -> mkRoof _DP . Overt =<< aggregateSrc dp
-    Nothing -> mkRoof _DP (Covert "???")
+    Just dp -> mkRoof _DP . Traced =<< aggregateSrc dp
+    Nothing -> mkRoof _DP (Traced "???")
   move' iDP (index xDP)
-  traceAt xDP
   xFocAdvP <- mkPair _FocP xFocAdv xDP
   mkPair (label x) xFocAdvP x
 
@@ -159,9 +158,8 @@ mkQP (det, name, indexOfDPV) x = do
   xQ <- mkTag _Q =<< mkLeaf (Covert $ qgloss det)
   xV <-
     if isVP
-      then mkRoof _VP (Overt name)
-      else do vl <- verbLabel name; mkTag vl =<< mkLeaf (Overt name)
-  traceAt xV
+      then mkRoof _VP (Traced name)
+      else do vl <- verbLabel name; mkTag vl =<< mkLeaf (Traced name)
   move' indexOfDPV (index xV)
   xQP <- mkPair _QP xQ xV
   mkPair (label x) xQP x
@@ -184,8 +182,8 @@ vpcLabel (Nonserial (Vverb w)) = verbLabel (unW w)
 vpcLabel (Nonserial _) = pure $ Label (Head HV) []
 vpcLabel (Serial x _) = vpcLabel (Nonserial x)
 
--- make a V/VP/vP Xbar out of (verb, NPs) and return (xV, xVP).
-makeVP :: Xbar -> [Xbar] -> Mx (Xbar, Xbar)
+-- make a V/VP/vP Xbar out of (verb, NPs) and return xVP.
+makeVP :: Xbar -> [Xbar] -> Mx Xbar
 makeVP xV xsNp = do
   verb <- aggregateSrc xV
   dict <- gets xbarDictionary
@@ -195,29 +193,25 @@ makeVP xV xsNp = do
         length xs > i ->
         error $ show verb <> " accepts at most " <> show i <> " argument" <> ['s' | i /= 1]
     [] -> do
-      pure (xV, xV)
+      pure xV
     [xDPS] | labelIsVP (label xV) -> do
       -- Our "xV" is actually a VP with an incorporated object.
       xv <- mkTag _v =<< blank
       xv' <- mkPair _v' xv xV
-      xvP <- mkPair _vP xDPS xv'
-      pure (xV, xvP)
+      mkPair _vP xDPS xv'
     [xDPS] -> do
       vname <- verbLabel verb
       let xV' = if labelCategory (label xV) == Head HV then relabel vname xV else xV
-      xVP <- mkPair (Label (XP $ labelCategory vname) []) xV' xDPS
-      pure (xV, xVP)
+      mkPair (Label (XP $ labelCategory vname) []) xV' xDPS
     [xDPS, xDPO] -> do
       xV' <- mkPair _V' xV xDPO
-      xVP <- mkPair _VP xDPS xV'
-      pure (xV, xVP)
+      mkPair _VP xDPS xV'
     [xDPA, xDPS, xDPO] -> do
       xv <- mkTag _v =<< blank
       xV' <- mkPair _V' xV xDPO
       xVP <- mkPair _VP xDPS xV'
       xv' <- mkPair _v' xv xVP
-      xvP <- mkPair _vP xDPA xv'
-      pure (xV, xvP)
+      mkPair _vP xDPA xv'
     _ -> error "verb has too many arguments"
 
 newtype Pro = Pro (Maybe Int) deriving (Eq, Ord, Show)
@@ -257,17 +251,16 @@ makeVPSerial vp nps = do
       let pros = [Left (Pro (selectCoindex c xsNpsNow)) | c <- ijxs]
       let npsLater = pros ++ drop cCount nps
       pure (v, xsNpsNow, Just (vs, npsLater))
-  xVnow <- mapSrc T.toLower <$> toXbar vNow
+  xVnow <- mapSrc (Traced . T.toLower . sourceText) <$> toXbar vNow
   xsNpsSerial <- case serialTail of
     Nothing -> pure []
     Just (w, nps) -> do
       (_, xVs, xVPs) <- makeVPSerial w nps
       move xVs xVnow
-      traceAt xVs
       pure [xVPs]
   let xsArgs = xsNpsNow ++ xsNpsSerial
-  (xVTrace, xVPish) <- makeVP xVnow xsArgs
-  pure (length xsArgs, xVTrace, xVPish)
+  xVPish <- makeVP xVnow xsArgs
+  pure (length xsArgs, xVnow, xVPish)
 
 needsVPMovement :: VpC -> Bool
 needsVPMovement (Nonserial (Vverb {})) = False
@@ -281,7 +274,9 @@ ensurePhrase c = XP c
 instance ToXbar PredicationC where
   toXbar (Predication predicate advsL nps advsR) = do
     xsAdvL <- mapM toXbar advsL
-    let Predicate (Single v) = predicate
+    let v = case predicate of
+          Predicate (Single s) -> s
+          _ -> error "coordination of verbs not supported in xbar"
     (arity, xVTrace, xVPish) <- makeVPSerial v (map Right nps)
     xFV <-
       if needsVPMovement v
@@ -291,7 +286,6 @@ instance ToXbar PredicationC where
           vl <- vpcLabel v
           relabel _Fplus <$> toXbar v
     move xVTrace xFV
-    traceAt xVTrace
     xsAdvR <- mapM toXbar advsR
     let isVPLike label = case labelCategory label of XP _ -> True; _ -> False
     let attachAdverbials (Pair i t xL xR) | not (isVPLike t) = do
@@ -315,24 +309,6 @@ instance ToXbar Topic where
   toXbar (Topicn t) = toXbar t
   toXbar (Topica t) = toXbar t
 
--- Typeclass for associating a "connectand name" with a type
--- so that we can generate strings like Co(NP), Co(VP), etc. in the generic Connable' instance.
-class ConnName t where connName :: Text
-
-instance ConnName NpC where connName = "NP"
-
-instance ConnName VpC where connName = "V"
-
-instance ConnName PredicationC where connName = "Pred"
-
-instance ConnName PrepC where connName = "P"
-
-instance ConnName RelC where connName = "Rel"
-
-instance ConnName AdvpC where connName = "AdvP"
-
-instance ConnName PpC where connName = "PP"
-
 -- A little helper typeclass to deal with "na" in the Connable' instance below.
 -- We just want to handle the types na=() (no "na") and na=(W()) (yes "na") differently in toXbar.
 class ToXbarNa na where
@@ -346,7 +322,7 @@ instance ToXbarNa (W ()) where
     t2 <- mkTag _CoF t1
     mkPair _CoP t t2
 
-instance (ToXbar t, ToXbarNa na, ConnName t) => ToXbar (Connable' na t) where
+instance (ToXbar t, ToXbarNa na) => ToXbar (Connable' na t) where
   toXbar (Conn x na ru y) = do
     tx <- toXbar x
     t1 <- toXbarNa tx na
@@ -473,7 +449,6 @@ instance ToXbar VpN where
     xWithQPs <- foldrM mkQP xWithFoc (scopeQuantifiers s)
     xC <- mkTag _C =<< covert
     xCP <- mkPair _CP xC xWithQPs
-    traceM $ show s
     xCopVP <- mkPair _CoP xCopV xCP
     terminated (Head HV) xCopVP tmr
   toXbar (Vmo mo disc teo) = do
@@ -545,4 +520,5 @@ xbarToJson annotate xbar =
   where
     srcToJson (Overt t) = J.String t
     srcToJson (Covert t) = J.String t
+    srcToJson (Traced t) = J.String t
     labelToJson l = J.String (T.pack $ show l) -- bleh
