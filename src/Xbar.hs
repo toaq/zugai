@@ -31,12 +31,12 @@ import ToSrc
 import XbarLabels
 import XbarUtils
 
-runXbarWithMovements :: Dictionary -> Discourse -> (Xbar, Movements)
+runXbarWithMovements :: Dictionary -> Discourse -> (Xbar (), Movements)
 runXbarWithMovements dict d =
   case runState (unMx (toXbar d)) (XbarState 0 [] emptyMovements dict) of
     (x, s) -> (x, xbarMovements s)
 
-runXbar :: Dictionary -> Discourse -> Xbar
+runXbar :: Dictionary -> Discourse -> Xbar ()
 runXbar dict d = fst (runXbarWithMovements dict d)
 
 -- Turn n≥1 terms into a parse tree with a "term" or "terms" head.
@@ -48,19 +48,19 @@ nullVp :: SourcePos -> Vp
 nullVp sourcePos = Single (Nonserial (Vverb (W (Pos sourcePos "" "") [])))
 
 -- Pair a construct with its optional terminator.
-terminated :: Category -> Xbar -> Terminator -> Mx Xbar
+terminated :: Category -> Xbar () -> Terminator -> Mx (Xbar ())
 terminated _ t Nothing = pure t
 terminated cat t (Just word) = do
   xF <- mkTag (Label (X_F cat) []) =<< toXbar word
   mkPair (Label (XP (X_F cat)) []) t xF
 
-covert :: Mx Xbar
+covert :: Mx (Xbar ())
 covert = mkLeaf (Covert " ") -- I know this is kinda silly... but it's useful that `T.strip` ignores it.
 
-blank :: Mx Xbar
+blank :: Mx (Xbar ())
 blank = mkLeaf (Covert "")
 
-prenexToXbar :: NonEmpty Xbar -> W () -> Xbar -> Mx Xbar
+prenexToXbar :: NonEmpty (Xbar ()) -> W () -> Xbar () -> Mx (Xbar ())
 prenexToXbar (x :| []) bi c = do
   xBi <- toXbar bi
   xTopic <- mkTag _Topic xBi
@@ -127,7 +127,7 @@ focGloss "mao" = Covert "also"
 focGloss "juaq" = Covert "even"
 focGloss _ = Covert "?"
 
-mkFocAdvP :: (Text, Int) -> Xbar -> Mx Xbar
+mkFocAdvP :: (Text, Int) -> Xbar () -> Mx (Xbar ())
 mkFocAdvP (focuser, iDP) x = do
   xFocAdv <- mkTag _Foc =<< mkLeaf (focGloss $ bareToaq focuser)
   -- Copy the DP up here... kind of a hack
@@ -150,7 +150,7 @@ qgloss _ = "…"
 labelIsVP :: Label -> Bool
 labelIsVP = (== XP (Head HV)) . labelCategory
 
-mkQP :: (Determiner, VarRef, Int) -> Xbar -> Mx Xbar
+mkQP :: (Determiner, VarRef, Int) -> Xbar () -> Mx (Xbar ())
 mkQP (det, name, indexOfDPV) x = do
   let isVP = case subtreeByIndex indexOfDPV x of
         Just xDPV -> labelIsVP (label xDPV)
@@ -182,8 +182,8 @@ vpcLabel (Nonserial (Vverb w)) = verbLabel (unW w)
 vpcLabel (Nonserial _) = pure $ Label (Head HV) []
 vpcLabel (Serial x _) = vpcLabel (Nonserial x)
 
--- make a V/VP/vP Xbar out of (verb, NPs) and return xVP.
-makeVP :: Xbar -> [Xbar] -> Mx Xbar
+-- make a V/VP/vP Xbar () out of (verb, NPs) and return xVP.
+makeVP :: Xbar () -> [Xbar ()] -> Mx (Xbar ())
 makeVP xV xsNp = do
   verb <- aggregateSrc xV
   dict <- gets xbarDictionary
@@ -226,7 +226,7 @@ instance (ToXbar a, ToXbar b) => ToXbar (Either a b) where
   toXbar (Left a) = toXbar a
   toXbar (Right b) = toXbar b
 
-selectCoindex :: Char -> [Xbar] -> Maybe Int
+selectCoindex :: Char -> [Xbar ()] -> Maybe Int
 selectCoindex 'i' (xi : _) = Just (index xi)
 selectCoindex 'i' xs = error $ "couldn't coindex with subject: " <> show (length xs) <> " args"
 selectCoindex 'j' (_ : xj : _) = Just (index xj)
@@ -235,7 +235,7 @@ selectCoindex 'x' _ = Nothing
 selectCoindex c _ = error $ "unrecognized coindex char: " <> show c
 
 -- make a VP for a serial and return (top arity, V to trace into F, VP)
-makeVPSerial :: VpC -> [Either Pro Np] -> Mx (Int, Xbar, Xbar)
+makeVPSerial :: VpC -> [Either Pro Np] -> Mx (Int, Xbar (), Xbar ())
 makeVPSerial vp nps = do
   (vNow, xsNpsNow, serialTail) <- case vp of
     Nonserial v -> do
@@ -288,9 +288,9 @@ instance ToXbar PredicationC where
     move xVTrace xFV
     xsAdvR <- mapM toXbar advsR
     let isVPLike label = case labelCategory label of XP _ -> True; _ -> False
-    let attachAdverbials (Pair i t xL xR) | not (isVPLike t) = do
+    let attachAdverbials (Pair i _ t xL xR) | not (isVPLike t) = do
           xR' <- attachAdverbials xR
-          pure (Pair i t xL xR')
+          pure (Pair i () t xL xR')
         attachAdverbials x = do
           let lbl = Label (ensurePhrase $ labelCategory $ label x) []
           x' <- foldlM (mkPair lbl) x xsAdvR
@@ -312,7 +312,7 @@ instance ToXbar Topic where
 -- A little helper typeclass to deal with "na" in the Connable' instance below.
 -- We just want to handle the types na=() (no "na") and na=(W()) (yes "na") differently in toXbar.
 class ToXbarNa na where
-  toXbarNa :: Xbar -> na -> Mx Xbar
+  toXbarNa :: Xbar () -> na -> Mx (Xbar ())
 
 instance ToXbarNa () where toXbarNa t () = pure t
 
@@ -409,7 +409,7 @@ instance ToXbar Dp where
           Just i -> coindex iDP i
       det -> do
         bindVp det name iDP iVP
-    pure $ Pair iDP _DP xD xVP
+    pure $ Pair iDP () _DP xD xVP
 
 instance ToXbar RelC where
   toXbar (Rel pred tmr) = do x <- toXbar pred; terminated (Head HC) x tmr
@@ -489,7 +489,7 @@ instance ToXbar t => ToXbar (Pos t) where
     inner <- toXbar t
     case inner of
       Leaf _ _ -> mkLeaf (Overt src)
-      Tag _ t (Leaf _ _) -> mkTag t =<< mkLeaf (Overt src)
+      Tag _ _ t (Leaf _ _) -> mkTag t =<< mkLeaf (Overt src)
       x -> pure x
 
 instance ToXbar t => ToXbar (W t) where
@@ -509,14 +509,34 @@ instance ToXbar Connective where toXbar t = mkTag _Co =<< toXbar (show t)
 
 instance ToXbar Complementizer where toXbar t = mkTag _C =<< toXbar (show t)
 
--- Convert an Xbar tree to JSON.
-xbarToJson :: Maybe (Text -> Text) -> Xbar -> J.Value
+-- Convert an Xbar () tree to JSON.
+xbarToJson :: Maybe (Text -> Text) -> Xbar d -> J.Value
 xbarToJson annotate xbar =
   case xbar of
-    Leaf _ src -> object ["type" .= J.String "leaf", "src" .= srcToJson src, "gloss" .= case annotate of Just f -> srcToJson (mapSource f src); _ -> J.Null]
-    Roof _ t src -> object ["type" .= J.String "roof", "tag" .= labelToJson t, "src" .= srcToJson src]
-    Tag _ t sub -> object ["type" .= J.String "node", "tag" .= labelToJson t, "children" .= J.Array [xbarToJson annotate sub]]
-    Pair _ t x y -> object ["type" .= J.String "node", "tag" .= labelToJson t, "children" .= J.Array (xbarToJson annotate <$> [x, y])]
+    Leaf {source = src} ->
+      object
+        [ "type" .= J.String "leaf",
+          "src" .= srcToJson src,
+          "gloss" .= case annotate of Just f -> srcToJson (mapSource f src); _ -> J.Null
+        ]
+    Roof {label = t, source = src} ->
+      object
+        [ "type" .= J.String "roof",
+          "tag" .= labelToJson t,
+          "src" .= srcToJson src
+        ]
+    Tag {label = t, child = sub} ->
+      object
+        [ "type" .= J.String "node",
+          "tag" .= labelToJson t,
+          "children" .= J.Array [xbarToJson annotate sub]
+        ]
+    Pair {label = t, leftChild = x, rightChild = y} ->
+      object
+        [ "type" .= J.String "node",
+          "tag" .= labelToJson t,
+          "children" .= J.Array (xbarToJson annotate <$> [x, y])
+        ]
   where
     srcToJson (Overt t) = J.String t
     srcToJson (Covert t) = J.String t

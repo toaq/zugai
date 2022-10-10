@@ -53,7 +53,7 @@ showLabelLatex (Label cat fs) = showCat cat <> T.concat (showFeature <$> fs)
     showFeature PlusLambda = " [+\\lambda]"
 
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
-xbarToLatex :: Maybe (Text -> Text) -> (Xbar, Movements) -> Text
+xbarToLatex :: Maybe (Text -> Text) -> (Xbar d, Movements) -> Text
 xbarToLatex annotate (xbar, Movements movements coixs) =
   "\\begin{forest}\n[,phantom" <> go xbar <> "[,phantom,tikz={" <> T.unwords (map goMove movements) <> "}]]\\end{forest}"
   where
@@ -75,9 +75,9 @@ xbarToLatex annotate (xbar, Movements movements coixs) =
     go (Leaf i (Overt "")) = "" -- why do we need this again dfjghdkhkj
     go (Leaf i (Covert "")) = ""
     go (Leaf i src) = node False i (goSrc i src) ""
-    go (Roof i t src) = node False i (goLabel t) ("[" <> goSrc i src <> ",roof]")
-    go (Tag i t sub) = node False i (goLabel t) (go sub)
-    go p@(Pair i t x y) =
+    go (Roof i _d t src) = node False i (goLabel t) ("[" <> goSrc i src <> ",roof]")
+    go (Tag i _d t sub) = node False i (goLabel t) (go sub)
+    go p@(Pair i _d t x y) =
       -- if isMoved i then go (Roof i t (aggregateSrc p)) else
       -- this causes problems: goMove outputs node names that didn't get generated, so tikz errors
       node True i (goLabel t) (go x <> " " <> go y)

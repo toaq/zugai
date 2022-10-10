@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -22,7 +23,25 @@ import ToSrc
 
 data Feature = PlusLambda deriving (Eq, Ord, Show)
 
-data HeadCategory = HAdv | HAsp | HC | HCo | HD | HF | HFoc | HFree | HMod | HNeg | HP | HQ | HSA | HT | HTopic | Hv | HV deriving (Eq, Ord, Show)
+data HeadCategory
+  = HAdv
+  | HAsp
+  | HC
+  | HCo
+  | HD
+  | HF
+  | HFoc
+  | HFree
+  | HMod
+  | HNeg
+  | HP
+  | HQ
+  | HSA
+  | HT
+  | HTopic
+  | Hv
+  | HV
+  deriving (Eq, Ord, Show)
 
 data Category
   = Head HeadCategory
@@ -65,50 +84,35 @@ mapSource f (Overt t) = Overt (f t)
 mapSource f (Covert t) = Covert (f t)
 mapSource f (Traced t) = Covert (f t)
 
-data Xbar
-  = Tag Int Label Xbar
-  | Pair Int Label Xbar Xbar
-  | Leaf Int Source -- Source word
-  | Roof Int Label Source -- Tag and source text
+data Xbar d
+  = Tag {index :: Int, denotation :: d, label :: Label, child :: Xbar d}
+  | Pair {index :: Int, denotation :: d, label :: Label, leftChild :: Xbar d, rightChild :: Xbar d}
+  | Leaf {index :: Int, source :: Source} -- Source word
+  | Roof {index :: Int, denotation :: d, label :: Label, source :: Source} -- Tag and source text
   deriving (Eq, Show)
 
-index :: Xbar -> Int
-index (Tag i _ _) = i
-index (Pair i _ _ _) = i
-index (Leaf i _) = i
-index (Roof i _ _) = i
+indices :: Xbar d -> [Int]
+indices Tag {index = i, child = x} = i : indices x
+indices Pair {index = i, leftChild = x, rightChild = y} = i : indices x ++ indices y
+indices Leaf {index = i} = [i]
+indices Roof {index = i} = [i]
 
-indices :: Xbar -> [Int]
-indices (Tag i _ x) = i : indices x
-indices (Pair i _ x y) = i : indices x ++ indices y
-indices (Leaf i _) = [i]
-indices (Roof i _ _) = [i]
+indicesBelow :: [Int] -> Xbar d -> [Int]
+indicesBelow is Tag {index = i, child = x} = if i `elem` is then indices x else indicesBelow is x
+indicesBelow is Pair {index = i, leftChild = x, rightChild = y} = if i `elem` is then indices x ++ indices y else indicesBelow is x ++ indicesBelow is y
+indicesBelow is Leaf {index = i} = [i | i `elem` is] -- not really "below" but... it's useful for little v movement
+indicesBelow is Roof {index = i} = [i | i `elem` is]
 
-indicesBelow :: [Int] -> Xbar -> [Int]
-indicesBelow is (Tag i _ x) = if i `elem` is then indices x else indicesBelow is x
-indicesBelow is (Pair i _ x y) = if i `elem` is then indices x ++ indices y else indicesBelow is x ++ indicesBelow is y
-indicesBelow is (Leaf i _) = [i | i `elem` is] -- not really "below" but... it's useful for little v movement
-indicesBelow is (Roof i _ _) = [i | i `elem` is]
-
-subtrees :: Xbar -> [Xbar]
-subtrees t@(Tag _ _ x) = t : subtrees x
-subtrees t@(Pair _ _ x y) = t : subtrees x ++ subtrees y
+subtrees :: Xbar d -> [Xbar d]
+subtrees t@Tag {child = x} = t : subtrees x
+subtrees t@Pair {leftChild = x, rightChild = y} = t : subtrees x ++ subtrees y
 subtrees t = [t]
 
-subtreeByIndex :: Int -> Xbar -> Maybe Xbar
+subtreeByIndex :: Int -> Xbar d -> Maybe (Xbar d)
 subtreeByIndex i x = listToMaybe [t | t <- subtrees x, index t == i]
 
-label :: Xbar -> Label
-label (Tag _ t _) = t
-label (Pair _ t _ _) = t
-label (Leaf _ t) = error "leaf has no label"
-label (Roof _ t _) = t
-
-relabel :: Label -> Xbar -> Xbar
-relabel t (Tag i _ x) = Tag i t x
-relabel t (Pair i _ x y) = Pair i t x y
-relabel _ x@(Leaf _ _) = x
-relabel t (Roof i _ s) = Roof i t s
+relabel :: Label -> Xbar d -> Xbar d
+relabel t x = x {label = t}
 
 overtText :: Source -> Text
 overtText (Overt t) = t
@@ -118,20 +122,20 @@ onOvert :: (Text -> Text) -> Source -> Source
 onOvert f (Overt t) = Overt (f t)
 onOvert f s = s
 
-mapSrc :: (Source -> Source) -> Xbar -> Xbar
-mapSrc f (Tag i l x) = Tag i l (mapSrc f x)
-mapSrc f (Pair i l x y) = Pair i l (mapSrc f x) (mapSrc f y)
+mapSrc :: (Source -> Source) -> Xbar d -> Xbar d
+mapSrc f (Tag i d l x) = Tag i d l (mapSrc f x)
+mapSrc f (Pair i d l x y) = Pair i d l (mapSrc f x) (mapSrc f y)
 mapSrc f (Leaf i s) = Leaf i (f s)
-mapSrc f (Roof i l s) = Roof i l (f s)
+mapSrc f (Roof i d l s) = Roof i d l (f s)
 
-aggregateSrc :: Xbar -> Mx Text
+aggregateSrc :: Xbar d -> Mx Text
 aggregateSrc x =
   do
-    let go :: Xbar -> Text
-        go (Tag _ _ x) = go x
-        go (Pair _ _ x y) = combineWords (go x) (go y)
+    let go :: Xbar d -> Text
+        go (Tag _ _ _ x) = go x
+        go (Pair _ _ _ x y) = combineWords (go x) (go y)
         go (Leaf i s) = overtText s
-        go (Roof i _ s) = overtText s
+        go (Roof i _ _ s) = overtText s
     pure $ go x
 
 data Movement = Movement
@@ -173,25 +177,25 @@ nextNodeNumber = do
   pure i
 
 class ToXbar a where
-  toXbar :: a -> Mx Xbar
+  toXbar :: a -> Mx (Xbar ())
 
-mkTag :: Label -> Xbar -> Mx Xbar
-mkTag l x = do i <- nextNodeNumber; pure $ Tag i l x
+mkTag :: Label -> Xbar () -> Mx (Xbar ())
+mkTag l x = do i <- nextNodeNumber; pure $ Tag i () l x
 
-mkPair :: Label -> Xbar -> Xbar -> Mx Xbar
-mkPair l x y = do i <- nextNodeNumber; pure $ Pair i l x y
+mkPair :: Label -> Xbar () -> Xbar () -> Mx (Xbar ())
+mkPair l x y = do i <- nextNodeNumber; pure $ Pair i () l x y
 
-mkLeaf :: Source -> Mx Xbar
+mkLeaf :: Source -> Mx (Xbar ())
 mkLeaf s = do i <- nextNodeNumber; pure $ Leaf i s
 
-mkRoof :: Label -> Source -> Mx Xbar
-mkRoof l s = do i <- nextNodeNumber; pure $ Roof i l s
+mkRoof :: Label -> Source -> Mx (Xbar ())
+mkRoof l s = do i <- nextNodeNumber; pure $ Roof i () l s
 
-mkCopy :: Xbar -> Mx Xbar
-mkCopy (Tag _ l x) = do i <- nextNodeNumber; Tag i l <$> mkCopy x
-mkCopy (Pair _ l x y) = do i <- nextNodeNumber; Pair i l <$> mkCopy x <*> mkCopy y
+mkCopy :: Xbar () -> Mx (Xbar ())
+mkCopy (Tag _ () l x) = do i <- nextNodeNumber; Tag i () l <$> mkCopy x
+mkCopy (Pair _ () l x y) = do i <- nextNodeNumber; Pair i () l <$> mkCopy x <*> mkCopy y
 mkCopy (Leaf _ s) = do i <- nextNodeNumber; pure $ Leaf i s
-mkCopy (Roof _ l s) = do i <- nextNodeNumber; pure $ Roof i l s
+mkCopy (Roof _ () l s) = do i <- nextNodeNumber; pure $ Roof i () l s
 
 move' :: Int -> Int -> Mx ()
 move' i j =
@@ -201,7 +205,7 @@ move' i j =
          in s {xbarMovements = ms {movements = Movement i j : movements ms}}
     )
 
-move :: Xbar -> Xbar -> Mx ()
+move :: Xbar d -> Xbar d -> Mx ()
 move src tgt = move' (index src) (index tgt)
 
 coindex :: Int -> Int -> Mx ()

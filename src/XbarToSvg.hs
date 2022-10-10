@@ -52,7 +52,7 @@ toa color height t =
 labelText :: Label -> Text
 labelText = showLabel
 
-xbarToDiagram :: (Text -> Text) -> (Xbar, Movements) -> Diagram B
+xbarToDiagram :: (Text -> Text) -> (Xbar d, Movements) -> Diagram B
 xbarToDiagram gloss (xbar, Movements movements coixs) =
   go 1 xbar
     # (\d -> foldr goMove d movements)
@@ -67,10 +67,10 @@ xbarToDiagram gloss (xbar, Movements movements coixs) =
     named' i = named (-1 - i) -- ughhgghfhgjfhg
     goMove :: Movement -> Diagram B -> Diagram B
     goMove (Movement i j) dia = dia # connMove (-1 - i) (-1 - j)
-    go :: Integer -> Xbar -> Diagram B
+    go :: Integer -> Xbar d -> Diagram B
     go i xbar = center $
       case xbar of
         Leaf j t -> (toa (wordColor t) 1 (sourceText t) === toa rui 0.8 (gloss' $ sourceText t)) # named i # named' j
-        Roof j t src -> vsep 0.1 [toa bao 1 (labelText t) # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 (sourceText src)] === toa rui 0.8 (gloss' $ sourceText src) # named' j
-        Tag j t x -> vsep 0.5 [toa bao 1 (labelText t) # named i, go (2 * i) x] # named' j # conn i (2 * i)
-        Pair j t x y -> vsep 1 [toa bao 1 (labelText t) # named i, center (hsep 0.2 [go (2 * i) x, go (2 * i + 1) y])] # named' j # conn i (2 * i) # conn i (2 * i + 1)
+        Roof j _d t src -> vsep 0.1 [toa bao 1 (labelText t) # named i, triangle 2 # lw 1 # lc bao # scaleY 0.4, toa (pastel 200) 1 (sourceText src)] === toa rui 0.8 (gloss' $ sourceText src) # named' j
+        Tag j _d t x -> vsep 0.5 [toa bao 1 (labelText t) # named i, go (2 * i) x] # named' j # conn i (2 * i)
+        Pair j _d t x y -> vsep 1 [toa bao 1 (labelText t) # named i, center (hsep 0.2 [go (2 * i) x, go (2 * i + 1) y])] # named' j # conn i (2 * i) # conn i (2 * i + 1)

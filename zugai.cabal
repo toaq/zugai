@@ -27,6 +27,7 @@ library
   exposed-modules:
       Boxes
       Cli
+      Denotation
       Dictionary
       English
       Interpret

@@ -56,16 +56,16 @@ handleSentence dict sent = unsafePerformIO $ do
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe = either (const Nothing) Just
 
-xbarStats :: Xbar -> Set Node
+xbarStats :: Xbar d -> Set Node
 xbarStats = snd . go where
-  go :: Xbar -> (Maybe LabelName, Set Node)
+  go :: Xbar d -> (Maybe LabelName, Set Node)
   go = \case
-    Tag _ lbl x ->
+    Tag _i _d lbl x ->
       let ln = showLabel lbl
           (lx, ns) = go x
           this = maybeToSet $ do lx' <- lx; pure $ Node ln [lx']
       in (Just ln, ns <> this)
-    Pair _ lbl x y ->
+    Pair _i _d lbl x y ->
       let ln = showLabel lbl
           (lx, ns)  = go x
           (ly, ns') = go y
