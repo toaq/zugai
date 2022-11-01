@@ -1,19 +1,22 @@
 FROM debian AS compile
-RUN apt update \
- && apt install -y curl zlib1g-dev \
- && curl -sSL https://get.haskellstack.org/ | sh \
- && stack ghci </dev/null
+ARG STACK_CMD=stack --verbosity=0 --jobs=`nproc`
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update -q \
+ && apt install -qy zlib1g-dev
 
 COPY stack.yaml stack.yaml.lock package.yaml Setup.hs /pkg/
+ADD https://get.haskellstack.org/ /stack.sh
 RUN cd /pkg/ \
- && stack build --only-dependencies
+ && sh /stack.sh -q \
+ && $STACK_CMD build --only-dependencies
 
 COPY app/ /pkg/app/
 COPY etc/ /pkg/etc/
 COPY src/ /pkg/src/
 COPY test/ /pkg/test/
 RUN cd /pkg/ \
- && stack install \
+ && $STACK_CMD install \
  && cp /root/.local/bin/zugai-exe /usr/bin/zugai-exe
 
 
@@ -23,5 +26,5 @@ COPY data/ /pkg/data/
 COPY web_server.py zugai.py /pkg/
 COPY --from=compile /usr/bin/zugai-exe /usr/bin/zugai-exe
 EXPOSE 80
-ENTRYPOINT cd /pkg/ \
-        && gunicorn -w `nproc` -b 0.0.0.0:80 web_server:app
+CMD cd /pkg/ \
+ && gunicorn -w `nproc` -b 0.0.0.0:80 web_server:app

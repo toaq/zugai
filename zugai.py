@@ -3,7 +3,13 @@ from typing import List
 import os
 import subprocess
 
-DEFAULT_TIMEOUT = float(os.getenv("ZUGAI_TIMEOUT", 15))
+DEFAULTS = {
+    "timeout": 15,
+    "png_dimensions": "x1000>"
+}
+
+DEFAULTS |= {k: type(v)(os.getenv(f"ZUGAI_{k.upper()}", v))
+             for k, v in DEFAULTS.items()}
 
 class RunException(Exception):
     """
@@ -11,7 +17,7 @@ class RunException(Exception):
     """
     pass
 
-def run(verbing: str, cmd_args: List[str], timeout: float = DEFAULT_TIMEOUT, **kwargs):
+def run(verbing: str, cmd_args: List[str], timeout: float = DEFAULTS["timeout"], **kwargs):
     """
     Run a command (`cmd_args`) described in error messages by the gerund `verbing`.
 
@@ -27,7 +33,7 @@ def run(verbing: str, cmd_args: List[str], timeout: float = DEFAULT_TIMEOUT, **k
         raise RunException(message)
 
 @contextmanager
-def latex_png(sentence: str):
+def latex_png(sentence: str, png_dimensions: str = DEFAULTS["png_dimensions"]):
     """
     Convert the given sentence to LaTeX, then to PDF, then to PNG, then present
     the PNG file in a `with` context.
@@ -48,7 +54,7 @@ def latex_png(sentence: str):
         "-background", "#36393E",
         "-alpha", "remove", "-alpha", "off",
         "-trim",
-        "-resize", "x1000>",
+        "-resize", png_dimensions,
         "-bordercolor", "#36393E", "-border", "40x20",
         "a.pdf", "a.png"])
     f = open("a.png", "rb")

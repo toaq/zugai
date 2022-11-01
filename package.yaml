@@ -6,10 +6,6 @@ author:              "The Toaq Coders"
 maintainer:          "lynn@foldr.moe"
 copyright:           "2022 The Toaq Coders"
 
-extra-source-files:
-- README.md
-- ChangeLog.md
-
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
 # category:            Web
@@ -29,7 +25,7 @@ dependencies:
 - diagrams-core
 - diagrams-lib
 - diagrams-svg
-- hashable >= 1.4
+- hashable
 - microaeson >= 0.1.0.1
 - mtl >= 2.2.2
 - optparse-applicative >= 0.16
