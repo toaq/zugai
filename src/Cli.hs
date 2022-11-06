@@ -69,6 +69,6 @@ applyTemplateFor :: OutputMode -> Theme -> BS.ByteString -> IO BS.ByteString
 applyTemplateFor ToXbarLatex theme text =
   (if theme == Light then enableLatexLightTheme else id) <$>
     applyTemplate "data/templates/xbar.tex" text
-applyTemplateFor ToBoxesSimple _ text = applyTemplate "data/templates/boxes.html" text
-applyTemplateFor ToBoxesDetailed _ text = applyTemplate "data/templates/boxes.html" text
+applyTemplateFor ToBoxesFlat _ text = applyTemplate "data/templates/boxes.html" text
+applyTemplateFor ToBoxesNested _ text = applyTemplate "data/templates/boxes.html" text
 applyTemplateFor _ _ text = pure text

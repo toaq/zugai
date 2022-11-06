@@ -2,7 +2,7 @@ import React, { ReactElement, FormEvent, useEffect, useState } from "react";
 import "./App.css";
 
 function App() {
-  const [outputMode, setOutputMode] = useState<string>("boxes");
+  const [outputMode, setOutputMode] = useState<string>("boxes-flat");
   const [inputText, setInputText] = useState<string>("Kảı súq sa shou.");
   const [latestOutput, setLatestOutput] = useState<ReactElement>(<>
     Output will appear here.
