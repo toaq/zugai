@@ -57,7 +57,8 @@ applyTemplate :: FilePath -> BS.ByteString -> IO BS.ByteString
 applyTemplate path string = do
   contents <- BS.readFile path
   let (pre, post) = BS.breakSubstring "%OUTPUT%" contents
-  pure $ pre <> string <> post
+  let post' = BS.drop 8 post -- length "%OUTPUT%"
+  pure $ pre <> string <> post'
 
 enableLatexLightTheme :: BS.ByteString -> BS.ByteString
 enableLatexLightTheme = BSC.unlines . map (\x -> if "\\iffalse" `BS.isPrefixOf` x then "\\iftrue" else x) . BSC.lines
