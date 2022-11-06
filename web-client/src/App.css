@@ -62,3 +62,10 @@ h1 {
 .output img {
   max-height: calc(100vh - 260px);
 }
+
+.output iframe {
+  width: 90vw;
+  height: 50vh;
+  border: none;
+  overflow: scroll;
+}

@@ -22,9 +22,9 @@ function App() {
         const body = await result.text();
         if(contentType.startsWith("text/html")) {
           setLatestOutput(<iframe
-            style={{ width: "90vw", height: "50vh", border: 'none' }}
+            className="boxes-output"
             srcDoc={body}
-            title={"html output"}
+            title="html output"
           />);
         } else {
           setLatestOutput(<>{body}</>);
