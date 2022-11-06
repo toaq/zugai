@@ -24,14 +24,14 @@ html {
     align-items: flex-start;
 }
 .box.leaf { border-style: none; }
-.box { position: relative; }
+.box { position: relative; min-width: 24px; }
 .box:before { width: 0px; height: 0px; position: absolute; top: 5px; left: 5px; opacity: 0.5; font-size: 12px; }
 .sentence          { border-color: #72c91b; background-color: #dafa94; color: black; } .sentence:before { content: "sentence"; }
 .clause            { border-color: #b85450; background-color: #f8cecc; color: black; } .clause:before { content: "clause"; }
 .complementizer    { border-color: #b20000; background-color: #e51400; color: white; } .complementizer:before { content: "C"; }
 .topic             { border-color: #a50040; background-color: #d80073; color: white; } .topic:before { content: "topic"; }
 .verbal-complex    { border-color: #2d7600; background-color: #72c91b; color: black; } .verbal-complex:before { content: "verb"; }
-.post-field        { border-color: #d79b00; background-color: #ffc41f; color: black; } .post-field:before { content: ""; }
+.post-field        { border: none; border-left: 1px dashed #00000040; margin: 0; background-color: #ffc41f; }
 .adverbial         { border-color: #432d57; background-color: #76608a; color: white; } .adverbial:before { content: "adv"; }
 .argument          { border-color: #c73500; background-color: #fa6800; color: black; } .argument:before { content: "noun"; }
 .sentence-boundary { border-color: #666666; background-color: #eeeeee; color: black; } .sentence-boundary:before { content: "start"; }
