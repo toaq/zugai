@@ -57,7 +57,7 @@ instance ToBoxes Prenex where
 instance ToBoxes Statement where
   toBoxes bt (Statement mc mp preds) =
     div "clause" $ catMaybes
-      [ leaf <$> mc,
+      [ div1 "complementizer" . leaf <$> mc,
         toBoxes bt <$> mp,
         Just $ toBoxes bt preds
       ]
@@ -100,7 +100,7 @@ instance ToBoxes NpR where
   toBoxes bt (Ncc cc) = toBoxes bt cc
 
 instance ToBoxes Cc where
-  toBoxes bt (Cc stmt cy) = div "complementizer" $ catMaybes
+  toBoxes bt (Cc stmt cy) = T.concat $ catMaybes
     [ Just $ toBoxes bt stmt,
       leaf <$> cy
     ]
