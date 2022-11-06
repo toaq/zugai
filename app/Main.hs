@@ -55,7 +55,8 @@ processInput om dict unstrippedInput = do
   let output = case om of
         ToParseTree -> enc $ T.pack $ show parsed
         ToSrc -> enc $ prettifyToaq $ toSrc parsed
-        ToBoxes -> enc $ toBoxes parsed
+        ToBoxesSimple -> enc $ toBoxes BoxesSimple parsed
+        ToBoxesDetailed -> enc $ toBoxes BoxesDetailed parsed
         ToStructure -> enc $ prettifyToaq $ toSrcPunctuated parsed
         ToXbarLatex -> enc $ xbarToLatex (Just (glossWith dict)) (runXbarWithMovements dict parsed)
         ToXbarJson -> BSL.fromStrict $ J.encodeStrict $ xbarToJson (Just (glossWith dict)) (runXbar dict parsed)

@@ -12,8 +12,10 @@ import Prelude hiding (div)
 (<~>) :: Text -> Text -> Text
 (<~>) = combineWords
 
+data BoxesType = BoxesSimple | BoxesDetailed
+
 class ToBoxes a where
-  toBoxes :: a -> Text
+  toBoxes :: BoxesType -> a -> Text
 
 div :: Text -> [Text] -> Text
 div className [] = ""
@@ -25,57 +27,86 @@ div1 className child = div className [child]
 leaf :: ToSrc a => a -> Text
 leaf = div1 "leaf" . prettifyToaq . toSrc
 
+handleArg :: (ToSrc a, ToBoxes a) => BoxesType -> a -> Text
+handleArg    BoxesSimple   = leaf
+handleArg bt@BoxesDetailed = toBoxes bt
+
 instance ToBoxes Discourse where
-  toBoxes (Discourse xs) = div "discourse" (toBoxes <$> xs)
+  toBoxes bt (Discourse xs) = div "discourse" (toBoxes bt <$> xs)
 
 instance ToBoxes DiscourseItem where
-  toBoxes (DiSentence x) = toBoxes x
-  toBoxes (DiFragment x) = toBoxes x
-  toBoxes (DiFree x) = leaf x
+  toBoxes bt (DiSentence x) = toBoxes bt x
+  toBoxes bt (DiFragment x) = toBoxes bt x
+  toBoxes _  (DiFree x) = leaf x
 
 instance ToBoxes Sentence where
-  toBoxes (Sentence sc stmt ill) =
-    div "sentence" $ catMaybes [div1 "sentence-boundary" . leaf <$> sc, Just (toBoxes stmt), div1 "illocution" . leaf <$> ill]
+  toBoxes bt (Sentence sc stmt ill) = div "sentence" $ catMaybes
+    [ div1 "sentence-boundary" . leaf <$> sc,
+      Just (toBoxes bt stmt),
+      div1 "illocution" . leaf <$> ill
+    ]
 
 instance ToBoxes Fragment where
-  toBoxes (FrPrenex x) = toBoxes x
-  toBoxes (FrTopic x) = toBoxes x
+  toBoxes bt (FrPrenex x) = toBoxes bt x
+  toBoxes bt (FrTopic x) = toBoxes bt x
 
 instance ToBoxes Prenex where
-  toBoxes (Prenex ts bi) =
-    div "topic" $ (toBoxes <$> toList ts) <> [leaf bi]
+  toBoxes bt (Prenex ts bi) =
+    div "topic" $ (toBoxes bt <$> toList ts) <> [leaf bi]
 
 instance ToBoxes Statement where
-  toBoxes (Statement mc mp preds) =
-    div "clause" $ catMaybes [leaf <$> mc, toBoxes <$> mp, Just $ toBoxes preds]
+  toBoxes bt (Statement mc mp preds) =
+    div "clause" $ catMaybes
+      [ leaf <$> mc,
+        toBoxes bt <$> mp,
+        Just $ toBoxes bt preds
+      ]
 
 instance ToBoxes PredicationC where
-  toBoxes (Predication predicate aa nn bb) =
-    div1 "verbal-complex" (toBoxes predicate) <> div "post-field" ((toBoxes <$> aa) ++ (toBoxes <$> nn) ++ (toBoxes <$> bb))
+  toBoxes bt (Predication predicate aa nn bb) =
+    let postField =
+          (toBoxes bt <$> aa) ++ (toBoxes bt <$> nn) ++ (toBoxes bt <$> bb)
+    in div1 "verbal-complex" (toBoxes bt predicate)
+       <> div "post-field" postField
 
 instance ToBoxes Predicate where
-  toBoxes (Predicate vp) = leaf vp
+  toBoxes _ (Predicate vp) = leaf vp
 
 instance ToBoxes Adverbial where
-  toBoxes (Tadvp t) = div1 "adverbial" $ leaf t
-  toBoxes (Tpp t) = div1 "adverbial" $ leaf t
+  toBoxes _ (Tadvp t) = div1 "adverbial" $ leaf t
+  toBoxes _ (Tpp t) = div1 "adverbial" $ leaf t
 
 instance ToBoxes Topic where
-  toBoxes (Topica t) = toBoxes t
-  toBoxes (Topicn t) = toBoxes t
+  toBoxes bt (Topica t) = toBoxes bt t
+  toBoxes bt (Topicn t) = toBoxes bt t
 
 instance (ToBoxes t) => ToBoxes (Connable' na t) where
-  toBoxes (Conn x na ru y) = div "coordinaton" [toBoxes x, leaf ru, toBoxes y]
-  toBoxes (ConnTo to ru x to' y) = div "coordinaton" [leaf to, leaf ru, toBoxes x, leaf to', toBoxes y]
-  toBoxes (Single x) = toBoxes x
+  toBoxes bt (Conn x na ru y) = div "coordinaton" [toBoxes bt x, leaf ru, toBoxes bt y]
+  toBoxes bt (ConnTo to ru x to' y) = div "coordinaton" [leaf to, leaf ru, toBoxes bt x, leaf to', toBoxes bt y]
+  toBoxes bt (Single x) = toBoxes bt x
 
 instance ToBoxes NpC where
-  toBoxes (Focused foc np) = leaf foc <> toBoxes np
-  toBoxes (Unf np) = toBoxes np
+  toBoxes bt (Focused foc np) = leaf foc <> toBoxes bt np
+  toBoxes bt (Unf np) = toBoxes bt np
 
 instance ToBoxes NpF where
-  toBoxes (ArgRel arg rel) = div "argument" [leaf arg, toBoxes rel]
-  toBoxes (Unr np) = div "argument" [leaf np]
+  toBoxes BoxesSimple node@(ArgRel _ _) = div1 "argument" $ leaf node
+  toBoxes bt@BoxesDetailed (ArgRel arg rel) = div "argument" [handleArg bt arg, toBoxes bt rel]
+  toBoxes bt (Unr np) = div "argument" [handleArg bt np]
+
+instance ToBoxes NpR where
+  toBoxes bt (Npro p) = leaf p
+  toBoxes bt (Ndp dp) = leaf dp
+  toBoxes bt (Ncc cc) = toBoxes bt cc
+
+-- data NpR = Npro (W Text) | Ndp Dp | Ncc Cc deriving (Eq, Show)
+
+instance ToBoxes Cc where
+  -- you can tell my L keycap's fallen off lol
+  toBoxes bt (Cc stmt cy) = div "complementizer" $ catMaybes
+    [ Just $ toBoxes bt stmt,
+      leaf <$> cy
+    ]
 
 instance ToBoxes RelC where
-  toBoxes (Rel pred tmr) = toBoxes pred <> leaf tmr
+  toBoxes bt (Rel pred tmr) = toBoxes bt pred <> leaf tmr

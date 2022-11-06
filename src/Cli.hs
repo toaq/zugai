@@ -13,7 +13,8 @@ data OutputMode
   = ToParseTree
   | ToSrc
   | ToStructure
-  | ToBoxes
+  | ToBoxesSimple
+  | ToBoxesDetailed
   | ToXbarLatex
   | ToXbarJson
   | ToXbarSvg
@@ -26,7 +27,8 @@ parseOutputMode =
   flag' ToParseTree (long "to-parse-tree" <> help "Output mode: dump zugai's internal parse tree")
     <|> flag' ToSrc (long "to-src" <> help "Output mode: debug zugai's toSrc")
     <|> flag' ToStructure (long "to-structure" <> help "Output mode: indicate a sentence's structure with punctuation")
-    <|> flag' ToBoxes (long "to-boxes" <> help "Output mode: refgram-style HTML boxes")
+    <|> flag' ToBoxesSimple (long "to-boxes" <> help "Output mode: refgram-style HTML boxes (simple)")
+    <|> flag' ToBoxesDetailed (long "to-boxes-detailed" <> help "Output mode: refgram-style HTML boxes (detailed)")
     <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
     <|> flag' ToXbarJson (long "to-xbar-json" <> help "Output mode: JSON X-bar tree")
     <|> flag' ToXbarSvg (long "to-xbar-svg" <> help "Output mode: SVG X-bar tree")
@@ -67,5 +69,6 @@ applyTemplateFor :: OutputMode -> Theme -> BS.ByteString -> IO BS.ByteString
 applyTemplateFor ToXbarLatex theme text =
   (if theme == Light then enableLatexLightTheme else id) <$>
     applyTemplate "data/templates/xbar.tex" text
-applyTemplateFor ToBoxes _ text = applyTemplate "data/templates/boxes.html" text
+applyTemplateFor ToBoxesSimple _ text = applyTemplate "data/templates/boxes.html" text
+applyTemplateFor ToBoxesDetailed _ text = applyTemplate "data/templates/boxes.html" text
 applyTemplateFor _ _ text = pure text
