@@ -43,7 +43,8 @@ function App() {
               value={outputMode}
               onChange={(e) => setOutputMode(e.target.value)}
             >
-              <option value="boxes">Boxes</option>
+              <option value="boxes-flat">Boxes (flat)</option>
+              <option value="boxes-nested">Boxes (nested)</option>
               <option value="english">English</option>
               <option value="logic">Logic</option>
               <option value="structure">Structure</option>

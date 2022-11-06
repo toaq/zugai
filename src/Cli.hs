@@ -13,8 +13,8 @@ data OutputMode
   = ToParseTree
   | ToSrc
   | ToStructure
-  | ToBoxesSimple
-  | ToBoxesDetailed
+  | ToBoxesFlat
+  | ToBoxesNested
   | ToXbarLatex
   | ToXbarJson
   | ToXbarSvg
@@ -27,8 +27,8 @@ parseOutputMode =
   flag' ToParseTree (long "to-parse-tree" <> help "Output mode: dump zugai's internal parse tree")
     <|> flag' ToSrc (long "to-src" <> help "Output mode: debug zugai's toSrc")
     <|> flag' ToStructure (long "to-structure" <> help "Output mode: indicate a sentence's structure with punctuation")
-    <|> flag' ToBoxesSimple (long "to-boxes" <> help "Output mode: refgram-style HTML boxes (simple)")
-    <|> flag' ToBoxesDetailed (long "to-boxes-detailed" <> help "Output mode: refgram-style HTML boxes (detailed)")
+    <|> flag' ToBoxesFlat (long "to-boxes-flat" <> help "Output mode: refgram-style HTML boxes (flat)")
+    <|> flag' ToBoxesNested (long "to-boxes-nested" <> help "Output mode: refgram-style HTML boxes (nested)")
     <|> flag' ToXbarLatex (long "to-xbar-latex" <> help "Output mode: a LaTeX document of X-bar trees")
     <|> flag' ToXbarJson (long "to-xbar-json" <> help "Output mode: JSON X-bar tree")
     <|> flag' ToXbarSvg (long "to-xbar-svg" <> help "Output mode: SVG X-bar tree")

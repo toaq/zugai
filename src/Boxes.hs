@@ -12,7 +12,7 @@ import Prelude hiding (div)
 (<~>) :: Text -> Text -> Text
 (<~>) = combineWords
 
-data BoxesType = BoxesSimple | BoxesDetailed
+data BoxesType = BoxesFlat | BoxesNested
 
 class ToBoxes a where
   toBoxes :: BoxesType -> a -> Text
@@ -28,8 +28,8 @@ leaf :: ToSrc a => a -> Text
 leaf = div1 "leaf" . prettifyToaq . toSrc
 
 handleArg :: (ToSrc a, ToBoxes a) => BoxesType -> a -> Text
-handleArg    BoxesSimple   = leaf
-handleArg bt@BoxesDetailed = toBoxes bt
+handleArg    BoxesFlat   = leaf
+handleArg bt@BoxesNested = toBoxes bt
 
 instance ToBoxes Discourse where
   toBoxes bt (Discourse xs) = div "discourse" (toBoxes bt <$> xs)
@@ -90,8 +90,8 @@ instance ToBoxes NpC where
   toBoxes bt (Unf np) = toBoxes bt np
 
 instance ToBoxes NpF where
-  toBoxes BoxesSimple node@(ArgRel _ _) = div1 "argument" $ leaf node
-  toBoxes bt@BoxesDetailed (ArgRel arg rel) = div "argument" [handleArg bt arg, toBoxes bt rel]
+  toBoxes BoxesFlat node@(ArgRel _ _) = div1 "argument" $ leaf node
+  toBoxes bt@BoxesNested (ArgRel arg rel) = div "argument" [toBoxes bt arg, toBoxes bt rel]
   toBoxes bt (Unr np) = div "argument" [handleArg bt np]
 
 instance ToBoxes NpR where
@@ -99,10 +99,7 @@ instance ToBoxes NpR where
   toBoxes bt (Ndp dp) = leaf dp
   toBoxes bt (Ncc cc) = toBoxes bt cc
 
--- data NpR = Npro (W Text) | Ndp Dp | Ncc Cc deriving (Eq, Show)
-
 instance ToBoxes Cc where
-  -- you can tell my L keycap's fallen off lol
   toBoxes bt (Cc stmt cy) = div "complementizer" $ catMaybes
     [ Just $ toBoxes bt stmt,
       leaf <$> cy

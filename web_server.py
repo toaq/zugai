@@ -3,15 +3,16 @@ from zugai import RunException, run, latex_png
 
 app = Flask(__name__, static_folder='web-client/build/static')
 formats = {
-   'boxes':      'text/html',
-   'english':    'text/plain',
-   'logic':      'text/plain',
-   'structure':  'text/plain',
-   'xbar-latex': 'application/x-tex',
-   'xbar-html':  'text/html',
-   'xbar-json':  'application/json',
-   'xbar-svg':   'image/svg+xml',
-   'xbar-png':   'image/png',
+   'boxes-flat':   'text/html',
+   'boxes-nested': 'text/html',
+   'english':      'text/plain',
+   'logic':        'text/plain',
+   'structure':    'text/plain',
+   'xbar-latex':   'application/x-tex',
+   'xbar-html':    'text/html',
+   'xbar-json':    'application/json',
+   'xbar-svg':     'image/svg+xml',
+   'xbar-png':     'image/png',
 }
 usage = 'Usage:\n' + ''.join(f'GET /zugai?text=jadi&to={f}\n' for f in sorted(formats))
 
