@@ -91,6 +91,9 @@ lookupMaxArity d word = do
         "" -> Nothing
         frame -> Just (length (T.words frame))
 
+stripCoindexation :: Text -> Text
+stripCoindexation = T.filter (not . (`T.elem` "ijx"))
+
 dictNormalize :: Text -> Text
 dictNormalize t =
   case bareToaq t of

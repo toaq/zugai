@@ -325,7 +325,7 @@ interpretVp (ConnTo to ru x to' y) = do
 
 serialize :: VerbFun -> VerbFun -> VerbFun
 serialize v1@(TmFun l1 h1 frame1 f1) v2@(TmFun l2 h2 frame2 f2) =
-  case frame1 of
+  case stripCoindexation frame1 of
     -- TODO: generalize
     "a" ->
       TmFun (max 1 l2) h2 frame2 $ \ts -> do
