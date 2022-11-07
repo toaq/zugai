@@ -50,7 +50,7 @@ showLabelLatex (Label cat fs) = showCat cat <> T.concat (showFeature <$> fs)
     showCat (Xplus c) = showCat c <> "+"
     showHead Hv = "$v$"
     showHead h = T.tail . T.pack . show $ h
-    showFeature PlusLambda = " [+\\lambda]"
+    showFeature PlusLambda = " [+$\\lambda$]"
 
 -- Convert an Xbar tree to LaTeX \usepackage{forest} format.
 xbarToLatex :: Maybe (Text -> Text) -> (Xbar d, Movements) -> Text
