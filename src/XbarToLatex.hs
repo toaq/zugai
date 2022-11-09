@@ -48,6 +48,7 @@ showLabelLatex (Label cat fs) = showCat cat <> T.concat (showFeature <$> fs)
     showCat (X' c) = showCat c <> "'"
     showCat (XP c) = showCat c <> "P"
     showCat (Xplus c) = showCat c <> "+"
+    showHead HNeg = "Σ"
     showHead Hv = "$v$"
     showHead h = T.tail . T.pack . show $ h
     showFeature PlusLambda = " [+$\\lambda$]"
