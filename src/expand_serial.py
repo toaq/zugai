@@ -10,7 +10,7 @@ nfkc = lambda w: unicodedata.normalize("NFKC", w)
 nfkd = lambda w: unicodedata.normalize("NFKD", w)
 alphas = lambda w: "".join(filter(str.isalpha, w))
 norm = lambda w: alphas(nfkd(w)).lower().replace("i", "ı")
-tone = lambda w, t: re.sub("[aeiıou]", lambda c: nfkc(c.group(0) + t), w, 1)
+tone = lambda w, t: re.sub("[auıoe]", lambda c: nfkc(c.group(0).replace("ı", "i") + t), w, 1)
 t5 = lambda w: tone(w, "\u0302")
 sup = lambda w: w.lower().translate(sups)
 
