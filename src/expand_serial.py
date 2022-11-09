@@ -24,6 +24,8 @@ def expand(serial, dictionary):
     def lookup_frame(w):
         if not (entry := dictionary.get(w)):
             raise ExpandSerialException(f"I don't know the word **{w}**.")
+        if e.get("type") != "predicate":
+            raise ExpandSerialException(f"The word **{w}** is not a verb.")
         if "verb_class" in entry:
             return ["0"]
         elif frame := entry.get("frame"):
