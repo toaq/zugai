@@ -109,9 +109,11 @@ fromToadua line = (dictNormalize head, entry)
 readDictionary :: IO Dictionary
 readDictionary = do
   dict <- B.readFile "data/dictionary/dictionary.json"
+  suppl <- B.readFile "data/supplement.json"
   extra <- T.readFile "data/toadua-glosses.txt"
   let unofficial = map fromToadua (T.lines extra)
-  let Just entries = decodeStrict dict :: Maybe [Entry]
+  entries <- maybe (error "Could not parse JSON dictionary files") pure $
+    liftM2 (++) (decodeStrict dict) (decodeStrict suppl)
   let official = [(dictNormalize $ entryToaq e, e) | e <- entries]
   pure $ M.fromList $ unofficial ++ official
 

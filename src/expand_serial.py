@@ -1,3 +1,4 @@
+import argparse
 import json
 import re
 import sys
@@ -20,22 +21,16 @@ class ExpandSerialException(Exception):
 
 
 def expand(serial, dictionary):
-    frames = []
-    for w in serial:
-        if w == "ıq":
-            frames.append(["c", "1i"])
-        elif w == "cuoı":
-            frames.append(["c", "c", "2ij"])
+    def lookup_frame(w):
+        if not (entry := dictionary.get(w)):
+            raise ExpandSerialException(f"I don't know the word **{w}**.")
+        if "verb_class" in entry:
+            return ["0"]
+        elif frame := entry.get("frame"):
+            return frame.split()
         else:
-            if w not in dictionary:
-                raise ExpandSerialException(f"I don't know the word **{w}**.")
-            entry = dictionary[w]
-            if "verb_class" in entry:
-                frames.append(["0"])
-            elif "frame" in entry and entry["frame"]:
-                frames.append([w for w in entry["frame"].split()])
-            else:
-                raise ExpandSerialException(f"I don't know the frame of **{w}**.")
+            raise ExpandSerialException(f"I don't know the frame of **{w}**.")
+    frames = [lookup_frame(w) for w in serial]
 
     total_frame = [w[0] for w in frames[-1]]
     for i, left in list(enumerate(frames))[-2::-1]:
@@ -105,9 +100,12 @@ def expand_and_format(serial_string, dictionary):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        sys.exit(f"Usage: python expand_serial.py dictionary.json leo sho joe")
-    with open(sys.argv[1]) as f:
-        dictionary = json.load(f)
-    dictionary = {e["toaq"]: e for e in dictionary}
-    print(expand_and_format(" ".join(sys.argv[2:]), dictionary))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--dictionary", metavar="FILE", action="append", required=True, dest="dictionary_files")
+    parser.add_argument("serial", nargs="+")
+    args = parser.parse_args()
+    dictionary = dict()
+    for dictionary_file in args.dictionary_files:
+        with open(dictionary_file) as f:
+            dictionary |= {e["toaq"]: e for e in json.load(f)}
+    print(expand_and_format(" ".join(args.serial), dictionary))

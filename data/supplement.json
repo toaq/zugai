@@ -1,0 +1,18 @@
+[
+  {
+    "toaq": "ıq",
+    "english": "▯ satisfies property ▯.",
+    "gloss": "satisfy.property",
+    "type": "predicate",
+    "frame": "c 1i",
+    "pronominal_class": "ta"
+  },
+  {
+    "toaq": "cuoı",
+    "english": "▯ satisfies with ▯ relation ▯.",
+    "gloss": "satisfy.relation",
+    "type": "predicate",
+    "frame": "c c 2ij",
+    "pronominal_class": "ta"
+  }
+]
