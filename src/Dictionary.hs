@@ -77,11 +77,7 @@ lookupVerbClass d word = d M.!? bareToaq word >>= entryVerbInfo >>= verbClass
 
 -- lookupPronoun d "poq" == Just "ho"
 lookupPronoun :: Dictionary -> Text -> Maybe Text
-lookupPronoun d t =
-  case bareToaq <$> T.words t of
-    "lu" : _ -> Just "kuy"
-    x : _ -> verbPronominalClass <$> (entryVerbInfo =<< d M.!? x)
-    [] -> Nothing
+lookupPronoun d = (verbPronominalClass <$>) . entryVerbInfo <=< (M.!?) d . bareToaq <=< listToMaybe . T.words
 
 lookupMaxArity :: Dictionary -> Text -> Maybe Int
 lookupMaxArity d word = do
@@ -109,18 +105,19 @@ fromToadua line = (dictNormalize head, entry)
 readDictionary :: IO Dictionary
 readDictionary = do
   dict <- B.readFile "data/dictionary/dictionary.json"
-  suppl <- B.readFile "data/supplement.json"
+  supp <- B.readFile "data/supplement.json"
   extra <- T.readFile "data/toadua-glosses.txt"
-  let unofficial = map fromToadua (T.lines extra)
-  entries <- maybe (error "Could not parse JSON dictionary files") pure $
-    liftM2 (++) (decodeStrict dict) (decodeStrict suppl)
-  let official = [(dictNormalize $ entryToaq e, e) | e <- entries]
-  pure $ M.fromList $ unofficial ++ official
+  let Just dictEntries = toMapEntries <$> decodeStrict dict
+  let Just suppEntries = toMapEntries <$> decodeStrict supp
+  let extraEntries = fromToadua <$> T.lines extra
+  pure . M.fromList $ extraEntries ++ dictEntries ++ suppEntries
+  where
+    toMapEntries = fmap $ (,) =<< dictNormalize . entryToaq
 
 glossWith :: Dictionary -> Text -> Text
 glossWith dictionary =
   let trie = Trie.fromList [(T.encodeUtf8 k, entryGloss v) | (k, v) <- M.toList dictionary]
-      forEachWord f = T.unwords . (map f) . T.words
+      forEachWord f = T.unwords . map f . T.words
       go :: B.ByteString -> [[Text]]
       go "" = [[]]
       go bs =

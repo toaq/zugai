@@ -5,6 +5,7 @@
     "gloss": "satisfy.property",
     "type": "predicate",
     "frame": "c 1i",
+    "distribution": "n d",
     "pronominal_class": "ta"
   },
   {
@@ -13,6 +14,16 @@
     "gloss": "satisfy.relation",
     "type": "predicate",
     "frame": "c c 2ij",
+    "distribution": "n n d",
     "pronominal_class": "ta"
+  },
+  {
+    "toaq": "lu",
+    "type": "free relative",
+    "english": "turn clause into predicate",
+    "gloss": "that.which",
+    "frame": "c",
+    "distribution": "n",
+    "pronominal_class": "kuy"
   }
 ]
