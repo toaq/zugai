@@ -17,6 +17,7 @@ import Data.Trie qualified as Trie
 import Debug.Trace
 import Lex (isIllocution)
 import TextUtils
+import Data.Functor ((<&>))
 
 data VerbClass = Tense | Aspect | Modality | Negation deriving (Eq, Ord, Show)
 
@@ -77,7 +78,11 @@ lookupVerbClass d word = d M.!? bareToaq word >>= entryVerbInfo >>= verbClass
 
 -- lookupPronoun d "poq" == Just "ho"
 lookupPronoun :: Dictionary -> Text -> Maybe Text
-lookupPronoun d = (verbPronominalClass <$>) . entryVerbInfo <=< (M.!?) d . bareToaq <=< listToMaybe . T.words
+lookupPronoun dict t = case T.words t of
+    []  -> Nothing
+    w:_ -> (dict M.!? bareToaq w)
+        >>= entryVerbInfo
+        <&> verbPronominalClass
 
 lookupMaxArity :: Dictionary -> Text -> Maybe Int
 lookupMaxArity d word = do
@@ -112,7 +117,7 @@ readDictionary = do
   let extraEntries = fromToadua <$> T.lines extra
   pure . M.fromList $ extraEntries ++ dictEntries ++ suppEntries
   where
-    toMapEntries = fmap $ (,) =<< dictNormalize . entryToaq
+    toMapEntries = fmap $ \e -> (dictNormalize (entryToaq e), e)
 
 glossWith :: Dictionary -> Text -> Text
 glossWith dictionary =
