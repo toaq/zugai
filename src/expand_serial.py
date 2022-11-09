@@ -76,12 +76,12 @@ def expand(serial, dictionary):
             if "a" in frame:
                 step.append(f" (+ {word} {vars[0]} pẽ {rest})")
             steps.append(step)
-        if word in ["taq", "mu", "cuoı", "ıq", "jeo"]:
-            pre = old_pre
-            jas = [vars_now[ord(i) - ord("i")] for i in frame[-1][1:]]
-            vars[: len(jas)] = jas
-            step = [*pre, t5(rest), *vars]
-            steps.append(step)
+            if word in ["taq", "mu", "cuoı", "ıq", "jeo"]:
+                pre = old_pre
+                jas = [vars_now[ord(i) - ord("i")] for i in frame[-1][1:]]
+                vars[: len(jas)] = jas
+                step = [*pre, t5(rest), *vars]
+                steps.append(step)
 
     return (total_frame, steps)
 
