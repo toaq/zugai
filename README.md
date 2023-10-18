@@ -1,8 +1,10 @@
 # zugaı
 
-A tool for parsing and interpreting Toaq text.
+# This parser is outdated. [Kuna](https://github.com/toaq/kuna) is the new Toaq parser.
 
-It can currently be invoked from [Discord](https://toaq.me/Discord) using `%tree Hıo ka` or `%logic Hıo ka` or (silly) `%english Hıo ka`.
+A tool for parsing and interpreting Toaq Gamma text.
+
+~~It can currently be invoked from [Discord](https://toaq.me/Discord) using `%tree Hıo ka` or `%logic Hıo ka` or (silly) `%english Hıo ka`.~~
 
 ## For programmers
 
